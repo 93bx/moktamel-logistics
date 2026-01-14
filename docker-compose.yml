@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16
+    container_name: moktamel_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: moktamel
+    ports:
+      - "5432:5432"
+    volumes:
+      - moktamel_pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: moktamel_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - moktamel_redisdata:/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: moktamel_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - moktamel_miniodata:/data
+
+volumes:
+  moktamel_pgdata:
+  moktamel_redisdata:
+  moktamel_miniodata:
+
+

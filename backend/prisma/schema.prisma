@@ -1,0 +1,807 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String
+  slug                String               @unique
+  timezone            String               @default("Asia/Riyadh")
+  default_locale      String               @default("en")
+  created_at          DateTime             @default(now())
+  updated_at          DateTime             @updatedAt
+  created_by_user_id  String?              @db.Uuid
+  analytics_events    AnalyticsEvent[]
+  api_request_logs    ApiRequestLog[]
+  audit_logs          AuditLog[]
+  memberships         CompanyMembership[]
+  daily_operations    DailyOperation[]
+  notifications       Notification[]
+  notification_rules  NotificationRule[]
+  roles               Role[]
+  vehicles            Vehicle[]
+  vehicle_documents   VehicleDocument[]
+  vehicle_maintenance VehicleMaintenance[]
+  vehicle_assignments VehicleAssignment[]
+  cash_transactions   CashTransaction[]
+  handover_batches    HandoverBatch[]
+  handover_expenses   HandoverExpense[]
+  wallet_balances     WalletBalance[]
+
+  @@index([slug])
+}
+
+model User {
+  id             String              @id @default(uuid()) @db.Uuid
+  email          String              @unique
+  name           String?
+  phone          String?
+  sso_subject    String?             @unique
+  password_hash  String?
+  is_break_glass Boolean             @default(false)
+  status         UserStatus          @default(ACTIVE)
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+  sessions       AuthSession[]
+  membership     CompanyMembership?  // One-to-one: each user belongs to exactly one company
+  user_roles     UserRole[]
+  supervised_cash_transactions CashTransaction[] @relation("CashTransaction_supervisor_user_id")
+  handover_batches             HandoverBatch[]   @relation("HandoverBatch_supervisor_user_id")
+  wallet_balances              WalletBalance[]
+}
+
+model CompanyMembership {
+  id                 String           @id @default(uuid()) @db.Uuid
+  company_id         String           @db.Uuid
+  user_id            String           @db.Uuid
+  status             MembershipStatus @default(ACTIVE)
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  created_by_user_id String?          @db.Uuid
+  company            Company          @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([company_id, user_id])
+  @@unique([user_id])  // Enforces one company per user
+  @@index([company_id])
+  @@index([user_id])
+}
+
+model Role {
+  id                 String           @id @default(uuid()) @db.Uuid
+  company_id         String           @db.Uuid
+  name_code          String
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  created_by_user_id String?          @db.Uuid
+  company            Company          @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  role_permissions   RolePermission[]
+  user_roles         UserRole[]
+
+  @@unique([company_id, name_code])
+  @@index([company_id])
+}
+
+model Permission {
+  id               String           @id @default(uuid()) @db.Uuid
+  key              String           @unique
+  module           String
+  action           String
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  role_permissions RolePermission[]
+
+  @@index([module])
+}
+
+model RolePermission {
+  role_id       String     @db.Uuid
+  permission_id String     @db.Uuid
+  permission    Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  role          Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([role_id, permission_id])
+}
+
+model UserRole {
+  company_id String @db.Uuid
+  user_id    String @db.Uuid
+  role_id    String @db.Uuid
+  role       Role   @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  user       User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([company_id, user_id, role_id])
+  @@index([company_id])
+  @@index([user_id])
+}
+
+model AuthSession {
+  id                 String    @id @default(uuid()) @db.Uuid
+  user_id            String    @db.Uuid
+  refresh_token_hash String
+  expires_at         DateTime
+  revoked_at         DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  user               User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  company_id    String   @db.Uuid
+  actor_user_id String?  @db.Uuid
+  actor_role    String?
+  action        String
+  entity_type   String
+  entity_id     String?
+  old_values    Json?
+  new_values    Json?
+  ip            String?
+  user_agent    String?
+  created_at    DateTime @default(now())
+  company       Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, created_at])
+  @@index([entity_type, entity_id])
+}
+
+model AnalyticsEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  company_id    String   @db.Uuid
+  actor_user_id String?  @db.Uuid
+  event_code    String
+  entity_type   String?
+  entity_id     String?
+  payload       Json?
+  occurred_at   DateTime @default(now())
+  company       Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, occurred_at])
+  @@index([event_code, occurred_at])
+}
+
+model Notification {
+  id                 String               @id @default(uuid()) @db.Uuid
+  company_id         String               @db.Uuid
+  user_id            String?              @db.Uuid
+  type_code          String
+  payload            Json?
+  severity           NotificationSeverity @default(INFO)
+  read_at            DateTime?
+  created_at         DateTime             @default(now())
+  updated_at         DateTime             @updatedAt
+  created_by_user_id String?              @db.Uuid
+  company            Company              @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, created_at])
+  @@index([user_id, read_at])
+}
+
+model NotificationRule {
+  id                 String   @id @default(uuid()) @db.Uuid
+  company_id         String   @db.Uuid
+  rule_code          String
+  enabled            Boolean  @default(true)
+  config             Json?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  created_by_user_id String?  @db.Uuid
+  company            Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@unique([company_id, rule_code])
+  @@index([company_id])
+}
+
+model ApiRequestLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  request_id  String
+  route       String
+  status_code Int
+  duration_ms Int
+  company_id  String?  @db.Uuid
+  user_id     String?  @db.Uuid
+  created_at  DateTime @default(now())
+  company     Company? @relation(fields: [company_id], references: [id])
+
+  @@index([request_id])
+  @@index([created_at])
+  @@index([company_id, created_at])
+}
+
+model FileObject {
+  id                 String     @id @default(uuid()) @db.Uuid
+  company_id         String     @db.Uuid
+  bucket             String
+  object_key         String
+  original_name      String
+  mime_type          String
+  size_bytes         Int
+  checksum           String?
+  storage_provider   String     @default("S3_COMPAT")
+  deleted_at         DateTime?
+  created_at         DateTime   @default(now())
+  updated_at         DateTime   @updatedAt
+  created_by_user_id String?    @db.Uuid
+  links              FileLink[]
+  cash_transactions_attachment CashTransaction[] @relation("CashTransaction_attachment_file_id")
+  handover_expense_receipts     HandoverExpense[] @relation("HandoverExpense_receipt_file_id")
+
+  @@index([company_id, created_at])
+  @@index([company_id, deleted_at])
+}
+
+model FileLink {
+  id                 String     @id @default(uuid()) @db.Uuid
+  company_id         String     @db.Uuid
+  file_id            String     @db.Uuid
+  entity_type        String
+  entity_id          String
+  purpose_code       String
+  created_at         DateTime   @default(now())
+  updated_at         DateTime   @updatedAt
+  created_by_user_id String?    @db.Uuid
+  file               FileObject @relation(fields: [file_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, entity_type, entity_id])
+  @@index([company_id, file_id])
+}
+
+model ImportJob {
+  id                 String    @id @default(uuid()) @db.Uuid
+  company_id         String    @db.Uuid
+  entity_type        String
+  status             JobStatus @default(PENDING)
+  file_id            String?   @db.Uuid
+  summary            Json?
+  error              String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  created_by_user_id String?   @db.Uuid
+
+  @@index([company_id, created_at])
+  @@index([company_id, status])
+}
+
+model ExportJob {
+  id                 String    @id @default(uuid()) @db.Uuid
+  company_id         String    @db.Uuid
+  entity_type        String
+  status             JobStatus @default(PENDING)
+  file_id            String?   @db.Uuid
+  summary            Json?
+  error              String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  created_by_user_id String?   @db.Uuid
+
+  @@index([company_id, created_at])
+  @@index([company_id, status])
+}
+
+model MetricDaily {
+  id          String   @id @default(uuid()) @db.Uuid
+  company_id  String   @db.Uuid
+  metric_code String
+  date        DateTime
+  value       Decimal  @db.Decimal(20, 4)
+  dimensions  Json?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@unique([company_id, metric_code, date])
+  @@index([company_id, date])
+  @@index([company_id, metric_code, date])
+}
+
+model SubscriptionPlan {
+  id            String                @id @default(uuid()) @db.Uuid
+  code          String                @unique
+  name_code     String
+  limits        Json
+  features      Json
+  created_at    DateTime              @default(now())
+  updated_at    DateTime              @updatedAt
+  subscriptions CompanySubscription[]
+}
+
+model CompanySubscription {
+  id                 String           @id @default(uuid()) @db.Uuid
+  company_id         String           @unique @db.Uuid
+  plan_id            String           @db.Uuid
+  status             String           @default("ACTIVE")
+  period_start_at    DateTime?
+  period_end_at      DateTime?
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  created_by_user_id String?          @db.Uuid
+  plan               SubscriptionPlan @relation(fields: [plan_id], references: [id])
+
+  @@index([company_id])
+}
+
+model UsageCounter {
+  id           String   @id @default(uuid()) @db.Uuid
+  company_id   String   @db.Uuid
+  counter_code String
+  value        Int      @default(0)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([company_id, counter_code])
+  @@index([company_id])
+}
+
+model Agent {
+  id                 String   @id @default(uuid()) @db.Uuid
+  company_id         String   @db.Uuid
+  name               String
+  phone              String?
+  email              String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  created_by_user_id String?  @db.Uuid
+
+  @@index([company_id])
+}
+
+model Department {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  company_id         String                 @db.Uuid
+  name_code          String
+  created_at         DateTime               @default(now())
+  updated_at         DateTime               @updatedAt
+  created_by_user_id String?                @db.Uuid
+  candidates         RecruitmentCandidate[]
+
+  @@unique([company_id, name_code])
+  @@index([company_id])
+}
+
+model RecruitmentCandidate {
+  id                  String             @id @default(uuid()) @db.Uuid
+  company_id          String             @db.Uuid
+  full_name_ar        String
+  full_name_en        String?
+  nationality         String
+  passport_no         String
+  job_title_code      String?
+  status_code         String             @default("UNDER_PROCEDURE")
+  department_id       String?            @db.Uuid
+  responsible_office  String
+  visa_deadline_at    DateTime?
+  visa_sent_at        DateTime?
+  expected_arrival_at DateTime?
+  notes               String?
+  deleted_at          DateTime?
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
+  created_by_user_id  String?            @db.Uuid
+  avatar_file_id      String?            @db.Uuid
+  employments         EmploymentRecord[]
+  department          Department?        @relation(fields: [department_id], references: [id])
+
+  @@index([company_id, created_at])
+  @@index([company_id, status_code])
+  @@index([company_id, visa_deadline_at])
+  @@index([company_id, visa_sent_at])
+  @@index([company_id, expected_arrival_at])
+}
+
+model EmploymentRecord {
+  id                       String                @id @default(uuid()) @db.Uuid
+  company_id               String                @db.Uuid
+  recruitment_candidate_id String?               @db.Uuid
+  employee_no              String?
+  employee_code            String?               @unique
+  full_name_ar             String?
+  full_name_en             String?
+  nationality              String?
+  phone                    String?
+  date_of_birth            DateTime?
+  iqama_no                 String?
+  iqama_expiry_at          DateTime?
+  iqama_file_id            String?               @db.Uuid
+  passport_no              String?
+  passport_expiry_at       DateTime?
+  passport_file_id         String?               @db.Uuid
+  contract_no              String?
+  contract_end_at          DateTime?
+  contract_file_id         String?               @db.Uuid
+  license_expiry_at        DateTime?
+  license_file_id          String?               @db.Uuid
+  promissory_note_file_id  String?               @db.Uuid
+  avatar_file_id           String?               @db.Uuid
+  custody_status           String?
+  start_date_at            DateTime?
+  medical_expiry_at        DateTime?
+  status_code              String                @default("EMPLOYMENT_STATUS_ACTIVE")
+  salary_amount            Decimal?              @db.Decimal(12, 2)
+  salary_currency_code     String?               @default("SAR")
+  cost_center_code         String?
+  assigned_platform        OperatingPlatform?
+  platform_user_no         String?
+  job_type                 String?
+  deleted_at               DateTime?
+  created_at               DateTime              @default(now())
+  updated_at               DateTime              @updatedAt
+  created_by_user_id       String?               @db.Uuid
+  assets                   AssetAssignment[]
+  asset_deductions         AssetDeduction[]
+  daily_operations         DailyOperation[]
+  recruitment_candidate    RecruitmentCandidate? @relation(fields: [recruitment_candidate_id], references: [id])
+  current_vehicles         Vehicle[]             @relation("CurrentDriver")
+  vehicle_assignments      VehicleAssignment[]   @relation("VehicleAssignments")
+  cash_transactions        CashTransaction[]
+
+  @@index([company_id, created_at])
+  @@index([company_id, status_code])
+  @@index([company_id, iqama_expiry_at])
+  @@index([company_id, passport_expiry_at])
+  @@index([company_id, contract_end_at])
+}
+
+model DailyOperation {
+  id                   String            @id @default(uuid()) @db.Uuid
+  company_id           String            @db.Uuid
+  employment_record_id String            @db.Uuid
+  date                 DateTime
+  platform             OperatingPlatform
+  orders_count         Int
+  total_revenue        Decimal           @db.Decimal(14, 2)
+  cash_collected       Decimal           @db.Decimal(14, 2)
+  cash_received        Decimal           @default(0) @db.Decimal(14, 2)
+  difference_amount    Decimal           @default(0) @db.Decimal(14, 2)
+  tips                 Decimal           @default(0) @db.Decimal(12, 2)
+  deduction_amount     Decimal           @default(0) @db.Decimal(12, 2)
+  deduction_reason     String?
+  loan_amount          Decimal           @default(0) @db.Decimal(12, 2)
+  loan_reason          String?
+  is_draft             Boolean           @default(false)
+  approved_at          DateTime?
+  approved_by_user_id  String?           @db.Uuid
+  status_code          String            @default("RECORDED")
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+  created_by_user_id   String?           @db.Uuid
+  company              Company           @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  employment_record    EmploymentRecord  @relation(fields: [employment_record_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, date])
+  @@index([company_id, employment_record_id])
+  @@index([company_id, platform])
+}
+
+model Asset {
+  id                 String            @id @default(uuid()) @db.Uuid
+  company_id         String            @db.Uuid
+  type               String
+  name               String
+  price              Decimal           @db.Decimal(12, 2)
+  vehicle_id         String?
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+  created_by_user_id String?           @db.Uuid
+  assignments        AssetAssignment[]
+
+  @@index([company_id])
+  @@index([company_id, type])
+}
+
+model AssetAssignment {
+  id                   String            @id @default(uuid()) @db.Uuid
+  company_id           String            @db.Uuid
+  employment_record_id String            @db.Uuid
+  asset_id             String            @db.Uuid
+  receive_date         DateTime
+  status_code          String            @default("ASSIGNED")
+  condition_code       String            @default("GOOD")
+  recovered_at         DateTime?
+  asset_record         String?
+  asset_image_file_id  String?           @db.Uuid
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+  created_by_user_id   String?           @db.Uuid
+  asset                Asset             @relation(fields: [asset_id], references: [id], onDelete: Cascade)
+  employment_record    EmploymentRecord  @relation(fields: [employment_record_id], references: [id], onDelete: Cascade)
+  asset_loss_reports   AssetLossReport[]
+
+  @@index([company_id, employment_record_id])
+  @@index([company_id, status_code])
+  @@index([company_id, receive_date])
+}
+
+model Vehicle {
+  id               String  @id @default(uuid()) @db.Uuid
+  company_id       String  @db.Uuid
+  type_code        String // e.g., MOTORCYCLE, SEDAN, VAN
+  license_plate    String
+  model            String
+  year             Int
+  vin              String  @unique
+  gps_tracker_id   String?
+  current_odometer Float   @default(0)
+  status_code      String  @default("AVAILABLE") // AVAILABLE, ACTIVE, MAINTENANCE
+
+  // Assignment
+  current_driver_id String?   @db.Uuid
+  assigned_at       DateTime?
+  idle_since        DateTime? @default(now())
+
+  // Financial
+  purchase_date      DateTime?
+  purchase_price     Decimal?  @db.Decimal(14, 2)
+  purchase_condition String    @default("NEW") // NEW, USED
+
+  // Audit
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  created_by_user_id String?  @db.Uuid
+
+  // Relations
+  company          Company              @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  current_driver   EmploymentRecord?    @relation("CurrentDriver", fields: [current_driver_id], references: [id])
+  documents        VehicleDocument[]
+  maintenance_logs VehicleMaintenance[]
+  assignment_logs  VehicleAssignment[]
+
+  @@index([company_id, status_code])
+}
+
+model VehicleDocument {
+  id          String   @id @default(uuid()) @db.Uuid
+  company_id  String   @db.Uuid
+  vehicle_id  String   @db.Uuid
+  type_code   String // REGISTRATION, INSURANCE, CHECKUP, OPERATING_CARD
+  number      String?
+  expiry_date DateTime
+  file_id     String?  @db.Uuid // Links to FileObject
+  issuer      String? // e.g., Insurance Company Name
+
+  company Company @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, vehicle_id])
+}
+
+model VehicleMaintenance {
+  id                 String    @id @default(uuid()) @db.Uuid
+  company_id         String    @db.Uuid
+  vehicle_id         String    @db.Uuid
+  workshop_type_code String // INTERNAL, EXTERNAL, CONTRACT
+  workshop_name      String
+  start_date         DateTime
+  end_date           DateTime?
+  cost               Decimal?  @db.Decimal(12, 2)
+  invoice_number     String?
+  invoice_file_id    String?   @db.Uuid
+
+  company Company @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, vehicle_id])
+}
+
+model VehicleAssignment {
+  id             String    @id @default(uuid()) @db.Uuid
+  company_id     String    @db.Uuid
+  vehicle_id     String    @db.Uuid
+  employee_id    String    @db.Uuid
+  assigned_at    DateTime  @default(now())
+  unassigned_at  DateTime?
+  start_odometer Float
+  end_odometer   Float?
+
+  company  Company          @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  vehicle  Vehicle          @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  employee EmploymentRecord @relation("VehicleAssignments", fields: [employee_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, vehicle_id])
+  @@index([company_id, employee_id])
+}
+
+model AssetLossReport {
+  id                   String           @id @default(uuid()) @db.Uuid
+  company_id           String           @db.Uuid
+  asset_assignment_id  String           @db.Uuid
+  type_code            String
+  asset_value          Decimal          @db.Decimal(12, 2)
+  action_code          String
+  installment_count    Int?
+  approval_status_code String?
+  approver_user_id     String?          @db.Uuid
+  notes                String?
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+  created_by_user_id   String?          @db.Uuid
+  deductions           AssetDeduction[]
+  asset_assignment     AssetAssignment  @relation(fields: [asset_assignment_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, created_at])
+  @@index([company_id, approval_status_code])
+}
+
+model AssetDeduction {
+  id                   String           @id @default(uuid()) @db.Uuid
+  company_id           String           @db.Uuid
+  asset_loss_report_id String           @db.Uuid
+  employment_record_id String           @db.Uuid
+  amount               Decimal          @db.Decimal(12, 2)
+  installment_number   Int?
+  total_installments   Int?
+  deducted_at          DateTime?
+  status_code          String           @default("PENDING")
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+  created_by_user_id   String?          @db.Uuid
+  asset_loss_report    AssetLossReport  @relation(fields: [asset_loss_report_id], references: [id], onDelete: Cascade)
+  employment_record    EmploymentRecord @relation(fields: [employment_record_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, employment_record_id])
+  @@index([company_id, status_code])
+  @@index([company_id, deducted_at])
+}
+
+model CashTransaction {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  company_id          String                    @db.Uuid
+  employment_record_id String?                  @db.Uuid
+  supervisor_user_id  String?                   @db.Uuid
+  batch_id            String?                   @db.Uuid
+  type                CashTransactionType
+  status              CashTransactionStatus     @default(DRAFT)
+  amount              Decimal                   @db.Decimal(14, 2)
+  date                DateTime
+  receipt_no          String?
+  attachment_file_id  String?                   @db.Uuid
+  balance_after       Decimal?                  @db.Decimal(14, 2)
+  description         String?
+  created_at          DateTime                  @default(now())
+  updated_at          DateTime                  @updatedAt
+  created_by_user_id  String?                   @db.Uuid
+  updated_by_user_id  String?                   @db.Uuid
+
+  company             Company                   @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  employment_record   EmploymentRecord?         @relation(fields: [employment_record_id], references: [id], onDelete: SetNull)
+  supervisor_user     User?                     @relation("CashTransaction_supervisor_user_id", fields: [supervisor_user_id], references: [id], onDelete: SetNull)
+  batch               HandoverBatch?            @relation(fields: [batch_id], references: [id], onDelete: SetNull)
+  attachment_file     FileObject?               @relation("CashTransaction_attachment_file_id", fields: [attachment_file_id], references: [id], onDelete: SetNull)
+
+  @@unique([company_id, receipt_no])
+  @@index([company_id, employment_record_id])
+  @@index([company_id, date])
+  @@index([company_id, supervisor_user_id])
+}
+
+model HandoverBatch {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  company_id             String                 @db.Uuid
+  supervisor_user_id     String                 @db.Uuid
+  status                 CashHandoverStatus     @default(DRAFT)
+  date                   DateTime
+  expenses_total         Decimal                @db.Decimal(14, 2)
+  handed_over_amount     Decimal                @db.Decimal(14, 2)
+  wallet_balance_snapshot Decimal               @db.Decimal(14, 2)
+  created_at             DateTime               @default(now())
+  updated_at             DateTime               @updatedAt
+  created_by_user_id     String?                @db.Uuid
+  updated_by_user_id     String?                @db.Uuid
+
+  company                Company                @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  supervisor_user        User                   @relation("HandoverBatch_supervisor_user_id", fields: [supervisor_user_id], references: [id], onDelete: Cascade)
+  expenses               HandoverExpense[]
+  transactions           CashTransaction[]
+
+  @@index([company_id, supervisor_user_id])
+  @@index([company_id, date])
+}
+
+model HandoverExpense {
+  id                 String        @id @default(uuid()) @db.Uuid
+  company_id         String        @db.Uuid
+  batch_id           String        @db.Uuid
+  statement          String
+  amount             Decimal       @db.Decimal(14, 2)
+  receipt_file_id    String?       @db.Uuid
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  created_by_user_id String?       @db.Uuid
+  updated_by_user_id String?       @db.Uuid
+
+  company            Company       @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  batch              HandoverBatch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  receipt_file       FileObject?   @relation("HandoverExpense_receipt_file_id", fields: [receipt_file_id], references: [id], onDelete: SetNull)
+
+  @@index([company_id, batch_id])
+}
+
+model WalletBalance {
+  id                 String   @id @default(uuid()) @db.Uuid
+  company_id         String   @db.Uuid
+  user_id            String   @db.Uuid
+  balance            Decimal  @default(0) @db.Decimal(14, 2)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  created_by_user_id String?  @db.Uuid
+
+  company            Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  user               User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([company_id, user_id])
+  @@index([company_id])
+}
+
+model ApprovalRequest {
+  id                 String   @id @default(uuid()) @db.Uuid
+  company_id         String   @db.Uuid
+  entity_type        String
+  entity_id          String
+  requestor_user_id  String   @db.Uuid
+  approver_user_id   String?  @db.Uuid
+  status_code        String   @default("PENDING")
+  notes              String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  created_by_user_id String?  @db.Uuid
+
+  @@index([company_id, entity_type, entity_id])
+  @@index([company_id, status_code])
+  @@index([approver_user_id, status_code])
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum OperatingPlatform {
+  NONE
+  JAHEZ
+  HUNGERSTATION
+  NINJA
+  KEETA
+}
+
+enum CashTransactionType {
+  RECEIPT
+  LOAN
+  DEDUCTION
+  HANDOVER_EXPENSE
+  HANDOVER_SETTLEMENT
+}
+
+enum CashTransactionStatus {
+  DRAFT
+  APPROVED
+  PENDING
+}
+
+enum CashHandoverStatus {
+  DRAFT
+  APPROVED
+}

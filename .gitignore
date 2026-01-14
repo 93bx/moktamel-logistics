@@ -1,0 +1,153 @@
+node_modules/
+dist/
+.next/
+.turbo/
+
+# env
+.env
+backend/.env
+frontend/.env
+
+# logs
+*.log
+
+# prisma
+backend/prisma/dev.db
+
+# docs
+/docs
+
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build outputs
+backend/dist/
+backend/coverage/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.turbo/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+backend/.env.local
+backend/.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+*.log.*
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+.jest/
+
+# Prisma
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+backend/prisma/*.db
+backend/prisma/*.db-journal
+backend/prisma/migrations/**/*.sql
+!backend/prisma/migrations/migration_lock.toml
+
+# TypeScript
+*.tsbuildinfo
+backend/tsconfig.build.tsbuildinfo
+frontend/tsconfig.build.tsbuildinfo
+
+# IDE - VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IDE - JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE - Cursor
+.cursor/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.cache/
+.temp/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# S3/MinIO local storage (if any)
+uploads/
+storage/
+files/
+*.upload
+
+# Redis dumps
+dump.rdb
+
+# PostgreSQL
+*.sql.backup
+*.sql.gz
+
+# Package manager locks (optional - some teams commit these)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Vercel
+.vercel
+frontend/.vercel
+
+# Next.js
+frontend/next-env.d.ts
+frontend/.next/
+
+# NestJS
+backend/dist/
+
+# Misc
+*.pem
+*.key
+*.cert
+*.crt
+.secrets/
+secrets/
+
+# Documentation (if you want to ignore generated docs)
+docs/generated/
+docs
