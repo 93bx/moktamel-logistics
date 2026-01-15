@@ -5,10 +5,12 @@ import { backendApi, AuthError } from "@/lib/backendApi";
 import { DailyOperationsPageClient } from "@/components/DailyOperationsPageClient";
 import { buildDateRange } from "@/lib/dailyOps";
 
+type OperatingPlatform = "NONE" | "JAHEZ" | "HUNGERSTATION" | "NINJA" | "KEETA";
+
 type DailyOperationListItem = {
   id: string;
   date: string;
-  platform: string;
+  platform: OperatingPlatform;
   orders_count: number;
   total_revenue: string | number;
   cash_collected: string | number;
