@@ -51,12 +51,12 @@ export default async function CashLoansPage({
 
   try {
     [list, stats] = await Promise.all([
-      backendApi({
+      backendApi<{ items: EmployeeRow[]; total: number; page: number; page_size: number }>({
         path: `/finance/cash-loans/employees?q=${encodeURIComponent(sp.q ?? "")}&status=${encodeURIComponent(sp.status ?? "")}&date_from=${encodeURIComponent(
           dateFrom,
         )}&date_to=${encodeURIComponent(dateTo)}&page=${page}&page_size=25`,
       }),
-      backendApi({ path: `/finance/cash-loans/stats?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}` }),
+      backendApi<StatsResponse>({ path: `/finance/cash-loans/stats?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}` }),
     ]);
   } catch (error) {
     if (error instanceof AuthError) {
