@@ -466,7 +466,7 @@ function ReceiveCashModal({ isOpen, onClose, employee, defaultDate }: { isOpen: 
               <label className="text-sm text-primary">{t("cashLoans.searchEmployee")}</label>
               <EmployeeSearchBox
                 value={selected.id}
-                onChange={(id) => setSelected((prev) => (prev ? { ...prev, id } : prev))}
+                onChange={(id) => setSelected((prev) => (id === null ? null : prev))}
                 onSelectOption={(opt) => {
                   const option = opt as EmployeeOption;
                   setSelected(option);
@@ -600,7 +600,7 @@ function LoanModal({ isOpen, onClose, employee, defaultDate }: { isOpen: boolean
               <label className="text-sm text-primary">{t("cashLoans.searchEmployee")}</label>
               <EmployeeSearchBox
                 value={selected.id}
-                onChange={(id) => setSelected((prev) => (prev ? { ...prev, id } : prev))}
+                onChange={(id) => setSelected((prev) => (id === null ? null : prev))}
                 onSelectOption={(opt) => setSelected(opt as EmployeeOption)}
                 searchPath="/api/cash-loans/employees/search"
                 placeholder={t("cashLoans.searchPlaceholder")}
