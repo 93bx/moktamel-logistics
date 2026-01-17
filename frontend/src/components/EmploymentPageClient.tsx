@@ -92,7 +92,7 @@ export function EmploymentPageClient({
     setIsModalOpen(true);
   };
 
-  const handleAction = (record: EmploymentListItem, type: "ACTIVATE" | "DEACTIVATE" | "VIEW") => {
+  const handleAction = (record: EmploymentListItem, type: "ACTIVATE" | "DEACTIVATE" | "VIEW" | "DELETE") => {
     setSelectedRecord(record);
     setActionType(type);
     setIsActionModalOpen(true);
