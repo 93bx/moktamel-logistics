@@ -114,7 +114,6 @@ docker-compose.override.yml
 # S3/MinIO local storage (if any)
 uploads/
 storage/
-files/
 *.upload
 
 # Redis dumps
