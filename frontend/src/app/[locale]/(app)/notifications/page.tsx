@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { backendApi, AuthError } from "@/lib/backendApi";
+import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
 import { getTranslations } from "next-intl/server";
 
 type Notification = {
@@ -35,7 +35,15 @@ export default async function NotificationsPage({
     if (error instanceof AuthError) {
       redirect(`/${locale}/login`);
     }
-    // Re-throw other errors
+    // If it's a configuration error, provide helpful message
+    if (error instanceof ConfigurationError) {
+      console.error("Configuration error in notifications page:", error.message, error.details);
+      throw new Error(
+        `Configuration Error: ${error.message}. ` +
+        `Please check your Vercel environment variables.`
+      );
+    }
+    // Re-throw other errors (including ApiError which has better context)
     throw error;
   }
 

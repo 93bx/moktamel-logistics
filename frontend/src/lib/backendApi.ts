@@ -15,6 +15,27 @@ export class AuthError extends Error {
   }
 }
 
+// Custom error class for configuration errors
+export class ConfigurationError extends Error {
+  constructor(message: string, public readonly details?: Record<string, unknown>) {
+    super(message);
+    this.name = "ConfigurationError";
+  }
+}
+
+// Custom error class for network/API errors
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly path?: string,
+    public readonly payload?: unknown
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 // Refresh lock to prevent concurrent refresh attempts
 // This ensures that if multiple requests try to refresh simultaneously,
 // they all wait for the same refresh operation
@@ -82,8 +103,27 @@ export async function backendApi<T>(opts: BackendApiOptions): Promise<T> {
   // Validate API base URL is set (especially important in production)
   if (!apiBase || apiBase === "http://localhost:3000/api") {
     if (typeof window === 'undefined') {
-      // Server-side: throw a clear error
-      throw new Error("NEXT_PUBLIC_API_BASE_URL environment variable is not set. Please configure it in your deployment settings.");
+      // Server-side: throw a clear configuration error with context
+      const errorMessage = 
+        `NEXT_PUBLIC_API_BASE_URL environment variable is not configured properly. ` +
+        `Current value: "${apiBase}". ` +
+        `Please set this environment variable in your Vercel deployment settings ` +
+        `to point to your backend API (e.g., https://your-backend-domain.com/api).`;
+      
+      console.error("Backend API Configuration Error:", {
+        message: errorMessage,
+        currentValue: apiBase,
+        isDefault: apiBase === "http://localhost:3000/api",
+        path: opts.path,
+        environment: process.env.NODE_ENV,
+      });
+      
+      throw new ConfigurationError(errorMessage, {
+        currentValue: apiBase,
+        isDefault: apiBase === "http://localhost:3000/api",
+        path: opts.path,
+        environment: process.env.NODE_ENV,
+      });
     }
   }
   
@@ -110,9 +150,27 @@ export async function backendApi<T>(opts: BackendApiOptions): Promise<T> {
       cache: "no-store",
     });
   } catch (fetchError) {
-    // Handle network errors
-    const errorMessage = fetchError instanceof Error ? fetchError.message : "Network error";
-    throw new Error(`Failed to connect to backend API (${apiBase}): ${errorMessage}`);
+    // Handle network errors with better context
+    const errorMessage = fetchError instanceof Error ? fetchError.message : "Unknown network error";
+    const isNetworkError = fetchError instanceof TypeError && fetchError.message.includes("fetch");
+    
+    if (typeof window === 'undefined') {
+      console.error("Backend API Network Error:", {
+        message: errorMessage,
+        apiBase,
+        path: opts.path,
+        method: opts.method ?? "GET",
+        isNetworkError,
+        errorType: fetchError instanceof Error ? fetchError.constructor.name : typeof fetchError,
+      });
+    }
+    
+    throw new ApiError(
+      `Failed to connect to backend API at ${apiBase}${opts.path}: ${errorMessage}`,
+      undefined,
+      opts.path,
+      { originalError: errorMessage, apiBase }
+    );
   }
 
   // If we get a 401 and have a refresh token, try to refresh
@@ -147,28 +205,78 @@ export async function backendApi<T>(opts: BackendApiOptions): Promise<T> {
           cache: "no-store",
         });
       } catch (fetchError) {
-        const errorMessage = fetchError instanceof Error ? fetchError.message : "Network error";
-        throw new Error(`Failed to connect to backend API (${apiBase}) on retry: ${errorMessage}`);
+        // Handle network errors on retry after token refresh
+        const errorMessage = fetchError instanceof Error ? fetchError.message : "Unknown network error";
+        
+        if (typeof window === 'undefined') {
+          console.error("Backend API Network Error (after token refresh retry):", {
+            message: errorMessage,
+            apiBase,
+            path: opts.path,
+            method: opts.method ?? "GET",
+            errorType: fetchError instanceof Error ? fetchError.constructor.name : typeof fetchError,
+          });
+        }
+        
+        throw new ApiError(
+          `Failed to connect to backend API at ${apiBase}${opts.path} on retry after token refresh: ${errorMessage}`,
+          undefined,
+          opts.path,
+          { originalError: errorMessage, apiBase, retryAfterRefresh: true }
+        );
       }
     }
   }
 
-  const data = (await res.json().catch(() => null)) as any;
+  const data = (await res.json().catch(() => {
+    // If JSON parsing fails, return null and handle it below
+    return null;
+  })) as any;
+  
   if (!res.ok) {
     // If it's still 401 after refresh attempt, throw AuthError
     if (res.status === 401) {
-      throw new AuthError("Unauthorized");
+      throw new AuthError("Unauthorized - authentication required");
     }
-    let message = data?.message ?? "Request failed";
+    
+    // Build a comprehensive error message
+    let message = data?.message ?? `Request failed with status ${res.status}`;
+    
+    // Include error code if available
+    if (data?.error_code) {
+      message = `${message} [${data.error_code}]`;
+    }
+    
     // Include validation details if available
     if (data?.details && Array.isArray(data.details) && data.details.length > 0) {
-      const details = data.details.map((d: any) => `${d.path?.join('.') || 'field'}: ${d.message}`).join(', ');
+      const details = data.details
+        .map((d: any) => `${d.path?.join('.') || 'field'}: ${d.message}`)
+        .join(', ');
       message = `${message} (${details})`;
     }
-    const error = new Error(message);
-    (error as any).status = res.status;
-    (error as any).payload = data;
-    throw error;
+    
+    // Add request context to message
+    const fullMessage = `${message} - ${opts.method ?? "GET"} ${opts.path}`;
+    
+    // Log full error for debugging (server-side only)
+    if (typeof window === 'undefined') {
+      console.error("Backend API Error Response:", {
+        status: res.status,
+        statusText: res.statusText,
+        path: opts.path,
+        method: opts.method ?? "GET",
+        apiBase,
+        errorCode: data?.error_code,
+        message: data?.message,
+        details: data?.details,
+        requestId: data?.request_id,
+        fullPayload: data,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    
+    // Throw structured API error
+    throw new ApiError(fullMessage, res.status, opts.path, data);
   }
   return data as T;
 }

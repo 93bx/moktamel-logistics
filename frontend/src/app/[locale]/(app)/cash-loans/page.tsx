@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
-import { backendApi, AuthError } from "@/lib/backendApi";
+import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
 import { CashLoansPageClient } from "@/components/CashLoansPageClient";
 import { currentMonthRange } from "@/lib/cashLoans";
 
@@ -61,6 +61,14 @@ export default async function CashLoansPage({
   } catch (error) {
     if (error instanceof AuthError) {
       redirect(`/${locale}/login`);
+    }
+    // If it's a configuration error, provide helpful message
+    if (error instanceof ConfigurationError) {
+      console.error("Configuration error in cash-loans page:", error.message, error.details);
+      throw new Error(
+        `Configuration Error: ${error.message}. ` +
+        `Please check your Vercel environment variables.`
+      );
     }
     throw error;
   }

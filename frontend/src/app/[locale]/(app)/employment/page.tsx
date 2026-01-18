@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
-import { backendApi, AuthError } from "@/lib/backendApi";
+import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
 import { EmploymentNewButton } from "@/components/EmploymentNewButton";
 import { EmploymentPageClient } from "@/components/EmploymentPageClient";
 
@@ -102,6 +102,14 @@ export default async function EmploymentPage({
   } catch (error) {
     if (error instanceof AuthError) {
       redirect(`/${locale}/login`);
+    }
+    // If it's a configuration error, provide helpful message
+    if (error instanceof ConfigurationError) {
+      console.error("Configuration error in employment page:", error.message, error.details);
+      throw new Error(
+        `Configuration Error: ${error.message}. ` +
+        `Please check your Vercel environment variables.`
+      );
     }
     throw error;
   }

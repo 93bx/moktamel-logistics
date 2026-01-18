@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
-import { backendApi, AuthError } from "@/lib/backendApi";
+import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
 import { AssetsPageClient } from "@/components/AssetsPageClient";
 
 type AssetListItem = {
@@ -63,6 +63,14 @@ export default async function AssetsPage({
   } catch (e: any) {
     if (e instanceof AuthError) {
       redirect(`/${locale}/login`);
+    }
+    // If it's a configuration error, provide helpful message
+    if (e instanceof ConfigurationError) {
+      console.error("Configuration error in assets page:", e.message, e.details);
+      throw new Error(
+        `Configuration Error: ${e.message}. ` +
+        `Please check your Vercel environment variables.`
+      );
     }
     throw e;
   }

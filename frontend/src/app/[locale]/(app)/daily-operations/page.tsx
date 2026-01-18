@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
-import { backendApi, AuthError } from "@/lib/backendApi";
+import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
 import { DailyOperationsPageClient } from "@/components/DailyOperationsPageClient";
 import { buildDateRange } from "@/lib/dailyOps";
 
@@ -81,6 +81,23 @@ export default async function DailyOperationsPage({
   } catch (error) {
     if (error instanceof AuthError) {
       redirect(`/${locale}/login`);
+    }
+    // If it's a configuration error, provide helpful message
+    if (error instanceof ConfigurationError) {
+      console.error("Configuration error in daily-operations page:", error.message, error.details);
+      throw new Error(
+        `Configuration Error: ${error.message}. ` +
+        `Please check your Vercel environment variables.`
+      );
+    }
+    // If it's an API error, it already has good context
+    if (error instanceof ApiError) {
+      console.error("API error in daily-operations page:", error.message, {
+        status: error.status,
+        path: error.path,
+        payload: error.payload,
+      });
+      throw error;
     }
     // Log the error for debugging
     console.error("Daily operations page error:", error);
