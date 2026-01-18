@@ -4,6 +4,7 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
@@ -17,6 +18,8 @@ type ErrorEnvelope = {
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
@@ -45,6 +48,24 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       };
       return res.status(status).json(body);
     }
+
+    // Log unhandled exceptions with full details
+    const errorMessage = exception instanceof Error ? exception.message : String(exception);
+    const errorStack = exception instanceof Error ? exception.stack : undefined;
+    
+    this.logger.error(
+      `Unhandled exception: ${errorMessage}`,
+      errorStack,
+      {
+        requestId,
+        method: req.method,
+        url: req.url,
+        body: req.body,
+        query: req.query,
+        params: req.params,
+        user: (req as any).user,
+      },
+    );
 
     const body: ErrorEnvelope = {
       error_code: 'COMMON_UNHANDLED_001',

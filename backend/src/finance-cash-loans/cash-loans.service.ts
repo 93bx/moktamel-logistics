@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CashHandoverStatus, CashTransactionStatus, CashTransactionType, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -11,6 +11,8 @@ type DateRange = { from: Date; to: Date };
 
 @Injectable()
 export class CashLoansService {
+  private readonly logger = new Logger(CashLoansService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -155,39 +157,85 @@ export class CashLoansService {
   }
 
   async stats(company_id: string, user_id: string, input: { date_from?: string; date_to?: string }) {
-    const { tz } = await this.resolveCompanyTimezone(company_id);
-    const range = this.normalizeRange(input, tz);
+    try {
+      this.logger.debug(`Computing stats for company ${company_id}, user ${user_id}`, { input });
+      
+      const { tz } = await this.resolveCompanyTimezone(company_id);
+      this.logger.debug(`Resolved timezone: ${tz}`);
+      
+      const range = this.normalizeRange(input, tz);
+      this.logger.debug(`Normalized range:`, { from: range.from, to: range.to });
 
-    const [{ _sum: txnSum }, loans, wallet] = await Promise.all([
-      this.prisma.cashTransaction.aggregate({
-        where: {
+      this.logger.debug('Starting parallel queries...');
+      const [{ _sum: txnSum }, loans, wallet] = await Promise.all([
+        this.prisma.cashTransaction.aggregate({
+          where: {
+            company_id,
+            status: CashTransactionStatus.APPROVED,
+            type: CashTransactionType.RECEIPT,
+            date: { gte: range.from, lte: range.to },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.cashTransaction.aggregate({
+          where: {
+            company_id,
+            status: CashTransactionStatus.APPROVED,
+            type: CashTransactionType.LOAN,
+            date: { gte: range.from, lte: range.to },
+          },
+          _sum: { amount: true },
+        }),
+        this.ensureWallet(company_id, user_id, user_id),
+      ]);
+      
+      this.logger.debug('Parallel queries completed', { 
+        txnSum: txnSum.amount, 
+        loans: loans._sum.amount,
+        walletBalance: wallet.balance 
+      });
+
+      this.logger.debug('Computing not collected total...');
+      const notCollectedAgg = await this.computeNotCollectedTotal(company_id, range);
+      this.logger.debug(`Not collected total: ${notCollectedAgg}`);
+
+      return {
+        myWallet: Number(wallet.balance ?? 0),
+        cashNotCollected: notCollectedAgg,
+        totalLoans: Number(loans._sum.amount ?? 0),
+        cashCollected: Number(txnSum.amount ?? 0),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error computing cash loans stats`,
+        error instanceof Error ? error.stack : undefined,
+        {
           company_id,
-          status: CashTransactionStatus.APPROVED,
-          type: CashTransactionType.RECEIPT,
-          date: { gte: range.from, lte: range.to },
+          user_id,
+          input,
+          error: error instanceof Error ? error.message : String(error),
         },
-        _sum: { amount: true },
-      }),
-      this.prisma.cashTransaction.aggregate({
-        where: {
-          company_id,
-          status: CashTransactionStatus.APPROVED,
-          type: CashTransactionType.LOAN,
-          date: { gte: range.from, lte: range.to },
+      );
+      
+      // Re-throw HttpExceptions as-is
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      // Wrap other errors
+      throw new HttpException(
+        {
+          error_code: 'FIN_CASH_LOANS_STATS_001',
+          message: `Failed to compute cash loans stats: ${error instanceof Error ? error.message : String(error)}`,
+          details: {
+            company_id,
+            user_id,
+            input,
+          },
         },
-        _sum: { amount: true },
-      }),
-      this.ensureWallet(company_id, user_id, user_id),
-    ]);
-
-    const notCollectedAgg = await this.computeNotCollectedTotal(company_id, range);
-
-    return {
-      myWallet: Number(wallet.balance ?? 0),
-      cashNotCollected: notCollectedAgg,
-      totalLoans: Number(loans._sum.amount ?? 0),
-      cashCollected: Number(txnSum.amount ?? 0),
-    };
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   private normalizeRange(input: { date_from?: string; date_to?: string }, tz: string): DateRange {
