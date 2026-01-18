@@ -78,6 +78,15 @@ async function attemptTokenRefresh(refreshToken: string, companyId: string): Pro
 
 export async function backendApi<T>(opts: BackendApiOptions): Promise<T> {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api";
+  
+  // Validate API base URL is set (especially important in production)
+  if (!apiBase || apiBase === "http://localhost:3000/api") {
+    if (typeof window === 'undefined') {
+      // Server-side: throw a clear error
+      throw new Error("NEXT_PUBLIC_API_BASE_URL environment variable is not set. Please configure it in your deployment settings.");
+    }
+  }
+  
   const cookieStore = await cookies();
   let access = cookieStore.get("moktamel_access")?.value;
   const refresh = cookieStore.get("moktamel_refresh")?.value;
@@ -89,15 +98,22 @@ export async function backendApi<T>(opts: BackendApiOptions): Promise<T> {
     throw new AuthError("Session expired");
   }
 
-  let res = await fetch(`${apiBase}${opts.path}`, {
-    method: opts.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-      ...(access ? { authorization: `Bearer ${access}` } : {}),
-    },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase}${opts.path}`, {
+      method: opts.method ?? "GET",
+      headers: {
+        "content-type": "application/json",
+        ...(access ? { authorization: `Bearer ${access}` } : {}),
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+      cache: "no-store",
+    });
+  } catch (fetchError) {
+    // Handle network errors
+    const errorMessage = fetchError instanceof Error ? fetchError.message : "Network error";
+    throw new Error(`Failed to connect to backend API (${apiBase}): ${errorMessage}`);
+  }
 
   // If we get a 401 and have a refresh token, try to refresh
   if (res.status === 401 && refresh && companyId) {
@@ -120,15 +136,20 @@ export async function backendApi<T>(opts: BackendApiOptions): Promise<T> {
       // For now, we use the token from the refresh response for the retry.
       
       // Retry the original request with the new token from the refresh response
-      res = await fetch(`${apiBase}${opts.path}`, {
-        method: opts.method ?? "GET",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${refreshResult.accessToken}`,
-        },
-        body: opts.body ? JSON.stringify(opts.body) : undefined,
-        cache: "no-store",
-      });
+      try {
+        res = await fetch(`${apiBase}${opts.path}`, {
+          method: opts.method ?? "GET",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${refreshResult.accessToken}`,
+          },
+          body: opts.body ? JSON.stringify(opts.body) : undefined,
+          cache: "no-store",
+        });
+      } catch (fetchError) {
+        const errorMessage = fetchError instanceof Error ? fetchError.message : "Network error";
+        throw new Error(`Failed to connect to backend API (${apiBase}) on retry: ${errorMessage}`);
+      }
     }
   }
 

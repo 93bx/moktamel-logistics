@@ -82,7 +82,12 @@ export default async function DailyOperationsPage({
     if (error instanceof AuthError) {
       redirect(`/${locale}/login`);
     }
-    throw error;
+    // Log the error for debugging
+    console.error("Daily operations page error:", error);
+    // Re-throw with more context
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorStatus = (error as any)?.status;
+    throw new Error(`Failed to load daily operations: ${errorMessage}${errorStatus ? ` (Status: ${errorStatus})` : ""}`);
   }
 
   return (
