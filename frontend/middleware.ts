@@ -10,21 +10,25 @@ const intlMiddleware = createMiddleware({
 });
 
 export default function middleware(request: NextRequest) {
-  const response = intlMiddleware(request);
-
   const pathname = request.nextUrl.pathname;
-  const first = pathname.split("/")[1] || "";
-  const locale = (locales as readonly string[]).includes(first) ? first : defaultLocale;
 
-  // Allow Next.js internals, static files, and API routes
+  // Early return for API routes - don't apply locale logic
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
+
+  // Early return for Next.js internals and static files
   if (
-    pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
     pathname.match(/\.(ico|png|jpg|jpeg|svg|gif|webp|woff|woff2|ttf|eot)$/)
   ) {
-    return response;
+    return intlMiddleware(request);
   }
+
+  const response = intlMiddleware(request);
+  const first = pathname.split("/")[1] || "";
+  const locale = (locales as readonly string[]).includes(first) ? first : defaultLocale;
 
   // Public routes that don't require authentication
   const isPublic =
