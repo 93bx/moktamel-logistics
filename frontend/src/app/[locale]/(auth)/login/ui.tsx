@@ -11,17 +11,24 @@ export function LoginForm({ locale }: { locale: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(formData: FormData) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault(); // Prevent default form submission
     setPending(true);
     setError(null);
     try {
+      const formData = new FormData(e.currentTarget);
       const body = {
         company_slug: String(formData.get("company_slug") || ""),
         email: String(formData.get("email") || ""),
         password: String(formData.get("password") || ""),
       };
 
-      const res = await fetch("/api/auth/login", {
+      // Use absolute URL to avoid locale prefix issues
+      const apiUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/api/auth/login`
+        : '/api/auth/login';
+
+      const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -43,7 +50,7 @@ export function LoginForm({ locale }: { locale: string }) {
   }
 
   return (
-    <form action={onSubmit} className="space-y-3">
+    <form onSubmit={onSubmit} className="space-y-3">
       <div>
         <label className="block text-sm font-medium text-primary">
           {t("auth.companySlug")}
