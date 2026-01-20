@@ -40,7 +40,11 @@ export function LoginForm({ locale }: { locale: string }) {
       }
 
       const next = search.get("next");
-      router.push(next || `/${locale}/dashboard`);
+      // Sanitize next parameter to avoid redirect loops
+      const sanitizedNext = next && next !== "/login" && !next.startsWith("/login?") && next !== `/${locale}/login` && !next.startsWith(`/${locale}/login?`)
+        ? next 
+        : null;
+      router.push(sanitizedNext || `/${locale}/dashboard`);
       router.refresh();
     } catch (e: any) {
       setError(e?.message ?? "Login failed");
