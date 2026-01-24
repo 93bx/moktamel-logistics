@@ -52,6 +52,10 @@ async function bootstrap() {
     { key: 'FLEET_DELETE', module: 'FLEET', action: 'DELETE' },
     { key: 'FLEET_ASSIGN', module: 'FLEET', action: 'ASSIGN' },
     { key: 'FLEET_MAINTENANCE', module: 'FLEET', action: 'MAINTENANCE' },
+    { key: 'PAYROLL_CONFIG_READ', module: 'PAYROLL_CONFIG', action: 'READ' },
+    { key: 'PAYROLL_CONFIG_UPDATE', module: 'PAYROLL_CONFIG', action: 'UPDATE' },
+    { key: 'COSTS_READ', module: 'COSTS', action: 'READ' },
+    { key: 'COSTS_MANAGE', module: 'COSTS', action: 'MANAGE' },
   ];
 
   for (const p of perms) {

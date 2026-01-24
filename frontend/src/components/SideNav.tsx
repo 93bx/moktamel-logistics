@@ -62,6 +62,28 @@ export function SideNav() {
         {t("nav.cashLoans")}
       </Link>
 
+      <Link
+        href={`/${locale}/payroll-config`}
+        className={`block rounded-md px-3 py-2 text-base transition-colors ${
+          isActive(`/${locale}/payroll-config`)
+            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
+            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
+        }`}
+      >
+        {t("nav.payrollConfig")}
+      </Link>
+
+      <Link
+        href={`/${locale}/salaries-payroll`}
+        className={`block rounded-md px-3 py-2 text-base transition-colors ${
+          isActive(`/${locale}/salaries-payroll`)
+            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
+            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
+        }`}
+      >
+        {t("nav.salariesPayroll")}
+      </Link>
+
       {/* Company */}
       <Link
         href={`/${locale}/company`}

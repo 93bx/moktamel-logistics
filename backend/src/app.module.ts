@@ -19,6 +19,9 @@ import { HrAssetsModule } from './hr-assets/hr-assets.module';
 import { DailyOperationsModule } from './daily-operations/daily-operations.module';
 import { FleetManagementModule } from './fleet-management/fleet-management.module';
 import { CashLoansModule } from './finance-cash-loans/cash-loans.module';
+import { PayrollConfigModule } from './payroll-config/payroll-config.module';
+import { CostsModule } from './costs/costs.module';
+import { SalariesPayrollModule } from './salaries-payroll/salaries-payroll.module';
 
 @Module({
   imports: [
@@ -40,6 +43,9 @@ import { CashLoansModule } from './finance-cash-loans/cash-loans.module';
     DailyOperationsModule,
     FleetManagementModule,
     CashLoansModule,
+    PayrollConfigModule,
+    CostsModule,
+    SalariesPayrollModule,
   ],
   controllers: [AppController],
   providers: [AppService],
