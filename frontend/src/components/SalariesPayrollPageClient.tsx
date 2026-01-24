@@ -277,7 +277,7 @@ export function SalariesPayrollPageClient({ locale, initialMonth }: SalariesPayr
           setSelectedEmployeeId(null);
         }}
         title={t("salariesPayroll.viewEmployeeDetail")}
-        size="lg"
+        maxWidth="lg"
       >
         <EmployeeDetailView
           id={selectedEmployeeId}
