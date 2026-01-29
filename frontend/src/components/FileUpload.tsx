@@ -18,7 +18,7 @@ export function FileUpload({
   required = false,
   fileId,
   onFileIdChange,
-  accept = "image/*,application/pdf",
+  accept = "application/pdf,.pdf,image/*",
 }: FileUploadProps) {
   const t = useTranslations();
   const [uploading, setUploading] = useState(false);
