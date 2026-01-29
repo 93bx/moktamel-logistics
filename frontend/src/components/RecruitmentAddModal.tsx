@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -8,7 +8,8 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs, { Dayjs } from "dayjs";
-import { FileImage, FileText, Plane, User, X } from "lucide-react";
+import { FileImage, FileText, Plane, User } from "lucide-react";
+import { FileUpload } from "./FileUpload";
 import { Modal } from "./Modal";
 
 interface RecruitmentAddModalProps {
@@ -33,11 +34,6 @@ type Candidate = {
   visa_image_file_id: string | null;
   flight_ticket_image_file_id: string | null;
   personal_picture_file_id: string | null;
-};
-
-type FileUploadState = {
-  file: File | null;
-  fileId: string | null;
 };
 
 export function RecruitmentAddModal({ isOpen, onClose, locale }: RecruitmentAddModalProps) {
@@ -66,25 +62,17 @@ export function RecruitmentAddModal({ isOpen, onClose, locale }: RecruitmentAddM
     personal_picture_file_id: null,
   });
 
-  // File upload state - store File objects temporarily
-  const [files, setFiles] = useState<{
-    passport: FileUploadState;
-    visa: FileUploadState;
-    flightTicket: FileUploadState;
-    personalPicture: FileUploadState;
+  const [fileIds, setFileIds] = useState<{
+    passport: string | null;
+    visa: string | null;
+    flightTicket: string | null;
+    personalPicture: string | null;
   }>({
-    passport: { file: null, fileId: null },
-    visa: { file: null, fileId: null },
-    flightTicket: { file: null, fileId: null },
-    personalPicture: { file: null, fileId: null },
+    passport: null,
+    visa: null,
+    flightTicket: null,
+    personalPicture: null,
   });
-
-  const fileInputRefs = {
-    passport: useRef<HTMLInputElement>(null),
-    visa: useRef<HTMLInputElement>(null),
-    flightTicket: useRef<HTMLInputElement>(null),
-    personalPicture: useRef<HTMLInputElement>(null),
-  };
 
   const resetForm = () => {
     setCandidate({
@@ -104,70 +92,14 @@ export function RecruitmentAddModal({ isOpen, onClose, locale }: RecruitmentAddM
       flight_ticket_image_file_id: null,
       personal_picture_file_id: null,
     });
-    setFiles({
-      passport: { file: null, fileId: null },
-      visa: { file: null, fileId: null },
-      flightTicket: { file: null, fileId: null },
-      personalPicture: { file: null, fileId: null },
-    });
-    // Reset file inputs
-    Object.values(fileInputRefs).forEach((ref) => {
-      if (ref.current) ref.current.value = "";
+    setFileIds({
+      passport: null,
+      visa: null,
+      flightTicket: null,
+      personalPicture: null,
     });
     setError(null);
     setSaving(false);
-  };
-
-  const handleFileSelect = (type: keyof typeof files, file: File | null) => {
-    setFiles((prev) => ({
-      ...prev,
-      [type]: { file, fileId: null },
-    }));
-  };
-
-  const handleFileRemove = (type: keyof typeof files) => {
-    setFiles((prev) => ({
-      ...prev,
-      [type]: { file: null, fileId: null },
-    }));
-    if (fileInputRefs[type].current) {
-      fileInputRefs[type].current!.value = "";
-    }
-  };
-
-  const uploadFile = async (file: File): Promise<string> => {
-    // Step 1: Get upload URL from backend
-    const uploadUrlRes = await fetch("/api/files/upload-url", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        original_name: file.name,
-        mime_type: file.type,
-        size_bytes: file.size,
-      }),
-    });
-
-    if (!uploadUrlRes.ok) {
-      const data = await uploadUrlRes.json().catch(() => null);
-      throw new Error(data?.message ?? "Failed to get upload URL");
-    }
-
-    const { file_id, upload_url } = await uploadUrlRes.json();
-
-    // Step 2: Upload file directly to MinIO
-    const uploadRes = await fetch(upload_url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": file.type,
-      },
-      body: file,
-    });
-
-    if (!uploadRes.ok) {
-      throw new Error("Failed to upload file to storage");
-    }
-
-    return file_id;
   };
 
   const handleClose = () => {
@@ -203,34 +135,13 @@ export function RecruitmentAddModal({ isOpen, onClose, locale }: RecruitmentAddM
       setSaving(false);
       return;
     }
-    if (!files.passport.file) {
+    if (!fileIds.passport) {
       setError(t("common.passportImageRequired"));
       setSaving(false);
       return;
     }
 
     try {
-      // Upload files first
-      const fileIds: {
-        passport_image_file_id?: string;
-        visa_image_file_id?: string;
-        flight_ticket_image_file_id?: string;
-        personal_picture_file_id?: string;
-      } = {};
-
-      if (files.passport.file) {
-        fileIds.passport_image_file_id = await uploadFile(files.passport.file);
-      }
-      if (files.visa.file) {
-        fileIds.visa_image_file_id = await uploadFile(files.visa.file);
-      }
-      if (files.flightTicket.file) {
-        fileIds.flight_ticket_image_file_id = await uploadFile(files.flightTicket.file);
-      }
-      if (files.personalPicture.file) {
-        fileIds.personal_picture_file_id = await uploadFile(files.personalPicture.file);
-      }
-
       const payload = {
         full_name_ar: candidate.full_name_ar,
         full_name_en: candidate.full_name_en || undefined,
@@ -243,7 +154,10 @@ export function RecruitmentAddModal({ isOpen, onClose, locale }: RecruitmentAddM
         visa_sent_at: candidate.visa_sent_at || undefined,
         expected_arrival_at: candidate.expected_arrival_at || undefined,
         notes: candidate.notes || undefined,
-        ...fileIds,
+        passport_image_file_id: fileIds.passport || undefined,
+        visa_image_file_id: fileIds.visa || undefined,
+        flight_ticket_image_file_id: fileIds.flightTicket || undefined,
+        personal_picture_file_id: fileIds.personalPicture || undefined,
       };
 
       const res = await fetch(`/api/recruitment/candidates`, {
@@ -444,137 +358,39 @@ export function RecruitmentAddModal({ isOpen, onClose, locale }: RecruitmentAddM
           </div>
           <div className="sm:col-span-2">
             <div className="grid grid-cols-4 gap-4">
-              {/* Passport Image Card */}
-              <div className="relative">
-                <input
-                  ref={fileInputRefs.passport}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileSelect("passport", e.target.files?.[0] || null)}
-                  className="hidden"
-                  id="file-passport"
-                />
-                <label
-                  htmlFor="file-passport"
-                  className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-zinc-300 rounded-md cursor-pointer hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 transition-colors"
-                >
-                  <FileImage className="w-8 h-8 text-zinc-500 mb-2" />
-                  <span className="text-xs text-center text-primary">{t("common.passportImage")} *</span>
-                  {files.passport.file && (
-                    <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                      {files.passport.file.name}
-                    </span>
-                  )}
-                </label>
-                {files.passport.file && (
-                  <button
-                    type="button"
-                    onClick={() => handleFileRemove("passport")}
-                    className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 hover:bg-red-600"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* Visa Image Card */}
-              <div className="relative">
-                <input
-                  ref={fileInputRefs.visa}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileSelect("visa", e.target.files?.[0] || null)}
-                  className="hidden"
-                  id="file-visa"
-                />
-                <label
-                  htmlFor="file-visa"
-                  className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-zinc-300 rounded-md cursor-pointer hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 transition-colors"
-                >
-                  <FileText className="w-8 h-8 text-zinc-500 mb-2" />
-                  <span className="text-xs text-center text-primary">{t("common.visaImage")}</span>
-                  {files.visa.file && (
-                    <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                      {files.visa.file.name}
-                    </span>
-                  )}
-                </label>
-                {files.visa.file && (
-                  <button
-                    type="button"
-                    onClick={() => handleFileRemove("visa")}
-                    className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 hover:bg-red-600"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* Flight Ticket Image Card */}
-              <div className="relative">
-                <input
-                  ref={fileInputRefs.flightTicket}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileSelect("flightTicket", e.target.files?.[0] || null)}
-                  className="hidden"
-                  id="file-flight-ticket"
-                />
-                <label
-                  htmlFor="file-flight-ticket"
-                  className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-zinc-300 rounded-md cursor-pointer hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 transition-colors"
-                >
-                  <Plane className="w-8 h-8 text-zinc-500 mb-2" />
-                  <span className="text-xs text-center text-primary">{t("common.flightTicketImage")}</span>
-                  {files.flightTicket.file && (
-                    <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                      {files.flightTicket.file.name}
-                    </span>
-                  )}
-                </label>
-                {files.flightTicket.file && (
-                  <button
-                    type="button"
-                    onClick={() => handleFileRemove("flightTicket")}
-                    className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 hover:bg-red-600"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* Personal Picture Card */}
-              <div className="relative">
-                <input
-                  ref={fileInputRefs.personalPicture}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileSelect("personalPicture", e.target.files?.[0] || null)}
-                  className="hidden"
-                  id="file-personal-picture"
-                />
-                <label
-                  htmlFor="file-personal-picture"
-                  className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-zinc-300 rounded-md cursor-pointer hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 transition-colors"
-                >
-                  <User className="w-8 h-8 text-zinc-500 mb-2" />
-                  <span className="text-xs text-center text-primary">{t("common.personalPicture")}</span>
-                  {files.personalPicture.file && (
-                    <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                      {files.personalPicture.file.name}
-                    </span>
-                  )}
-                </label>
-                {files.personalPicture.file && (
-                  <button
-                    type="button"
-                    onClick={() => handleFileRemove("personalPicture")}
-                    className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 hover:bg-red-600"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
+              <FileUpload
+                variant="card"
+                icon={<FileImage />}
+                purpose_code="PASSPORT_IMAGE"
+                label={t("common.passportImage")}
+                required
+                fileId={fileIds.passport}
+                onFileIdChange={(id) => setFileIds((prev) => ({ ...prev, passport: id }))}
+              />
+              <FileUpload
+                variant="card"
+                icon={<FileText />}
+                purpose_code="VISA_IMAGE"
+                label={t("common.visaImage")}
+                fileId={fileIds.visa}
+                onFileIdChange={(id) => setFileIds((prev) => ({ ...prev, visa: id }))}
+              />
+              <FileUpload
+                variant="card"
+                icon={<Plane />}
+                purpose_code="FLIGHT_TICKET_IMAGE"
+                label={t("common.flightTicketImage")}
+                fileId={fileIds.flightTicket}
+                onFileIdChange={(id) => setFileIds((prev) => ({ ...prev, flightTicket: id }))}
+              />
+              <FileUpload
+                variant="card"
+                icon={<User />}
+                purpose_code="PERSONAL_PICTURE"
+                label={t("common.personalPicture")}
+                fileId={fileIds.personalPicture}
+                onFileIdChange={(id) => setFileIds((prev) => ({ ...prev, personalPicture: id }))}
+              />
             </div>
           </div>
         </div>

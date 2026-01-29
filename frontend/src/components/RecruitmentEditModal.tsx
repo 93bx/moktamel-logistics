@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -8,7 +8,8 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs, { Dayjs } from "dayjs";
-import { FileImage, FileText, Plane, User, X } from "lucide-react";
+import { FileImage, FileText, Plane, User } from "lucide-react";
+import { FileUpload } from "./FileUpload";
 import { Modal } from "./Modal";
 
 interface RecruitmentEditModalProps {
@@ -37,12 +38,6 @@ type Candidate = {
   personal_picture_file_id: string | null;
 };
 
-type FileUploadState = {
-  file: File | null;
-  fileId: string | null;
-  existingFileId: string | null; // Track existing file ID
-};
-
 export function RecruitmentEditModal({ isOpen, onClose, locale, candidateId }: RecruitmentEditModalProps) {
   const router = useRouter();
   const t = useTranslations();
@@ -55,25 +50,17 @@ export function RecruitmentEditModal({ isOpen, onClose, locale, candidateId }: R
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
 
-  // File upload state - store File objects temporarily
-  const [files, setFiles] = useState<{
-    passport: FileUploadState;
-    visa: FileUploadState;
-    flightTicket: FileUploadState;
-    personalPicture: FileUploadState;
+  const [fileIds, setFileIds] = useState<{
+    passport: string | null;
+    visa: string | null;
+    flightTicket: string | null;
+    personalPicture: string | null;
   }>({
-    passport: { file: null, fileId: null, existingFileId: null },
-    visa: { file: null, fileId: null, existingFileId: null },
-    flightTicket: { file: null, fileId: null, existingFileId: null },
-    personalPicture: { file: null, fileId: null, existingFileId: null },
+    passport: null,
+    visa: null,
+    flightTicket: null,
+    personalPicture: null,
   });
-
-  const fileInputRefs = {
-    passport: useRef<HTMLInputElement>(null),
-    visa: useRef<HTMLInputElement>(null),
-    flightTicket: useRef<HTMLInputElement>(null),
-    personalPicture: useRef<HTMLInputElement>(null),
-  };
 
   // Load candidate data when modal opens
   useEffect(() => {
@@ -89,18 +76,16 @@ export function RecruitmentEditModal({ isOpen, onClose, locale, candidateId }: R
         if (!res.ok) throw new Error(data?.message ?? "Failed to load");
         if (!cancelled) {
           setCandidate(data);
-          // Set existing file IDs from files array
           if (data.files) {
             const passportFile = data.files.find((f: any) => f.purpose_code === "PASSPORT_IMAGE");
             const visaFile = data.files.find((f: any) => f.purpose_code === "VISA_IMAGE");
             const flightTicketFile = data.files.find((f: any) => f.purpose_code === "FLIGHT_TICKET_IMAGE");
             const personalPictureFile = data.files.find((f: any) => f.purpose_code === "PERSONAL_PICTURE");
-            
-            setFiles({
-              passport: { file: null, fileId: null, existingFileId: passportFile?.file_id || null },
-              visa: { file: null, fileId: null, existingFileId: visaFile?.file_id || null },
-              flightTicket: { file: null, fileId: null, existingFileId: flightTicketFile?.file_id || null },
-              personalPicture: { file: null, fileId: null, existingFileId: personalPictureFile?.file_id || null },
+            setFileIds({
+              passport: passportFile?.file_id || null,
+              visa: visaFile?.file_id || null,
+              flightTicket: flightTicketFile?.file_id || null,
+              personalPicture: personalPictureFile?.file_id || null,
             });
           }
         }
@@ -118,72 +103,16 @@ export function RecruitmentEditModal({ isOpen, onClose, locale, candidateId }: R
 
   const resetForm = () => {
     setCandidate(null);
-    setFiles({
-      passport: { file: null, fileId: null, existingFileId: null },
-      visa: { file: null, fileId: null, existingFileId: null },
-      flightTicket: { file: null, fileId: null, existingFileId: null },
-      personalPicture: { file: null, fileId: null, existingFileId: null },
-    });
-    // Reset file inputs
-    Object.values(fileInputRefs).forEach((ref) => {
-      if (ref.current) ref.current.value = "";
+    setFileIds({
+      passport: null,
+      visa: null,
+      flightTicket: null,
+      personalPicture: null,
     });
     setError(null);
     setSaving(false);
     setLoading(false);
     setDeleting(false);
-  };
-
-  const handleFileSelect = (type: keyof typeof files, file: File | null) => {
-    setFiles((prev) => ({
-      ...prev,
-      [type]: { ...prev[type], file, fileId: null },
-    }));
-  };
-
-  const handleFileRemove = (type: keyof typeof files) => {
-    setFiles((prev) => ({
-      ...prev,
-      [type]: { file: null, fileId: null, existingFileId: null },
-    }));
-    if (fileInputRefs[type].current) {
-      fileInputRefs[type].current!.value = "";
-    }
-  };
-
-  const uploadFile = async (file: File): Promise<string> => {
-    // Step 1: Get upload URL from backend
-    const uploadUrlRes = await fetch("/api/files/upload-url", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        original_name: file.name,
-        mime_type: file.type,
-        size_bytes: file.size,
-      }),
-    });
-
-    if (!uploadUrlRes.ok) {
-      const data = await uploadUrlRes.json().catch(() => null);
-      throw new Error(data?.message ?? "Failed to get upload URL");
-    }
-
-    const { file_id, upload_url } = await uploadUrlRes.json();
-
-    // Step 2: Upload file directly to MinIO
-    const uploadRes = await fetch(upload_url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": file.type,
-      },
-      body: file,
-    });
-
-    if (!uploadRes.ok) {
-      throw new Error("Failed to upload file to storage");
-    }
-
-    return file_id;
   };
 
   const handleClose = () => {
@@ -223,38 +152,6 @@ export function RecruitmentEditModal({ isOpen, onClose, locale, candidateId }: R
     }
 
     try {
-      // Upload new files first
-      const fileIds: {
-        passport_image_file_id?: string;
-        visa_image_file_id?: string;
-        flight_ticket_image_file_id?: string;
-        personal_picture_file_id?: string;
-      } = {};
-
-      if (files.passport.file) {
-        fileIds.passport_image_file_id = await uploadFile(files.passport.file);
-      } else if (files.passport.existingFileId) {
-        fileIds.passport_image_file_id = files.passport.existingFileId;
-      }
-
-      if (files.visa.file) {
-        fileIds.visa_image_file_id = await uploadFile(files.visa.file);
-      } else if (files.visa.existingFileId) {
-        fileIds.visa_image_file_id = files.visa.existingFileId;
-      }
-
-      if (files.flightTicket.file) {
-        fileIds.flight_ticket_image_file_id = await uploadFile(files.flightTicket.file);
-      } else if (files.flightTicket.existingFileId) {
-        fileIds.flight_ticket_image_file_id = files.flightTicket.existingFileId;
-      }
-
-      if (files.personalPicture.file) {
-        fileIds.personal_picture_file_id = await uploadFile(files.personalPicture.file);
-      } else if (files.personalPicture.existingFileId) {
-        fileIds.personal_picture_file_id = files.personalPicture.existingFileId;
-      }
-
       const payload = {
         full_name_ar: candidate.full_name_ar,
         full_name_en: candidate.full_name_en || undefined,
@@ -267,7 +164,10 @@ export function RecruitmentEditModal({ isOpen, onClose, locale, candidateId }: R
         visa_sent_at: candidate.visa_sent_at || undefined,
         expected_arrival_at: candidate.expected_arrival_at || undefined,
         notes: candidate.notes || undefined,
-        ...fileIds,
+        passport_image_file_id: fileIds.passport || undefined,
+        visa_image_file_id: fileIds.visa || undefined,
+        flight_ticket_image_file_id: fileIds.flightTicket || undefined,
+        personal_picture_file_id: fileIds.personalPicture || undefined,
       };
 
       const res = await fetch(`/api/recruitment/candidates/${candidateId}`, {
@@ -501,157 +401,38 @@ export function RecruitmentEditModal({ isOpen, onClose, locale, candidateId }: R
                 </div>
                 <div className="sm:col-span-2">
                   <div className="grid grid-cols-4 gap-4">
-                    {/* Passport Image Card */}
-                    <div className="relative">
-                      <input
-                        ref={fileInputRefs.passport}
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileSelect("passport", e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="file-passport-edit"
-                      />
-                      <label
-                        htmlFor="file-passport-edit"
-                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-zinc-300 rounded-md cursor-pointer hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 transition-colors"
-                      >
-                        <FileImage className="w-8 h-8 text-zinc-500 mb-2" />
-                        <span className="text-xs text-center text-primary">{t("common.passportImage")}</span>
-                        {files.passport.file && (
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                            {files.passport.file.name}
-                          </span>
-                        )}
-                        {!files.passport.file && files.passport.existingFileId && (
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                            {t("common.existingFile") || "Existing file"}
-                          </span>
-                        )}
-                      </label>
-                      {(files.passport.file || files.passport.existingFileId) && (
-                        <button
-                          type="button"
-                          onClick={() => handleFileRemove("passport")}
-                          className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 hover:bg-red-600"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Visa Image Card */}
-                    <div className="relative">
-                      <input
-                        ref={fileInputRefs.visa}
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileSelect("visa", e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="file-visa-edit"
-                      />
-                      <label
-                        htmlFor="file-visa-edit"
-                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-zinc-300 rounded-md cursor-pointer hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 transition-colors"
-                      >
-                        <FileText className="w-8 h-8 text-zinc-500 mb-2" />
-                        <span className="text-xs text-center text-primary">{t("common.visaImage")}</span>
-                        {files.visa.file && (
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                            {files.visa.file.name}
-                          </span>
-                        )}
-                        {!files.visa.file && files.visa.existingFileId && (
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                            {t("common.existingFile") || "Existing file"}
-                          </span>
-                        )}
-                      </label>
-                      {(files.visa.file || files.visa.existingFileId) && (
-                        <button
-                          type="button"
-                          onClick={() => handleFileRemove("visa")}
-                          className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 hover:bg-red-600"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Flight Ticket Image Card */}
-                    <div className="relative">
-                      <input
-                        ref={fileInputRefs.flightTicket}
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileSelect("flightTicket", e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="file-flight-ticket-edit"
-                      />
-                      <label
-                        htmlFor="file-flight-ticket-edit"
-                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-zinc-300 rounded-md cursor-pointer hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 transition-colors"
-                      >
-                        <Plane className="w-8 h-8 text-zinc-500 mb-2" />
-                        <span className="text-xs text-center text-primary">{t("common.flightTicketImage")}</span>
-                        {files.flightTicket.file && (
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                            {files.flightTicket.file.name}
-                          </span>
-                        )}
-                        {!files.flightTicket.file && files.flightTicket.existingFileId && (
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                            {t("common.existingFile") || "Existing file"}
-                          </span>
-                        )}
-                      </label>
-                      {(files.flightTicket.file || files.flightTicket.existingFileId) && (
-                        <button
-                          type="button"
-                          onClick={() => handleFileRemove("flightTicket")}
-                          className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 hover:bg-red-600"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Personal Picture Card */}
-                    <div className="relative">
-                      <input
-                        ref={fileInputRefs.personalPicture}
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileSelect("personalPicture", e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="file-personal-picture-edit"
-                      />
-                      <label
-                        htmlFor="file-personal-picture-edit"
-                        className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-zinc-300 rounded-md cursor-pointer hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500 transition-colors"
-                      >
-                        <User className="w-8 h-8 text-zinc-500 mb-2" />
-                        <span className="text-xs text-center text-primary">{t("common.personalPicture")}</span>
-                        {files.personalPicture.file && (
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                            {files.personalPicture.file.name}
-                          </span>
-                        )}
-                        {!files.personalPicture.file && files.personalPicture.existingFileId && (
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 truncate w-full text-center">
-                            {t("common.existingFile") || "Existing file"}
-                          </span>
-                        )}
-                      </label>
-                      {(files.personalPicture.file || files.personalPicture.existingFileId) && (
-                        <button
-                          type="button"
-                          onClick={() => handleFileRemove("personalPicture")}
-                          className="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-1 hover:bg-red-600"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
+                    <FileUpload
+                      variant="card"
+                      icon={<FileImage />}
+                      purpose_code="PASSPORT_IMAGE_EDIT"
+                      label={t("common.passportImage")}
+                      fileId={fileIds.passport}
+                      onFileIdChange={(id) => setFileIds((prev) => ({ ...prev, passport: id }))}
+                    />
+                    <FileUpload
+                      variant="card"
+                      icon={<FileText />}
+                      purpose_code="VISA_IMAGE_EDIT"
+                      label={t("common.visaImage")}
+                      fileId={fileIds.visa}
+                      onFileIdChange={(id) => setFileIds((prev) => ({ ...prev, visa: id }))}
+                    />
+                    <FileUpload
+                      variant="card"
+                      icon={<Plane />}
+                      purpose_code="FLIGHT_TICKET_IMAGE_EDIT"
+                      label={t("common.flightTicketImage")}
+                      fileId={fileIds.flightTicket}
+                      onFileIdChange={(id) => setFileIds((prev) => ({ ...prev, flightTicket: id }))}
+                    />
+                    <FileUpload
+                      variant="card"
+                      icon={<User />}
+                      purpose_code="PERSONAL_PICTURE_EDIT"
+                      label={t("common.personalPicture")}
+                      fileId={fileIds.personalPicture}
+                      onFileIdChange={(id) => setFileIds((prev) => ({ ...prev, personalPicture: id }))}
+                    />
                   </div>
                 </div>
               </div>
