@@ -260,6 +260,7 @@ export class DailyOperationsService {
             select: {
               id: true,
               employee_no: true,
+              avatar_file_id: true,
               recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
             },
           },

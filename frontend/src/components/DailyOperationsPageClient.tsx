@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { EmployeeSearchBox } from "./EmployeeSearchBox";
+import { DailyOperationViewModal } from "./DailyOperationViewModal";
 import { Modal } from "./Modal";
 import { PlatformIcon } from "./PlatformIcon";
 
@@ -30,6 +31,7 @@ type DailyOperationListItem = {
   employment_record: {
     id: string;
     employee_no: string | null;
+    avatar_file_id?: string | null;
     recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
   } | null;
 };
@@ -74,6 +76,7 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
   const [showBulk, setShowBulk] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [viewItem, setViewItem] = useState<DailyOperationListItem | null>(null);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const handleStatusChange = async (id: string, status_code: string) => {
@@ -248,14 +251,13 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
                         >
                           {t("dailyOps.markReviewed")}
                         </button>
-                        {item.employment_record?.id ? (
-                          <Link
-                            href={`/${locale}/employment/${item.employment_record.id}`}
-                            className="rounded-md border border-zinc-200 px-3 py-1 text-xs text-primary hover:bg-primary/5 dark:border-zinc-700"
-                          >
-                            {t("common.view")}
-                          </Link>
-                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => setViewItem(item)}
+                          className="rounded-md border border-zinc-200 px-3 py-1 text-xs text-primary hover:bg-primary/5 dark:border-zinc-700"
+                        >
+                          {t("common.view")}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -294,6 +296,11 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
         </div>
       </div>
 
+      <DailyOperationViewModal
+        isOpen={!!viewItem}
+        onClose={() => setViewItem(null)}
+        record={viewItem}
+      />
       <DailyOperationSingleModal isOpen={showSingle} onClose={() => setShowSingle(false)} today={today} />
       <DailyOperationBulkModal isOpen={showBulk} onClose={() => setShowBulk(false)} today={today} />
     </>

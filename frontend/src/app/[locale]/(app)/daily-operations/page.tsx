@@ -28,6 +28,7 @@ type DailyOperationListItem = {
   employment_record: {
     id: string;
     employee_no: string | null;
+    avatar_file_id?: string | null;
     recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
   } | null;
 };

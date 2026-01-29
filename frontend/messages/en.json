@@ -333,6 +333,7 @@
     "tableReason": "Reason",
     "tableStatus": "Status",
     "tableActions": "Actions",
+    "viewOperation": "View daily operation",
     "noResults": "No daily operations found",
     "duplicateEmployee": "Employee already added in the table.",
     "bulkRequiredFields": "All numeric fields must be positive for approval.",

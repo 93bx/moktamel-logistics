@@ -332,6 +332,7 @@
     "tableReason": "السبب",
     "tableStatus": "الحالة",
     "tableActions": "الإجراءات",
+    "viewOperation": "عرض العملية اليومية",
     "noResults": "لا توجد عمليات يومية",
     "duplicateEmployee": "تمت إضافة هذا الموظف بالفعل في الجدول.",
     "bulkRequiredFields": "يجب أن تكون كل القيم رقمية وموجبة عند الاعتماد.",

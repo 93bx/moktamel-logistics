@@ -16,7 +16,6 @@ export function Header() {
   // Determine page title based on current route
   const getPageTitle = () => {
     if (pathname.includes("/dashboard")) return t("nav.dashboard");
-    if (pathname.includes("/company")) return t("nav.companies");
     if (pathname.includes("/recruitment")) return t("nav.recruitment");
     if (pathname.includes("/employment")) return t("nav.employment");
     if (pathname.includes("/notifications")) return t("nav.notifications");
