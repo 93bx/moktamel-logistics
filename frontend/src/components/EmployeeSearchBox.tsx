@@ -6,6 +6,9 @@ import { useTranslations } from "next-intl";
 type EmployeeOption = {
   id: string;
   employee_no: string | null;
+  employee_code?: string | null;
+  full_name_ar?: string | null;
+  full_name_en?: string | null;
   assigned_platform?: string | null;
   status_code?: string | null;
   recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
@@ -75,23 +78,29 @@ export function EmployeeSearchBox({
         ) : options.length === 0 ? (
           <div className="px-3 py-2 text-sm text-primary/60">{t("common.noResults")}</div>
         ) : (
-          options.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => {
-                onChange(opt.id);
-                onSelectOption?.(opt);
-                setQuery(opt.recruitment_candidate?.full_name_ar ?? opt.employee_no ?? "");
-              }}
-              className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-primary/5 ${
-                value === opt.id ? "bg-primary/10" : ""
-              }`}
-            >
-              <span>{opt.recruitment_candidate ? `${opt.recruitment_candidate.full_name_ar} ${opt.recruitment_candidate.full_name_en ? `(${opt.recruitment_candidate.full_name_en})` : ""}` : opt.employee_no ?? "-"}</span>
-              <span className="text-xs text-primary/60">{opt.employee_no ?? ""}</span>
-            </button>
-          ))
+          options.map((opt) => {
+            const nameAr = opt.full_name_ar ?? opt.recruitment_candidate?.full_name_ar;
+            const nameEn = opt.full_name_en ?? opt.recruitment_candidate?.full_name_en;
+            const displayName = nameAr ? `${nameAr}${nameEn ? ` (${nameEn})` : ""}` : opt.employee_no ?? opt.employee_code ?? "-";
+            const codeOrNo = opt.employee_no ?? opt.employee_code ?? "";
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  onChange(opt.id);
+                  onSelectOption?.(opt);
+                  setQuery(nameAr ?? codeOrNo ?? "");
+                }}
+                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-primary/5 ${
+                  value === opt.id ? "bg-primary/10" : ""
+                }`}
+              >
+                <span>{displayName}</span>
+                <span className="text-xs text-primary/60">{codeOrNo}</span>
+              </button>
+            );
+          })
         )}
       </div>
     </div>

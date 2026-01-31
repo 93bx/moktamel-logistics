@@ -99,6 +99,8 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId }: Emplo
 
   useEffect(() => {
     if (isOpen) {
+      setSaving(false);
+      setLoading(false);
       if (employmentId) {
         setLoading(true);
         fetch(`/api/employment/${employmentId}`)
@@ -121,6 +123,8 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId }: Emplo
   const handleClose = () => {
     setStep(1);
     setError(null);
+    setSaving(false);
+    setLoading(false);
     onClose();
   };
 

@@ -176,6 +176,9 @@ export class DailyOperationsService {
         status_code: 'EMPLOYMENT_STATUS_ACTIVE',
         OR: [
           { employee_no: { contains: trimmed, mode: 'insensitive' } },
+          { employee_code: { contains: trimmed, mode: 'insensitive' } },
+          { full_name_ar: { contains: trimmed, mode: 'insensitive' } },
+          { full_name_en: { contains: trimmed, mode: 'insensitive' } },
           {
             recruitment_candidate: {
               OR: [
@@ -190,6 +193,9 @@ export class DailyOperationsService {
       select: {
         id: true,
         employee_no: true,
+        employee_code: true,
+        full_name_ar: true,
+        full_name_en: true,
         assigned_platform: true,
         status_code: true,
         recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
