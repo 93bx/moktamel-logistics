@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { Upload } from "lucide-react";
 
 interface FileUploadProps {
   purpose_code: string;
@@ -11,8 +12,8 @@ interface FileUploadProps {
   onFileIdChange: (fileId: string | null) => void;
   accept?: string;
   /** Card style: dashed border, icon, label inside card. Use with icon prop. */
-  variant?: "default" | "card";
-  /** Icon shown in card variant (e.g. FileImage, Plane from lucide-react). */
+  variant?: "default" | "card" | "button" | "iconButton";
+  /** Icon shown in card variant or iconButton variant (e.g. FileImage, Plane from lucide-react). iconButton defaults to Upload. */
   icon?: React.ReactNode;
   /** Optional class for card variant label (e.g. validation state: danger/success border and background). When provided, replaces default border/background. */
   wrapperClassName?: string;
@@ -100,6 +101,95 @@ export function FileUpload({
   };
 
   const inputId = `file-upload-${purpose_code}`;
+
+  if (variant === "iconButton") {
+    const Icon = icon ?? <Upload className="h-4 w-4" />;
+    const hasFile = !!(fileId || uploadedFileName);
+    return (
+      <div className="flex flex-col gap-0.5 min-h-0">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={accept}
+          onChange={handleFileSelect}
+          disabled={uploading}
+          className="hidden"
+          id={inputId}
+        />
+        <div className="flex items-center gap-0.5">
+          <label
+            htmlFor={inputId}
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border cursor-pointer transition-colors ${
+              hasFile
+                ? "border-green-500 bg-green-500 text-white hover:bg-green-600 dark:border-green-600 dark:bg-green-600 dark:hover:bg-green-700"
+                : "border-zinc-200 bg-white text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+            } ${uploading ? "opacity-50 cursor-not-allowed" : ""}`}
+            aria-label={`${label}${required ? " (required)" : ""}`}
+            title={label}
+          >
+            {Icon}
+          </label>
+          {hasFile && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              disabled={uploading}
+              className="rounded p-0.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-50"
+              aria-label={t("common.remove") || "Remove"}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {error && <div className="text-xs text-red-600 dark:text-red-400">{error}</div>}
+      </div>
+    );
+  }
+
+  if (variant === "button") {
+    return (
+      <div className="flex flex-col gap-0.5 min-h-0">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={accept}
+          onChange={handleFileSelect}
+          disabled={uploading}
+          className="hidden"
+          id={inputId}
+        />
+        <div className="flex items-center gap-1 flex-wrap">
+          <label
+            htmlFor={inputId}
+            className={`rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-primary cursor-pointer hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 ${
+              uploading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+            aria-label={`${label}${required ? " (required)" : ""}`}
+          >
+            {uploading
+              ? t("common.uploading") || "Uploading..."
+              : uploadedFileName || fileId
+                ? uploadedFileName || t("common.fileUploaded") || "Uploaded"
+                : t("common.uploadFile") || "Upload"}
+          </label>
+          {(uploadedFileName || fileId) && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              disabled={uploading}
+              className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-xs text-red-900 hover:bg-red-100 disabled:opacity-50"
+              aria-label={t("common.remove") || "Remove"}
+            >
+              {t("common.remove") || "Remove"}
+            </button>
+          )}
+        </div>
+        {error && <div className="text-xs text-red-600 dark:text-red-400">{error}</div>}
+      </div>
+    );
+  }
 
   if (variant === "card") {
     return (

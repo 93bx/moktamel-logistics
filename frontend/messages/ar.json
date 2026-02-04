@@ -36,7 +36,15 @@
     "alreadyHaveAccount": "لديك حساب بالفعل؟"
   },
   "recruitment": {
-    "newCandidate": "مرشح جديد"
+    "new": "جديد",
+    "newCandidate": "مرشح جديد",
+    "newCandidatesMultiple": "مرشحون جدد (متعدد)",
+    "addRow": "إضافة صف",
+    "candidatesCreated": "تم إنشاء {count} مرشح/مرشحين",
+    "duplicatePassportNumber": "رقم جواز مكرر",
+    "fixErrorsInTable": "صحح الأخطاء في الجدول",
+    "addAtLeastOneCandidate": "أضف مرشحاً واحداً على الأقل",
+    "selectDate": "اختر التاريخ"
   },
   "notifications": {
     "severity": {

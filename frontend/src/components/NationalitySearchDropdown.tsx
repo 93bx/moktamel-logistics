@@ -10,7 +10,8 @@ import {
   type Country,
 } from "@/data/countries";
 
-const FLAG_SIZE = 24;
+const FLAG_SIZE_DEFAULT = 24;
+const FLAG_SIZE_COMPACT = 18;
 
 export interface NationalitySearchDropdownProps {
   value: string;
@@ -21,10 +22,15 @@ export interface NationalitySearchDropdownProps {
   required?: boolean;
   /** Optional class name for the input (e.g. validation state: danger/success border and background). */
   inputClassName?: string;
+  /** Compact size for table cells: smaller padding and text. */
+  size?: "default" | "compact";
 }
 
 const defaultInputClass =
   "mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-900 disabled:bg-zinc-100 disabled:text-primary/50 dark:disabled:bg-zinc-800";
+
+const compactInputClass =
+  "mt-0.5 w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-xs text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-900 disabled:bg-zinc-100 disabled:text-primary/50 dark:disabled:bg-zinc-800";
 
 export function NationalitySearchDropdown({
   value,
@@ -34,7 +40,12 @@ export function NationalitySearchDropdown({
   placeholder,
   required = false,
   inputClassName,
+  size = "default",
 }: NationalitySearchDropdownProps) {
+  const isCompact = size === "compact";
+  const baseInputClass = isCompact ? compactInputClass : defaultInputClass;
+  const effectiveInputClass = inputClassName ?? baseInputClass;
+  const flagSize = isCompact ? FLAG_SIZE_COMPACT : FLAG_SIZE_DEFAULT;
   const t = useTranslations("common");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -153,17 +164,17 @@ export function NationalitySearchDropdown({
         onKeyDown={handleKeyDown}
         required={required}
         placeholder={placeholderText}
-        className={inputClassName ?? defaultInputClass}
+        className={effectiveInputClass}
       />
       {open && (
         <div
           id="nationality-listbox"
           ref={listRef}
           role="listbox"
-          className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+          className={`absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900 ${isCompact ? "max-h-40" : ""}`}
         >
           {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-primary/60">
+            <div className={isCompact ? "px-2 py-1.5 text-xs text-primary/60" : "px-3 py-2 text-sm text-primary/60"}>
               {t("noResults")}
             </div>
           ) : (
@@ -180,16 +191,15 @@ export function NationalitySearchDropdown({
                   aria-selected={isHighlighted}
                   onClick={() => handleSelect(country)}
                   onMouseEnter={() => setHighlightIndex(index)}
-                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-primary/5 ${
+                  className={`flex w-full items-center gap-2 text-left hover:bg-primary/5 ${
                     isHighlighted ? "bg-primary/10" : ""
-                  }`}
+                  } ${isCompact ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm"}`}
                 >
-                  
                   <img
                     src={getFlagUrl(country.code)}
                     alt=""
-                    width={FLAG_SIZE}
-                    height={Math.round(FLAG_SIZE * 0.75)}
+                    width={flagSize}
+                    height={Math.round(flagSize * 0.75)}
                     loading="lazy"
                     className="shrink-0 rounded object-cover"
                   />

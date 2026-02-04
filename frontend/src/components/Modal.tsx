@@ -8,10 +8,25 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "5xl" | "8xl";
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "5xl" | "8xl" | "full";
+  /** Optional actions rendered in the header (e.g. Add row, Cancel, Save). */
+  headerActions?: React.ReactNode;
+  /** Optional class for the content wrapper (e.g. "p-0" for full-bleed). */
+  contentClassName?: string;
+  /** Optional class for the modal container (e.g. "min-h-[75vh]"). */
+  modalClassName?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, maxWidth = "2xl" }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  maxWidth = "2xl",
+  headerActions,
+  contentClassName = "p-6",
+  modalClassName,
+}: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape key
@@ -40,6 +55,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = "2xl" }: Mo
     "4xl": "max-w-4xl",
     "5xl": "max-w-5xl",
     "8xl": "max-w-8xl",
+    full: "max-w-[95vw]",
   }[maxWidth];
 
   return (
@@ -53,22 +69,25 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = "2xl" }: Mo
       {/* Modal */}
       <div
         ref={modalRef}
-        className={`relative ${maxWidthClass} w-full mx-4 max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800`}
+        className={`relative ${maxWidthClass} w-full mx-4 max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800 ${modalClassName ?? ""}`}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-700 dark:bg-zinc-800">
+        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">
           <h2 className="text-xl font-semibold text-primary">{title}</h2>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1 text-primary/50 hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {headerActions}
+            <button
+              onClick={onClose}
+              className="rounded-md p-1 text-primary/50 hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="p-6">{children}</div>
+        <div className={contentClassName}>{children}</div>
       </div>
     </div>
   );

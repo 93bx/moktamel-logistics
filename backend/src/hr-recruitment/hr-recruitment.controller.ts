@@ -86,6 +86,10 @@ const CandidateDraftCreateSchema = z
 
 const CandidateUpdateSchema = CandidateCreateSchema.partial();
 
+const CandidateBulkCreateSchema = z.object({
+  candidates: z.array(CandidateCreateSchema).min(1).max(200),
+});
+
 @Controller('hr/recruitment')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class HrRecruitmentController {
@@ -108,6 +112,13 @@ export class HrRecruitmentController {
   @Permissions('HR_RECRUITMENT_READ')
   async get(@Req() req: Request & { user?: any }, @Param('id') id: string) {
     return this.svc.get(req.user.company_id, id);
+  }
+
+  @Post('candidates/bulk')
+  @Permissions('HR_RECRUITMENT_CREATE')
+  async createBulk(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+    const data = CandidateBulkCreateSchema.parse(body);
+    return this.svc.createBulk(req.user.company_id, req.user.sub, data.candidates);
   }
 
   @Post('candidates')

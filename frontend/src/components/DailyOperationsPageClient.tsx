@@ -154,14 +154,14 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
               <span>{t("dailyOps.addOperation")}</span>
             </button>
             {menuOpen && (
-              <div className="absolute right-0 z-10 mt-2 w-72 rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+              <div className="absolute end-0 z-10 mt-2 w-72 rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
                 <button
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     setShowSingle(true);
                   }}
-                  className="block w-full px-4 py-3 text-left text-sm hover:bg-primary/5"
+                  className="block w-full px-4 py-3 text-start text-sm hover:bg-primary/5"
                 >
                   {t("dailyOps.singleInput")}
                 </button>
@@ -171,7 +171,7 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
                     setMenuOpen(false);
                     setShowBulk(true);
                   }}
-                  className="block w-full px-4 py-3 text-left text-sm hover:bg-primary/5"
+                  className="block w-full px-4 py-3 text-start text-sm hover:bg-primary/5"
                 >
                   {t("dailyOps.bulkInput")}
                 </button>

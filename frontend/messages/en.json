@@ -36,7 +36,15 @@
     "alreadyHaveAccount": "Already have an account?"
   },
   "recruitment": {
-    "newCandidate": "New Candidate"
+    "new": "New",
+    "newCandidate": "New Candidate",
+    "newCandidatesMultiple": "New Candidates (Multiple)",
+    "addRow": "Add row",
+    "candidatesCreated": "{count} candidates created",
+    "duplicatePassportNumber": "Duplicate passport number",
+    "fixErrorsInTable": "Fix errors in the table",
+    "addAtLeastOneCandidate": "Add at least one candidate",
+    "selectDate": "Select date"
   },
   "notifications": {
     "severity": {

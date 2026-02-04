@@ -382,6 +382,191 @@ export class HrRecruitmentService {
     return created;
   }
 
+  /** Validate one candidate for full create (non-draft). Throws BadRequestException with message. */
+  private validateCandidateForCreate(data: Record<string, unknown>, index: number): void {
+    const prefix = (i: number) => (i >= 0 ? `Row ${i + 1}: ` : '');
+    if (!data.full_name_ar || String(data.full_name_ar).trim().length < 2) {
+      throw new BadRequestException(prefix(index) + 'full_name_ar is required and must be at least 2 characters');
+    }
+    if (!data.full_name_en || String(data.full_name_en).trim().length < 2) {
+      throw new BadRequestException(prefix(index) + 'full_name_en is required and must be at least 2 characters');
+    }
+    if (!data.nationality || String(data.nationality).trim().length < 2) {
+      throw new BadRequestException(prefix(index) + 'nationality is required and must be at least 2 characters');
+    }
+    if (!data.passport_no || String(data.passport_no).trim().length < 3) {
+      throw new BadRequestException(prefix(index) + 'passport_no is required and must be at least 3 characters');
+    }
+    if (!data.responsible_office || String(data.responsible_office).trim().length < 1) {
+      throw new BadRequestException(prefix(index) + 'responsible_office is required');
+    }
+    if (!data.passport_image_file_id) {
+      throw new BadRequestException(prefix(index) + 'passport_image_file_id is required');
+    }
+    if (!data.passport_expiry_at || isNaN(Date.parse(String(data.passport_expiry_at)))) {
+      throw new BadRequestException(prefix(index) + 'passport_expiry_at is required and must be a valid date');
+    }
+    const officeNum = data.responsible_office_number != null ? String(data.responsible_office_number) : '';
+    if (officeNum.length > 10) {
+      throw new BadRequestException(prefix(index) + 'responsible_office_number must be at most 10 characters');
+    }
+    if (data.visa_deadline_at != null && data.visa_deadline_at !== '' && isNaN(Date.parse(String(data.visa_deadline_at)))) {
+      throw new BadRequestException(prefix(index) + 'Invalid visa_deadline_at');
+    }
+    if (data.visa_sent_at != null && data.visa_sent_at !== '' && isNaN(Date.parse(String(data.visa_sent_at)))) {
+      throw new BadRequestException(prefix(index) + 'Invalid visa_sent_at');
+    }
+    if (data.expected_arrival_at != null && data.expected_arrival_at !== '' && isNaN(Date.parse(String(data.expected_arrival_at)))) {
+      throw new BadRequestException(prefix(index) + 'Invalid expected_arrival_at');
+    }
+  }
+
+  async createBulk(
+    company_id: string,
+    actor_user_id: string,
+    candidates: Array<Record<string, unknown>>,
+  ): Promise<{ created: number; ids: string[] }> {
+    const passportNos = candidates.map(c => String(c.passport_no ?? '').trim()).filter(Boolean);
+    const seen = new Set<string>();
+    for (const no of passportNos) {
+      if (seen.has(no)) {
+        throw new BadRequestException('Duplicate passport numbers in request');
+      }
+      seen.add(no);
+    }
+
+    if (passportNos.length > 0) {
+      const existing = await this.prisma.recruitmentCandidate.findMany({
+        where: {
+          company_id,
+          deleted_at: null,
+          passport_no: { in: passportNos },
+        },
+        select: { passport_no: true },
+      });
+      if (existing.length > 0) {
+        const list = existing.map(e => e.passport_no).join(', ');
+        throw new BadRequestException(`Passport number already exists: ${list}`);
+      }
+    }
+
+    candidates.forEach((data, index) => this.validateCandidateForCreate(data, index));
+
+    const createdList = await this.prisma.$transaction(
+      candidates.map(data => {
+        const expectedArrival = data.expected_arrival_at
+          ? new Date(String(data.expected_arrival_at))
+          : null;
+        const statusCode = this.deriveStatusFromExpectedArrival(expectedArrival);
+        return this.prisma.recruitmentCandidate.create({
+          data: {
+            company_id,
+            created_by_user_id: actor_user_id,
+            full_name_ar: String(data.full_name_ar),
+            full_name_en: String(data.full_name_en).trim(),
+            nationality: String(data.nationality),
+            passport_no: String(data.passport_no),
+            passport_expiry_at: new Date(String(data.passport_expiry_at)),
+            job_title_code: data.job_title_code != null ? String(data.job_title_code) : null,
+            department_id: data.department_id != null ? String(data.department_id) : null,
+            responsible_office: String(data.responsible_office),
+            responsible_office_number:
+              data.responsible_office_number != null && String(data.responsible_office_number).trim() !== ''
+                ? String(data.responsible_office_number).trim()
+                : null,
+            avatar_file_id:
+              (typeof data.personal_picture_file_id === 'string' && data.personal_picture_file_id)
+                ? data.personal_picture_file_id
+                : (typeof data.avatar_file_id === 'string' && data.avatar_file_id)
+                  ? data.avatar_file_id
+                  : null,
+            status_code: statusCode,
+            visa_deadline_at:
+              data.visa_deadline_at != null && data.visa_deadline_at !== ''
+                ? new Date(String(data.visa_deadline_at))
+                : null,
+            visa_sent_at:
+              data.visa_sent_at != null && data.visa_sent_at !== ''
+                ? new Date(String(data.visa_sent_at))
+                : null,
+            expected_arrival_at: expectedArrival,
+            notes: data.notes != null ? String(data.notes) : null,
+          },
+        });
+      }),
+    );
+
+    const ids: string[] = [];
+    for (let i = 0; i < createdList.length; i++) {
+      const created = createdList[i];
+      const data = candidates[i];
+      ids.push(created.id);
+
+      const filePurposes = [
+        { file_id: data.passport_image_file_id, purpose_code: 'PASSPORT_IMAGE' as const },
+        { file_id: data.visa_image_file_id, purpose_code: 'VISA_IMAGE' as const },
+        { file_id: data.flight_ticket_image_file_id, purpose_code: 'FLIGHT_TICKET_IMAGE' as const },
+        { file_id: data.personal_picture_file_id, purpose_code: 'PERSONAL_PICTURE' as const },
+      ].filter((f) => typeof f.file_id === 'string' && f.file_id.length > 0) as Array<{
+        file_id: string;
+        purpose_code: 'PASSPORT_IMAGE' | 'VISA_IMAGE' | 'FLIGHT_TICKET_IMAGE' | 'PERSONAL_PICTURE';
+      }>;
+
+      for (const { file_id, purpose_code } of filePurposes) {
+        await this.files.linkToEntity({
+          company_id,
+          actor_user_id,
+          file_id: String(file_id),
+          entity_type: 'RECRUITMENT_CANDIDATE',
+          entity_id: created.id,
+          purpose_code,
+        });
+      }
+
+      await this.audit.log({
+        company_id,
+        actor_user_id,
+        actor_role: null,
+        action: 'HR_RECRUITMENT_CREATE',
+        entity_type: 'RECRUITMENT_CANDIDATE',
+        entity_id: created.id,
+        new_values: created,
+      });
+
+      await this.analytics.track({
+        company_id,
+        actor_user_id,
+        event_code: 'HR_RECRUITMENT_CREATED',
+        entity_type: 'RECRUITMENT_CANDIDATE',
+        entity_id: created.id,
+        payload: { status_code: created.status_code },
+      });
+
+      if (created.expected_arrival_at && this.isWithinArrivalSoonWindow(created.expected_arrival_at)) {
+        await this.upsertArrivalSoonNotification(
+          company_id,
+          created.id,
+          created.expected_arrival_at,
+          created.full_name_ar,
+          created.full_name_en,
+          actor_user_id,
+        );
+      }
+
+      if (created.status_code === RECRUITMENT_STATUS.ARRIVED) {
+        await this.employmentSvc.create(company_id, actor_user_id, {
+          recruitment_candidate_id: created.id,
+          full_name_ar: created.full_name_ar,
+          full_name_en: created.full_name_en,
+          avatar_file_id: created.avatar_file_id,
+          status_code: 'EMPLOYMENT_STATUS_UNDER_PROCEDURE',
+        });
+      }
+    }
+
+    return { created: ids.length, ids };
+  }
+
   private hasDraftField(data: any): boolean {
     const hasValue = (v: unknown) => v != null && String(v).trim() !== '';
     return (
