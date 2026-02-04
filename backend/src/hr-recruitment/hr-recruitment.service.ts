@@ -92,7 +92,16 @@ export class HrRecruitmentService {
     }
   }
 
-  async list(company_id: string, input: { q?: string; status_code?: string; page: number; page_size: number }) {
+  async list(
+    company_id: string,
+    input: {
+      q?: string;
+      status_code?: string;
+      page: number;
+      page_size: number;
+      sort?: 'under_procedure' | 'drafts' | 'arriving_soon' | 'older_than_45_days';
+    },
+  ) {
     const where: Prisma.RecruitmentCandidateWhereInput = { company_id, deleted_at: null };
     if (input.status_code) where.status_code = input.status_code;
     if (input.q) {
@@ -107,6 +116,31 @@ export class HrRecruitmentService {
     const skip = (input.page - 1) * input.page_size;
     const qPattern = input.q ? `%${input.q}%` : null;
 
+    const defaultOrderBy = Prisma.sql`CASE "status_code"
+      WHEN 'ON_ARRIVAL' THEN 1
+      WHEN 'UNDER_PROCEDURE' THEN 2
+      WHEN 'DRAFT' THEN 3
+      WHEN 'ARRIVED' THEN 4
+      ELSE 5
+    END, "expected_arrival_at" ASC NULLS LAST`;
+    let orderByFragment: Prisma.Sql;
+    switch (input.sort) {
+      case 'under_procedure':
+        orderByFragment = Prisma.sql`(CASE "status_code" WHEN 'UNDER_PROCEDURE' THEN 0 ELSE 1 END) ASC, "expected_arrival_at" ASC NULLS LAST`;
+        break;
+      case 'drafts':
+        orderByFragment = Prisma.sql`(CASE "status_code" WHEN 'DRAFT' THEN 0 ELSE 1 END) ASC, "expected_arrival_at" ASC NULLS LAST`;
+        break;
+      case 'arriving_soon':
+        orderByFragment = Prisma.sql`"expected_arrival_at" ASC NULLS LAST`;
+        break;
+      case 'older_than_45_days':
+        orderByFragment = Prisma.sql`"visa_sent_at" ASC NULLS LAST`;
+        break;
+      default:
+        orderByFragment = defaultOrderBy;
+    }
+
     const listQuery = Prisma.sql`
       SELECT id, full_name_ar, full_name_en, nationality, passport_no, job_title_code,
              status_code, responsible_office, avatar_file_id, visa_deadline_at, visa_sent_at,
@@ -115,15 +149,7 @@ export class HrRecruitmentService {
       WHERE "company_id" = ${company_id}::uuid AND "deleted_at" IS NULL
       ${input.status_code ? Prisma.sql`AND "status_code" = ${input.status_code}` : Prisma.empty}
       ${qPattern !== null ? Prisma.sql`AND ("full_name_ar" ILIKE ${qPattern} OR "full_name_en" ILIKE ${qPattern} OR "passport_no" ILIKE ${qPattern} OR "responsible_office" ILIKE ${qPattern})` : Prisma.empty}
-      ORDER BY
-        CASE "status_code"
-          WHEN 'ON_ARRIVAL' THEN 1
-          WHEN 'UNDER_PROCEDURE' THEN 2
-          WHEN 'DRAFT' THEN 3
-          WHEN 'ARRIVED' THEN 4
-          ELSE 5
-        END,
-        "expected_arrival_at" ASC NULLS LAST
+      ORDER BY ${orderByFragment}
       LIMIT ${input.page_size}
       OFFSET ${skip}
     `;

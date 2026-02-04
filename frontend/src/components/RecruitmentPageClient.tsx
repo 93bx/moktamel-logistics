@@ -47,11 +47,26 @@ export function RecruitmentPageClient({
     page_size: number;
   };
   stats: StatsData;
-  searchParams: { q?: string; status_code?: string };
+  searchParams: { q?: string; status_code?: string; sort?: string };
   page: number;
 }) {
   const t = useTranslations();
   const router = useRouter();
+
+  type SortValue = "under_procedure" | "arriving_soon" | "older_than_45_days" | "drafts";
+
+  function buildRecruitmentUrl(opts: {
+    sort?: SortValue | null;
+    page?: number;
+  }): string {
+    const params = new URLSearchParams();
+    if (searchParams.q) params.set("q", searchParams.q);
+    if (searchParams.status_code) params.set("status_code", searchParams.status_code);
+    if (opts.sort != null && opts.sort !== "") params.set("sort", opts.sort);
+    if (opts.page != null && opts.page > 1) params.set("page", String(opts.page));
+    const qs = params.toString();
+    return `/${locale}/recruitment${qs ? `?${qs}` : ""}`;
+  }
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [markingAsArrivedId, setMarkingAsArrivedId] = useState<string | null>(null);
@@ -101,29 +116,56 @@ export function RecruitmentPageClient({
   return (
     <>
       <div className="space-y-4">
-        {/* Part 1: Quick Stats Cards */}
+        {/* Part 1: Quick Stats Cards (click to sort; click again to clear) */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-            <div className="text-sm text-primary/60">{t("common.underProcedure")}</div>
-            <div className="mt-1 text-2xl font-semibold text-primary">{stats.underProcedureCount}</div>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-            <div className="text-sm text-primary/60">{t("common.arrivingWithin7Days")}</div>
-            <div className="mt-1 text-2xl font-semibold text-primary">{stats.arrivingWithin7DaysCount}</div>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-            <div className="text-sm text-primary/60">{t("common.olderThan45Days")}</div>
-            <div className="mt-1 text-2xl font-semibold text-primary">{stats.olderThan45DaysCount}</div>
-          </div>
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-            <div className="text-sm text-primary/60">{t("common.drafts")}</div>
-            <div className="mt-1 text-2xl font-semibold text-primary">{stats.draftCount}</div>
-          </div>
+          {(
+            [
+              {
+                sort: "under_procedure" as const,
+                label: t("common.underProcedure"),
+                value: stats.underProcedureCount,
+              },
+              {
+                sort: "arriving_soon" as const,
+                label: t("common.arrivingWithin7Days"),
+                value: stats.arrivingWithin7DaysCount,
+              },
+              {
+                sort: "older_than_45_days" as const,
+                label: t("common.olderThan45Days"),
+                value: stats.olderThan45DaysCount,
+              },
+              {
+                sort: "drafts" as const,
+                label: t("common.drafts"),
+                value: stats.draftCount,
+              },
+            ] as const
+          ).map(({ sort, label, value }) => {
+            const isActive = searchParams.sort === sort;
+            return (
+              <Link
+                key={sort}
+                href={isActive ? buildRecruitmentUrl({ sort: null, page: 1 }) : buildRecruitmentUrl({ sort, page: 1 })}
+                className={`rounded-lg border p-4 transition-colors dark:bg-zinc-800 ${
+                  isActive
+                    ? "border-primary bg-primary/5 ring-2 ring-primary/20 dark:bg-primary/10"
+                    : "border-zinc-200 bg-white dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
+                } cursor-pointer`}
+              >
+                <div className="text-sm text-primary/60">{label}</div>
+                <div className="mt-1 text-2xl font-semibold text-primary">{value}</div>
+              </Link>
+            );
+          })}
         </div>
 
         {/* Part 2: Control Buttons (aligned) */}
         <form className="flex justify-between items-center " action={`/${locale}/recruitment`} method="get">
           <div className="flex gap-2 bg-[#244473] p-2 rounded-md w-[50%]">
+            {searchParams.sort ? (
+              <input type="hidden" name="sort" value={searchParams.sort} />
+            ) : null}
             <input
               name="q"
               defaultValue={searchParams.q ?? ""}
@@ -270,17 +312,19 @@ export function RecruitmentPageClient({
           <div className="flex gap-2">
             <Link
               className={`rounded-md border border-zinc-200 px-3 py-1 text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-              href={`/${locale}/recruitment?q=${encodeURIComponent(searchParams.q ?? "")}&status_code=${encodeURIComponent(
-                searchParams.status_code ?? "",
-              )}&page=${page - 1}`}
+              href={buildRecruitmentUrl({
+                sort: (searchParams.sort as SortValue) || null,
+                page: page - 1,
+              })}
             >
               {t("common.prev")}
             </Link>
             <Link
               className={`rounded-md border border-zinc-200 px-3 py-1 text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 ${page * data.page_size >= data.total ? "pointer-events-none opacity-50" : ""}`}
-              href={`/${locale}/recruitment?q=${encodeURIComponent(searchParams.q ?? "")}&status_code=${encodeURIComponent(
-                searchParams.status_code ?? "",
-              )}&page=${page + 1}`}
+              href={buildRecruitmentUrl({
+                sort: (searchParams.sort as SortValue) || null,
+                page: page + 1,
+              })}
             >
               {t("common.next")}
             </Link>

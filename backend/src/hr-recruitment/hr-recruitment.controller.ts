@@ -6,11 +6,14 @@ import { Permissions } from '../rbac/permissions.decorator';
 import { PermissionsGuard } from '../rbac/permissions.guard';
 import { HrRecruitmentService } from './hr-recruitment.service';
 
+const SORT_VALUES = ['under_procedure', 'drafts', 'arriving_soon', 'older_than_45_days'] as const;
 const ListQuerySchema = z.object({
   q: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
   status_code: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(2).optional()),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(200).default(25),
+  sort: z
+    .preprocess((val) => (val === '' ? undefined : val), z.enum(SORT_VALUES).optional()),
 });
 
 const CandidateCreateSchema = z.object({

@@ -33,7 +33,7 @@ export default async function RecruitmentPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ q?: string; status_code?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status_code?: string; page?: string; sort?: string }>;
 }) {
   const { locale } = await params;
   const sp = await searchParams;
@@ -66,7 +66,7 @@ export default async function RecruitmentPage({
       }>({
         path: `/hr/recruitment/candidates?q=${encodeURIComponent(sp.q ?? "")}&status_code=${encodeURIComponent(
           sp.status_code ?? "",
-        )}&page=${page}&page_size=25`,
+        )}&page=${page}&page_size=25${sp.sort ? `&sort=${encodeURIComponent(sp.sort)}` : ""}`,
       }),
       backendApi<StatsData>({
         path: `/hr/recruitment/stats`,
