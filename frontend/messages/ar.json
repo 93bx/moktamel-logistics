@@ -35,6 +35,9 @@
     "dontHaveAccount": "ليس لديك حساب؟",
     "alreadyHaveAccount": "لديك حساب بالفعل؟"
   },
+  "recruitment": {
+    "newCandidate": "مرشح جديد"
+  },
   "common": {
     "language": "اللغة",
     "english": "الإنجليزية",
@@ -267,6 +270,7 @@
     "damagedAsset": "الأصل المتضرر",
     "totalAssetsValue": "إجمالي قيمة الأصول"
   },
+  
   "dailyOps": {
     "pageTitle": "عمليات اليوم",
     "totalOrders": "إجمالي الطلبات",

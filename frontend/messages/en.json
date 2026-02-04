@@ -35,6 +35,9 @@
     "dontHaveAccount": "Don't have an account?",
     "alreadyHaveAccount": "Already have an account?"
   },
+  "recruitment": {
+    "newCandidate": "New Candidate"
+  },
   "common": {
     "language": "Language",
     "english": "English",
