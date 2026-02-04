@@ -5,6 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { locales } from "@/i18n/routing";
+
+/** Strip locale prefix so path works with localePrefix "as-needed" (e.g. /ar/dashboard -> /dashboard). */
+function pathWithoutLocale(path: string): string {
+  const segments = path.split("/").filter(Boolean);
+  const first = segments[0] ?? "";
+  if ((locales as readonly string[]).includes(first)) {
+    return "/" + segments.slice(1).join("/") || "/";
+  }
+  return path || "/";
+}
 
 export function SideNav() {
   const pathname = usePathname();
@@ -12,7 +23,11 @@ export function SideNav() {
   const t = useTranslations();
   const [isHROpen, setIsHROpen] = useState(true);
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const currentPath = pathWithoutLocale(pathname);
+  const isActive = (href: string) => {
+    const hrefPath = pathWithoutLocale(href);
+    return currentPath === hrefPath || currentPath.startsWith(hrefPath + "/");
+  };
 
   const hrItems = [
     { href: `/${locale}/recruitment`, label: t("nav.recruitment") },
