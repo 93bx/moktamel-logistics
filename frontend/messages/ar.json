@@ -368,6 +368,7 @@
     "colLoans": "إجمالي السلف",
     "colDeductions": "الخصومات",
     "colActions": "الإجراءات",
+    "unknownEmployee": "موظف غير معروف",
     "stats": {
       "myWallet": "محفظتي",
       "cashNotCollected": "نقد غير محصل",

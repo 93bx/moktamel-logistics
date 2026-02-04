@@ -10,6 +10,8 @@ import { EmployeeSearchBox } from "./EmployeeSearchBox";
 type EmployeeRow = {
   id: string;
   employee_no: string | null;
+  employee_code: string | null;
+  avatar_file_id: string | null;
   full_name_ar: string;
   full_name_en: string;
   total_revenue: number;
@@ -179,17 +181,45 @@ export function CashLoansPageClient({ locale, list, stats, searchParams, page, d
               {list.items.map((row) => (
                 <tr key={row.id} className="border-b border-zinc-100 dark:border-zinc-700">
                   <td className="px-3 py-2">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                        {(row.full_name_ar || row.full_name_en || "?").charAt(0)}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{row.full_name_ar}</span>
-                        <span className="text-xs text-primary/60">{row.full_name_en}</span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const displayNameAr = row.full_name_ar || "";
+                      const displayNameEn = row.full_name_en || "";
+                      const hasNames = displayNameAr || displayNameEn;
+                      const code = row.employee_code ?? row.employee_no ?? "";
+                      const fallbackLabel = code || t("cashLoans.unknownEmployee");
+                      const primaryName = displayNameAr || displayNameEn || fallbackLabel;
+                      const firstChar = primaryName.trim()[0];
+                      const avatarChar = firstChar ?? "?";
+                      return (
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-primary/10">
+                            {row.avatar_file_id ? (
+                              <img
+                                src={`/api/files/${row.avatar_file_id}/view`}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="flex h-full w-full items-center justify-center text-sm font-semibold text-primary"
+                                dir="ltr"
+                                aria-hidden
+                              >
+                                {avatarChar}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex min-w-0 flex-col">
+                            <span className="font-medium">{primaryName}</span>
+                            {hasNames && displayNameAr && displayNameEn ? (
+                              <span className="text-xs text-primary/60">{displayNameEn}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
-                  <td className="px-3 py-2 font-mono text-xs">{row.employee_no ?? "-"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{row.employee_code ?? row.employee_no ?? "-"}</td>
                   <td className="px-3 py-2">
                     <span
                       className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${

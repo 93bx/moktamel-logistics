@@ -383,6 +383,10 @@ export class CashLoansService {
       select: {
         id: true,
         employee_no: true,
+        employee_code: true,
+        avatar_file_id: true,
+        full_name_ar: true,
+        full_name_en: true,
         recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
       },
     });
@@ -419,8 +423,10 @@ export class CashLoansService {
       return {
         id: emp.id,
         employee_no: emp.employee_no,
-        full_name_ar: emp.recruitment_candidate?.full_name_ar ?? '',
-        full_name_en: emp.recruitment_candidate?.full_name_en ?? '',
+        employee_code: emp.employee_code,
+        avatar_file_id: emp.avatar_file_id,
+        full_name_ar: emp.recruitment_candidate?.full_name_ar ?? emp.full_name_ar ?? '',
+        full_name_en: emp.recruitment_candidate?.full_name_en ?? emp.full_name_en ?? '',
         total_revenue: Number(totalRevenue),
         total_cash_collected: Number(totalCashCollected),
         total_cash_not_collected: Math.max(0, Number(notCollected)),

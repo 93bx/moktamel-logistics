@@ -369,6 +369,7 @@
     "colLoans": "Total loans",
     "colDeductions": "Deductions",
     "colActions": "Actions",
+    "unknownEmployee": "Unknown employee",
     "stats": {
       "myWallet": "My wallet",
       "cashNotCollected": "Cash not collected",

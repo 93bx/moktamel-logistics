@@ -8,6 +8,8 @@ import { currentMonthRange } from "@/lib/cashLoans";
 type EmployeeRow = {
   id: string;
   employee_no: string | null;
+  employee_code: string | null;
+  avatar_file_id: string | null;
   full_name_ar: string;
   full_name_en: string;
   total_revenue: number;
