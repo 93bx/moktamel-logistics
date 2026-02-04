@@ -38,6 +38,67 @@
   "recruitment": {
     "newCandidate": "مرشح جديد"
   },
+  "notifications": {
+    "severity": {
+      "INFO": "معلومات",
+      "WARNING": "تحذير",
+      "CRITICAL": "حرج"
+    },
+    "table": {
+      "name": "الاسم",
+      "priority": "الأولوية",
+      "description": "الوصف",
+      "relevantPage": "الصفحة ذات الصلة",
+      "actions": "الإجراءات",
+      "markAsRead": "تعليم كمقروء",
+      "expand": "توسيع",
+      "viewAll": "عرض الكل"
+    },
+    "types": {
+      "HR_RECRUITMENT_VISA_DEADLINE_SOON": {
+        "name": "موعد انتهاء التأشيرة قريب",
+        "shortDescription": "موعد انتهاء التأشيرة خلال {days} يوم",
+        "longDescription": "مرشح استقدام لديه موعد انتهاء تأشيرة خلال {days} يوم. يرجى المراجعة واتخاذ الإجراء إن لزم.",
+        "actionLabel": "عرض المرشح"
+      },
+      "HR_RECRUITMENT_ARRIVAL_SOON": {
+        "name": "وصول مرشح قريب",
+        "shortDescription": "وصول المرشح خلال {days_until} يوم",
+        "longDescription": "مرشح استقدام متوقع وصوله خلال 5 أيام. يرجى التحضير للاستقبال إن لزم.",
+        "actionLabel": "عرض المرشح"
+      },
+      "HR_EMPLOYMENT_IQAMA_EXPIRY_SOON": {
+        "name": "انتهاء الإقامة قريب",
+        "shortDescription": "تنتهي الإقامة خلال {days} يوم",
+        "longDescription": "سجل توظيف لديه تاريخ انتهاء إقامة خلال {days} يوم. يرجى التأكد من التجديد أو المتابعة.",
+        "actionLabel": "عرض التوظيف"
+      },
+      "HR_ASSETS_PENDING_RECOVERY": {
+        "name": "عهدة قيد الاسترداد",
+        "shortDescription": "عهدة معينة لموظف قيد الاسترداد",
+        "longDescription": "تم تعيين عهدة لموظف انتهى توظيفه. استرداد هذه العهدة قيد الانتظار.",
+        "actionLabel": "عرض العهدة"
+      },
+      "HR_ASSETS_LOSS_REPORT_APPROVAL_REQUIRED": {
+        "name": "اعتماد تقرير فقدان مطلوب",
+        "shortDescription": "تقرير فقدان عهدة يحتاج إلى اعتمادك",
+        "longDescription": "تم تقديم تقرير فقدان عهدة ويحتاج إلى اعتماد قبل المعالجة.",
+        "actionLabel": "عرض العهدة"
+      },
+      "HR_ASSETS_LOSS_REPORT_APPROVED": {
+        "name": "تم اعتماد تقرير الفقدان",
+        "shortDescription": "تم اعتماد تقرير فقدان العهدة",
+        "longDescription": "تم اعتماد ومعالجة تقرير فقدان عهدة.",
+        "actionLabel": "عرض العهدة"
+      },
+      "HR_ASSETS_LOSS_REPORT_REJECTED": {
+        "name": "تم رفض تقرير الفقدان",
+        "shortDescription": "تم رفض تقرير فقدان العهدة",
+        "longDescription": "تم رفض تقرير فقدان عهدة.",
+        "actionLabel": "عرض العهدة"
+      }
+    }
+  },
   "common": {
     "language": "اللغة",
     "english": "الإنجليزية",
@@ -62,6 +123,7 @@
     "avatar": "الصورة",
     "name": "الاسم",
     "nationality": "الجنسية",
+    "searchCountry": "البحث عن دولة",
     "passport": "جواز السفر",
     "status": "الحالة",
     "visaDeadline": "موعد انتهاء التأشيرة",
@@ -101,17 +163,28 @@
     "remove": "إزالة",
     "visaDeadlineISO": "موعد انتهاء التأشيرة (ISO)",
     "expectedArrivalISO": "الوصول المتوقع (ISO)",
-    "expectedArrival": "الوصول المتوقع",
+    "expectedArrival": "موعد الوصول",
     "notes": "ملاحظات",
     "statusUnderProcedure": "تحت الإجراء",
     "statusOnArrival": "في الطريق",
     "statusArrived": "وصل",
+    "statusDraft": "مسودة",
+    "markAsArrived": "تأكيد الوصول",
     "save": "حفظ",
+    "saveAsDraft": "حفظ كمسودة",
+    "submit": "إرسال",
+    "unsavedChangesDraft": "لديك تغييرات غير محفوظة. حفظ كمسودة؟",
+    "discard": "تجاهل",
+    "drafts": "المسودات",
+    "atLeastOneFieldRequired": "يجب تعبئة حقل واحد على الأقل لحفظ المسودة",
     "saving": "جارٍ الحفظ...",
     "cancel": "إلغاء",
     "delete": "حذف",
     "salaryAmount": "مبلغ الراتب",
     "responsibleOffice": "المكتب المسؤول",
+    "responsibleOfficeNumber": "رقم المكتب المسؤول",
+    "responsibleOfficeNumberPlaceholder": "0555555555",
+    "passportExpiryDate": "تاريخ انتهاء جواز السفر",
     "visaSentDate": "تاريخ إرسال التأشيرة",
     "underProcedure": "تحت الإجراء",
     "olderThan45Days": "أقدم من 45 يومًا",
@@ -144,6 +217,7 @@
     "confirmDeleteEmployee": "هل أنت متأكد من حذف هذا الموظف؟ لا يمكن التراجع عن هذا الإجراء.",
     "deleting": "جارٍ الحذف...",
     "view": "عرض",
+    "download": "تحميل",
     "back": "رجوع",
     "images": "الصور",
     "expiry": "تاريخ الانتهاء",
@@ -192,11 +266,14 @@
     "fullNameRequired": "الاسم الكامل مطلوب",
     "nationalityRequired": "الجنسية مطلوبة",
     "passportNumberRequired": "رقم جواز السفر مطلوب",
+    "passportExpiryDateRequired": "تاريخ انتهاء جواز السفر مطلوب",
     "responsibleOfficeRequired": "المكتب المسؤول مطلوب",
+    "responsibleOfficeNumberMaxDigits": "رقم المكتب المسؤول يجب ألا يتجاوز 10 أرقام",
     "passportImageRequired": "صورة جواز السفر مطلوبة",
     "exportExcel": "تصدير إكسل",
     "print": "طباعة",
     "printStatement": "طباعة البيان",
+    "resetZoom": "إعادة التكبير",
     "previous": "السابق"
   },
   "assets": {

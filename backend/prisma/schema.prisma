@@ -56,6 +56,7 @@ model User {
   supervised_cash_transactions CashTransaction[] @relation("CashTransaction_supervisor_user_id")
   handover_batches             HandoverBatch[]   @relation("HandoverBatch_supervisor_user_id")
   wallet_balances              WalletBalance[]
+  notification_reads           NotificationRead[]
 }
 
 model CompanyMembership {
@@ -183,9 +184,24 @@ model Notification {
   updated_at         DateTime             @updatedAt
   created_by_user_id String?              @db.Uuid
   company            Company              @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  notification_reads NotificationRead[]
 
   @@index([company_id, created_at])
   @@index([user_id, read_at])
+}
+
+model NotificationRead {
+  id              String       @id @default(uuid()) @db.Uuid
+  notification_id String       @db.Uuid
+  user_id         String       @db.Uuid
+  company_id      String       @db.Uuid
+  read_at         DateTime     @default(now())
+  notification    Notification @relation(fields: [notification_id], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([notification_id, user_id])
+  @@index([user_id])
+  @@index([company_id, user_id])
 }
 
 model NotificationRule {
@@ -378,24 +394,27 @@ model RecruitmentCandidate {
   job_title_code      String?
   status_code         String             @default("UNDER_PROCEDURE")
   department_id       String?            @db.Uuid
-  responsible_office  String
-  visa_deadline_at    DateTime?
-  visa_sent_at        DateTime?
-  expected_arrival_at DateTime?
-  notes               String?
-  deleted_at          DateTime?
-  created_at          DateTime           @default(now())
-  updated_at          DateTime           @updatedAt
-  created_by_user_id  String?            @db.Uuid
-  avatar_file_id      String?            @db.Uuid
-  employments         EmploymentRecord[]
-  department          Department?        @relation(fields: [department_id], references: [id])
+  responsible_office        String
+  responsible_office_number String?            @db.VarChar(10)
+  passport_expiry_at        DateTime?
+  visa_deadline_at          DateTime?
+  visa_sent_at              DateTime?
+  expected_arrival_at       DateTime?
+  notes                     String?
+  deleted_at                DateTime?
+  created_at                DateTime           @default(now())
+  updated_at                DateTime           @updatedAt
+  created_by_user_id        String?            @db.Uuid
+  avatar_file_id            String?            @db.Uuid
+  employments               EmploymentRecord[]
+  department                Department?        @relation(fields: [department_id], references: [id])
 
   @@index([company_id, created_at])
   @@index([company_id, status_code])
   @@index([company_id, visa_deadline_at])
   @@index([company_id, visa_sent_at])
   @@index([company_id, expected_arrival_at])
+  @@index([company_id, passport_expiry_at])
 }
 
 model EmploymentRecord {

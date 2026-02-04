@@ -8,6 +8,7 @@ import { FileUpload } from "./FileUpload";
 import { StatusBadge } from "./StatusBadge";
 import { PlatformIcon } from "./PlatformIcon";
 import { AssetIcons } from "./AssetIcons";
+import { NationalitySearchDropdown } from "./NationalitySearchDropdown";
 import { FileImage, User } from "lucide-react";
 
 interface EmploymentModalProps {
@@ -233,10 +234,10 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId }: Emplo
         </div>
         <div>
           <label className="text-sm font-medium text-primary">{t("common.nationality")}</label>
-          <input
+          <NationalitySearchDropdown
             value={record.nationality ?? ""}
-            onChange={(e) => setRecord({ ...record, nationality: e.target.value })}
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+            onChange={(v) => setRecord({ ...record, nationality: v || null })}
+            locale={locale as "ar" | "en"}
           />
         </div>
         <div>

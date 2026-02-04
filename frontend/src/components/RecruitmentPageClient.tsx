@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Eye, Pencil } from "lucide-react";
+import { CheckCircle, Eye, Pencil } from "lucide-react";
 import { RecruitmentNewButton } from "@/components/RecruitmentNewButton";
 import { RecruitmentEditModal } from "@/components/RecruitmentEditModal";
 
@@ -26,6 +27,7 @@ type CandidateListItem = {
 
 type StatsData = {
   underProcedureCount: number;
+  draftCount: number;
   olderThan45DaysCount: number;
   arrivingWithin7DaysCount: number;
 };
@@ -49,8 +51,10 @@ export function RecruitmentPageClient({
   page: number;
 }) {
   const t = useTranslations();
+  const router = useRouter();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [markingAsArrivedId, setMarkingAsArrivedId] = useState<string | null>(null);
 
   const handleEditClick = (candidateId: string) => {
     setSelectedCandidateId(candidateId);
@@ -59,6 +63,7 @@ export function RecruitmentPageClient({
 
   const getStatusTranslation = (statusCode: string): string => {
     const statusMap: Record<string, string> = {
+      DRAFT: "common.statusDraft",
       UNDER_PROCEDURE: "common.statusUnderProcedure",
       ON_ARRIVAL: "common.statusOnArrival",
       ARRIVED: "common.statusArrived",
@@ -67,22 +72,52 @@ export function RecruitmentPageClient({
     return translationKey ? t(translationKey) : statusCode;
   };
 
+  const handleMarkAsArrived = async (candidateId: string) => {
+    setMarkingAsArrivedId(candidateId);
+    try {
+      const res = await fetch(`/api/recruitment/candidates/${candidateId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status_code: "ARRIVED" }),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setMarkingAsArrivedId(null);
+    }
+  };
+
+  const startOfDayUTC = (d: Date) => {
+    const out = new Date(d);
+    out.setUTCHours(0, 0, 0, 0);
+    return out;
+  };
+
+  /** Format date for display in Asia/Riyadh so calendar date matches what the user picked (avoids UTC date shift). */
+  const formatDateColumn = (iso: string | null): string =>
+    iso
+      ? new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Riyadh" })
+      : "-";
+
   return (
     <>
       <div className="space-y-4">
         {/* Part 1: Quick Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <div className="text-sm text-primary/60">{t("common.underProcedure")}</div>
             <div className="mt-1 text-2xl font-semibold text-primary">{stats.underProcedureCount}</div>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
+            <div className="text-sm text-primary/60">{t("common.arrivingWithin7Days")}</div>
+            <div className="mt-1 text-2xl font-semibold text-primary">{stats.arrivingWithin7DaysCount}</div>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <div className="text-sm text-primary/60">{t("common.olderThan45Days")}</div>
             <div className="mt-1 text-2xl font-semibold text-primary">{stats.olderThan45DaysCount}</div>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-            <div className="text-sm text-primary/60">{t("common.arrivingWithin7Days")}</div>
-            <div className="mt-1 text-2xl font-semibold text-primary">{stats.arrivingWithin7DaysCount}</div>
+            <div className="text-sm text-primary/60">{t("common.drafts")}</div>
+            <div className="mt-1 text-2xl font-semibold text-primary">{stats.draftCount}</div>
           </div>
         </div>
 
@@ -101,6 +136,7 @@ export function RecruitmentPageClient({
               className="w-full max-w-xs rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
             >
               <option value="">{t("common.allStatuses")}</option>
+              <option value="DRAFT">{t("common.statusDraft")}</option>
               <option value="UNDER_PROCEDURE">{t("common.statusUnderProcedure")}</option>
               <option value="ON_ARRIVAL">{t("common.statusOnArrival")}</option>
               <option value="ARRIVED">{t("common.statusArrived")}</option>
@@ -136,11 +172,24 @@ export function RecruitmentPageClient({
                     c.expected_arrival_at &&
                     Math.ceil((new Date(c.expected_arrival_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 7 &&
                     Math.ceil((new Date(c.expected_arrival_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) >= 0;
-                    const olderThan45Days = new Date(c.created_at).getTime() < new Date().getTime() - 45 * 24 * 60 * 60 * 1000;
+                  const olderThan45Days =
+                    (c.status_code === "UNDER_PROCEDURE" || c.status_code === "DRAFT") &&
+                    !!c.visa_sent_at &&
+                    new Date(c.visa_sent_at).getTime() < new Date().getTime() - 45 * 24 * 60 * 60 * 1000;
+                  const now = new Date();
+                  const todayStart = startOfDayUTC(now);
+                  const twoDaysLater = new Date(todayStart);
+                  twoDaysLater.setUTCDate(twoDaysLater.getUTCDate() + 2);
+                  const isArrivalImminent =
+                    !!c.expected_arrival_at &&
+                    (() => {
+                      const arrivalStart = startOfDayUTC(new Date(c.expected_arrival_at!));
+                      return arrivalStart >= todayStart && arrivalStart <= twoDaysLater;
+                    })();
                   return (
                     <tr
                       key={c.id}
-                      className={`border-b border-zinc-100 dark:border-zinc-700 ${c.status_code === "ARRIVED" ? "bg-green-100 dark:bg-green-900/20" : arrivalSoon ? "bg-amber-100 dark:bg-amber-900/20" : olderThan45Days ? "bg-red-200 dark:bg-red-900/20" : ""} ${locale === "ar" ? "text-right" : "text-left"}`}
+                      className={`border-b border-zinc-100 dark:border-zinc-700 ${c.status_code === "DRAFT" ? "bg-zinc-300 dark:bg-zinc-800/80" : c.status_code === "ARRIVED" ? "bg-green-100 dark:bg-green-900/20" : arrivalSoon ? "bg-amber-100 dark:bg-amber-900/20" : olderThan45Days ? "bg-red-200 dark:bg-red-900/20" : ""} ${isArrivalImminent ? "font-semibold" : ""} ${locale === "ar" ? "text-right" : "text-left"}`}
                     >
                       <td className="px-3 py-2">
                         <div className="h-10 w-10 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-700">
@@ -164,9 +213,9 @@ export function RecruitmentPageClient({
                         </div>
                       </td>
                       <td className="px-3 py-2">{c.responsible_office}</td>
-                      <td className="px-3 py-2">{c.visa_sent_at ? new Date(c.visa_sent_at).toISOString().slice(0, 10) : "-"}</td>
+                      <td className="px-3 py-2">{formatDateColumn(c.visa_sent_at)}</td>
                       <td className="px-3 py-2">{c.passport_no}</td>
-                      <td className="px-3 py-2">{c.expected_arrival_at ? new Date(c.expected_arrival_at).toISOString().slice(0, 10) : "-"}</td>
+                      <td className="px-3 py-2">{formatDateColumn(c.expected_arrival_at)}</td>
                       <td className="px-3 py-2">{getStatusTranslation(c.status_code)}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
@@ -186,6 +235,17 @@ export function RecruitmentPageClient({
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
+                          {c.status_code === "ON_ARRIVAL" && (
+                            <button
+                              onClick={() => handleMarkAsArrived(c.id)}
+                              disabled={markingAsArrivedId === c.id}
+                              className="rounded-md p-1.5 text-green-700 hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900/30 disabled:opacity-50"
+                              title={t("common.markAsArrived") || "Mark as Arrived"}
+                              aria-label={t("common.markAsArrived") || "Mark as Arrived"}
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

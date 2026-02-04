@@ -258,7 +258,7 @@ export class HrEmploymentService {
     return code;
   }
 
-  async create(company_id: string, actor_user_id: string, data: any) {
+  async create(company_id: string, actor_user_id: string | null, data: any) {
     const dateFields = [
       'start_date_at',
       'contract_end_at',
@@ -281,7 +281,7 @@ export class HrEmploymentService {
     const created = await this.prisma.employmentRecord.create({
       data: {
         company_id,
-        created_by_user_id: actor_user_id,
+        created_by_user_id: actor_user_id ?? null,
         recruitment_candidate_id: data.recruitment_candidate_id ?? null,
         employee_no: data.employee_no ?? null,
         employee_code,
@@ -318,7 +318,7 @@ export class HrEmploymentService {
 
     await this.audit.log({
       company_id,
-      actor_user_id,
+      actor_user_id: actor_user_id ?? null,
       action: 'HR_EMPLOYMENT_CREATE',
       entity_type: 'EMPLOYMENT_RECORD',
       entity_id: created.id,
@@ -327,7 +327,7 @@ export class HrEmploymentService {
 
     await this.analytics.track({
       company_id,
-      actor_user_id,
+      actor_user_id: actor_user_id ?? null,
       event_code: 'HR_EMPLOYMENT_CREATED',
       entity_type: 'EMPLOYMENT_RECORD',
       entity_id: created.id,

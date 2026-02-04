@@ -1,15 +1,13 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
-import { Bell } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { UserMenu } from "./UserMenu";
+import { NotificationBell } from "./NotificationBell";
 
 export function Header() {
-  const router = useRouter();
-  const locale = useLocale();
   const pathname = usePathname();
   const t = useTranslations();
 
@@ -32,14 +30,7 @@ export function Header() {
       <div className="flex items-center gap-2">
         <ThemeSwitcher />
         <LanguageSwitcher />
-        <button
-          onClick={() => router.push(`/${locale}/notifications`)}
-          className="rounded-md p-2 text-primary-50 hover:bg-primary-600 hover:text-white dark:text-primary-100 dark:hover:bg-primary-800"
-          aria-label={t("common.notifications")}
-          title={t("common.notifications")}
-        >
-          <Bell className="h-5 w-5" />
-        </button>
+        <NotificationBell />
         <UserMenu />
       </div>
     </header>

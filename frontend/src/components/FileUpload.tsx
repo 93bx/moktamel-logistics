@@ -14,6 +14,8 @@ interface FileUploadProps {
   variant?: "default" | "card";
   /** Icon shown in card variant (e.g. FileImage, Plane from lucide-react). */
   icon?: React.ReactNode;
+  /** Optional class for card variant label (e.g. validation state: danger/success border and background). When provided, replaces default border/background. */
+  wrapperClassName?: string;
 }
 
 export function FileUpload({
@@ -25,6 +27,7 @@ export function FileUpload({
   accept = "*/*",
   variant = "default",
   icon,
+  wrapperClassName,
 }: FileUploadProps) {
   const t = useTranslations();
   const [uploading, setUploading] = useState(false);
@@ -74,8 +77,8 @@ export function FileUpload({
 
       // Step 3: Update parent with file_id
       onFileIdChange(file_id);
-    } catch (e: any) {
-      setError(e?.message ?? "Upload failed");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Upload failed");
       setUploadedFileName(null);
       onFileIdChange(null);
     } finally {
@@ -112,9 +115,10 @@ export function FileUpload({
         />
         <label
           htmlFor={inputId}
-          className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-md cursor-pointer transition-colors dark:border-zinc-600 dark:hover:border-zinc-500 border-zinc-300 hover:border-zinc-400 ${
-            uploading ? "opacity-50 cursor-not-allowed" : ""
-          }`}
+          className={`flex flex-col items-center justify-center p-4 rounded-md cursor-pointer transition-colors ${
+            wrapperClassName ??
+            "border-2 border-dashed border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
+          } ${uploading ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           {icon && <span className="w-8 h-8 text-zinc-500 mb-2 [&>svg]:w-8 [&>svg]:h-8">{icon}</span>}
           <span className="text-xs text-center text-primary">

@@ -4,6 +4,9 @@ import { use, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { CandidateImageCard } from "@/components/CandidateImageCard";
+import { ImageViewerModal } from "@/components/ImageViewerModal";
+import { NationalityDisplay } from "@/components/NationalityDisplay";
 import { RecruitmentEditModal } from "@/components/RecruitmentEditModal";
 
 type Candidate = {
@@ -12,9 +15,11 @@ type Candidate = {
   full_name_en: string | null;
   nationality: string;
   passport_no: string;
+  passport_expiry_at: string | null;
   job_title_code: string | null;
   status_code: string;
   responsible_office: string;
+  responsible_office_number: string | null;
   visa_deadline_at: string | null;
   visa_sent_at: string | null;
   expected_arrival_at: string | null;
@@ -41,6 +46,8 @@ export default function RecruitmentViewPage({
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [markingAsArrived, setMarkingAsArrived] = useState(false);
+  const [viewerState, setViewerState] = useState<{ url: string; title: string; filename: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +81,7 @@ export default function RecruitmentViewPage({
 
   const getStatusTranslation = (statusCode: string): string => {
     const statusMap: Record<string, string> = {
+      DRAFT: "common.statusDraft",
       UNDER_PROCEDURE: "common.statusUnderProcedure",
       ON_ARRIVAL: "common.statusOnArrival",
       ARRIVED: "common.statusArrived",
@@ -145,6 +153,21 @@ export default function RecruitmentViewPage({
     }
   };
 
+  const onMarkAsArrived = async () => {
+    if (candidate?.status_code !== "ON_ARRIVAL") return;
+    setMarkingAsArrived(true);
+    try {
+      const res = await fetch(`/api/recruitment/candidates/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status_code: "ARRIVED" }),
+      });
+      if (res.ok) await reloadData();
+    } finally {
+      setMarkingAsArrived(false);
+    }
+  };
+
   if (loading) return <div className="text-sm text-primary/80">{t("common.loading")}</div>;
   if (error) return <div className="text-sm text-red-700">{error}</div>;
   if (!candidate) return <div className="text-sm text-primary/80">{t("common.notFound")}</div>;
@@ -165,12 +188,23 @@ export default function RecruitmentViewPage({
             {candidate.full_name_ar} {candidate.full_name_en ? `(${candidate.full_name_en})` : ""}
           </h1>
         </div>
-        <button
-          onClick={() => setEditModalOpen(true)}
-          className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-600"
-        >
-          {t("common.edit")}
-        </button>
+        <div className="flex items-center gap-2">
+          {candidate.status_code === "ON_ARRIVAL" && (
+            <button
+              onClick={onMarkAsArrived}
+              disabled={markingAsArrived}
+              className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-800 hover:bg-green-100 disabled:opacity-50 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200 dark:hover:bg-green-900/30"
+            >
+              {markingAsArrived ? t("common.saving") || "Saving..." : t("common.markAsArrived") || "Mark as Arrived"}
+            </button>
+          )}
+          <button
+            onClick={() => setEditModalOpen(true)}
+            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-600"
+          >
+            {t("common.edit")}
+          </button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
@@ -186,12 +220,19 @@ export default function RecruitmentViewPage({
           
           <div>
             <label className="text-sm font-medium text-primary/60">{t("common.nationality")}</label>
-            <div className="mt-1 text-base text-primary">{candidate.nationality}</div>
+            <div className="mt-1 text-base text-primary">
+              <NationalityDisplay value={candidate.nationality} locale={locale as "ar" | "en"} />
+            </div>
           </div>
           
           <div>
             <label className="text-sm font-medium text-primary/60">{t("common.passportNo")}</label>
             <div className="mt-1 text-base text-primary">{candidate.passport_no}</div>
+          </div>
+          
+          <div>
+            <label className="text-sm font-medium text-primary/60">{t("common.passportExpiryDate")}</label>
+            <div className="mt-1 text-base text-primary">{formatDate(candidate.passport_expiry_at)}</div>
           </div>
           
           <div>
@@ -203,6 +244,13 @@ export default function RecruitmentViewPage({
             <label className="text-sm font-medium text-primary/60">{t("common.responsibleOffice")}</label>
             <div className="mt-1 text-base text-primary">{candidate.responsible_office}</div>
           </div>
+          
+          {candidate.responsible_office_number != null && candidate.responsible_office_number !== "" && (
+            <div>
+              <label className="text-sm font-medium text-primary/60">{t("common.responsibleOfficeNumber")}</label>
+              <div className="mt-1 text-base text-primary">{candidate.responsible_office_number}</div>
+            </div>
+          )}
           
           <div>
             <label className="text-sm font-medium text-primary/60">{t("common.visaDeadline")}</label>
@@ -229,66 +277,84 @@ export default function RecruitmentViewPage({
       </div>
 
       {/* Images Section */}
-      {(imageUrls["PASSPORT_IMAGE"] || 
-        imageUrls["VISA_IMAGE"] || 
-        imageUrls["FLIGHT_TICKET_IMAGE"] || 
+      {(imageUrls["PASSPORT_IMAGE"] ||
+        imageUrls["VISA_IMAGE"] ||
+        imageUrls["FLIGHT_TICKET_IMAGE"] ||
         imageUrls["PERSONAL_PICTURE"]) && (
         <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
           <h2 className="mb-4 text-lg font-semibold text-primary">{t("common.images")}</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             {imageUrls["PASSPORT_IMAGE"] && (
-              <div>
-                <label className="text-sm font-medium text-primary/60">{t("common.passportImage")}</label>
-                <div className="mt-2">
-                  <img
-                    src={imageUrls["PASSPORT_IMAGE"]}
-                    alt={t("common.passportImage")}
-                    className="max-h-64 w-full rounded-md border border-zinc-200 object-contain dark:border-zinc-700"
-                  />
-                </div>
-              </div>
+              <CandidateImageCard
+                src={imageUrls["PASSPORT_IMAGE"]}
+                alt={t("common.passportImage")}
+                label={t("common.passportImage")}
+                downloadFilename={`${candidate.full_name_ar}_passport`}
+                onView={() =>
+                  setViewerState({
+                    url: imageUrls["PASSPORT_IMAGE"],
+                    title: t("common.passportImage"),
+                    filename: `${candidate.full_name_ar}_passport`,
+                  })
+                }
+              />
             )}
-            
             {imageUrls["VISA_IMAGE"] && (
-              <div>
-                <label className="text-sm font-medium text-primary/60">{t("common.visaImage")}</label>
-                <div className="mt-2">
-                  <img
-                    src={imageUrls["VISA_IMAGE"]}
-                    alt={t("common.visaImage")}
-                    className="max-h-64 w-full rounded-md border border-zinc-200 object-contain dark:border-zinc-700"
-                  />
-                </div>
-              </div>
+              <CandidateImageCard
+                src={imageUrls["VISA_IMAGE"]}
+                alt={t("common.visaImage")}
+                label={t("common.visaImage")}
+                downloadFilename={`${candidate.full_name_ar}_visa`}
+                onView={() =>
+                  setViewerState({
+                    url: imageUrls["VISA_IMAGE"],
+                    title: t("common.visaImage"),
+                    filename: `${candidate.full_name_ar}_visa`,
+                  })
+                }
+              />
             )}
-            
             {imageUrls["FLIGHT_TICKET_IMAGE"] && (
-              <div>
-                <label className="text-sm font-medium text-primary/60">{t("common.flightTicketImage")}</label>
-                <div className="mt-2">
-                  <img
-                    src={imageUrls["FLIGHT_TICKET_IMAGE"]}
-                    alt={t("common.flightTicketImage")}
-                    className="max-h-64 w-full rounded-md border border-zinc-200 object-contain dark:border-zinc-700"
-                  />
-                </div>
-              </div>
+              <CandidateImageCard
+                src={imageUrls["FLIGHT_TICKET_IMAGE"]}
+                alt={t("common.flightTicketImage")}
+                label={t("common.flightTicketImage")}
+                downloadFilename={`${candidate.full_name_ar}_flight_ticket`}
+                onView={() =>
+                  setViewerState({
+                    url: imageUrls["FLIGHT_TICKET_IMAGE"],
+                    title: t("common.flightTicketImage"),
+                    filename: `${candidate.full_name_ar}_flight_ticket`,
+                  })
+                }
+              />
             )}
-            
             {imageUrls["PERSONAL_PICTURE"] && (
-              <div>
-                <label className="text-sm font-medium text-primary/60">{t("common.personalPicture")}</label>
-                <div className="mt-2">
-                  <img
-                    src={imageUrls["PERSONAL_PICTURE"]}
-                    alt={t("common.personalPicture")}
-                    className="max-h-64 w-full rounded-md border border-zinc-200 object-contain dark:border-zinc-700"
-                  />
-                </div>
-              </div>
+              <CandidateImageCard
+                src={imageUrls["PERSONAL_PICTURE"]}
+                alt={t("common.personalPicture")}
+                label={t("common.personalPicture")}
+                downloadFilename={`${candidate.full_name_ar}_personal`}
+                onView={() =>
+                  setViewerState({
+                    url: imageUrls["PERSONAL_PICTURE"],
+                    title: t("common.personalPicture"),
+                    filename: `${candidate.full_name_ar}_personal`,
+                  })
+                }
+              />
             )}
           </div>
         </div>
+      )}
+      {viewerState && (
+        <ImageViewerModal
+          isOpen={!!viewerState}
+          onClose={() => setViewerState(null)}
+          imageUrl={viewerState.url}
+          imageTitle={viewerState.title}
+          downloadFilename={viewerState.filename}
+        />
       )}
       <RecruitmentEditModal
         isOpen={editModalOpen}

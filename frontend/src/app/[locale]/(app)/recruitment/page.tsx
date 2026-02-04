@@ -23,6 +23,7 @@ type CandidateListItem = {
 
 type StatsData = {
   underProcedureCount: number;
+  draftCount: number;
   olderThan45DaysCount: number;
   arrivingWithin7DaysCount: number;
 };

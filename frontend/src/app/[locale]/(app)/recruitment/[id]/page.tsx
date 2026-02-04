@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { FileUpload } from "@/components/FileUpload";
+import { NationalitySearchDropdown } from "@/components/NationalitySearchDropdown";
 
 type Candidate = {
   id: string;
@@ -162,11 +163,11 @@ export default function RecruitmentEditPage({
           </div>
           <div>
             <label className="text-sm text-primary">{t("common.nationality")} *</label>
-            <input
+            <NationalitySearchDropdown
               value={candidate.nationality}
-              onChange={(e) => setCandidate({ ...candidate, nationality: e.target.value })}
+              onChange={(v) => setCandidate({ ...candidate, nationality: v })}
+              locale={locale as "ar" | "en"}
               required
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-900"
             />
           </div>
           <div>

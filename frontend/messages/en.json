@@ -38,6 +38,67 @@
   "recruitment": {
     "newCandidate": "New Candidate"
   },
+  "notifications": {
+    "severity": {
+      "INFO": "Info",
+      "WARNING": "Warning",
+      "CRITICAL": "Critical"
+    },
+    "table": {
+      "name": "Name",
+      "priority": "Priority",
+      "description": "Description",
+      "relevantPage": "Relevant page",
+      "actions": "Actions",
+      "markAsRead": "Mark as read",
+      "expand": "Expand",
+      "viewAll": "View all"
+    },
+    "types": {
+      "HR_RECRUITMENT_VISA_DEADLINE_SOON": {
+        "name": "Visa deadline soon",
+        "shortDescription": "Visa deadline in {days} days",
+        "longDescription": "A recruitment candidate has a visa deadline approaching in {days} days. Please review and take action if needed.",
+        "actionLabel": "View candidate"
+      },
+      "HR_RECRUITMENT_ARRIVAL_SOON": {
+        "name": "Candidate arriving soon",
+        "shortDescription": "Candidate arriving in {days_until} days",
+        "longDescription": "A recruitment candidate is expected to arrive within 5 days. Please prepare for onboarding if needed.",
+        "actionLabel": "View candidate"
+      },
+      "HR_EMPLOYMENT_IQAMA_EXPIRY_SOON": {
+        "name": "Iqama expiry soon",
+        "shortDescription": "Iqama expires in {days} days",
+        "longDescription": "An employment record has an iqama expiry date in {days} days. Please ensure renewal or follow-up.",
+        "actionLabel": "View employment"
+      },
+      "HR_ASSETS_PENDING_RECOVERY": {
+        "name": "Assets pending recovery",
+        "shortDescription": "Assets assigned to employee pending recovery",
+        "longDescription": "Assets have been assigned to an employee whose employment has ended. Recovery of these assets is pending.",
+        "actionLabel": "View assets"
+      },
+      "HR_ASSETS_LOSS_REPORT_APPROVAL_REQUIRED": {
+        "name": "Loss report approval required",
+        "shortDescription": "Asset loss report requires your approval",
+        "longDescription": "An asset loss report has been submitted and requires approval before it can be processed.",
+        "actionLabel": "View assets"
+      },
+      "HR_ASSETS_LOSS_REPORT_APPROVED": {
+        "name": "Loss report approved",
+        "shortDescription": "Asset loss report was approved",
+        "longDescription": "An asset loss report has been approved and processed.",
+        "actionLabel": "View assets"
+      },
+      "HR_ASSETS_LOSS_REPORT_REJECTED": {
+        "name": "Loss report rejected",
+        "shortDescription": "Asset loss report was rejected",
+        "longDescription": "An asset loss report has been rejected.",
+        "actionLabel": "View assets"
+      }
+    }
+  },
   "common": {
     "language": "Language",
     "english": "English",
@@ -62,6 +123,7 @@
     "avatar": "Avatar",
     "name": "Name",
     "nationality": "Nationality",
+    "searchCountry": "Search country",
     "passport": "Passport",
     "status": "Status",
     "visaDeadline": "Visa deadline",
@@ -106,12 +168,23 @@
     "statusUnderProcedure": "Under Procedure",
     "statusOnArrival": "On Arrival",
     "statusArrived": "Arrived",
+    "statusDraft": "Draft",
+    "markAsArrived": "Mark as Arrived",
     "save": "Save",
+    "saveAsDraft": "Save As a Draft",
+    "submit": "Submit",
+    "unsavedChangesDraft": "You have unsaved changes. Save as draft?",
+    "discard": "Discard",
+    "drafts": "Drafts",
+    "atLeastOneFieldRequired": "At least one field is required to save as draft",
     "saving": "Saving...",
     "cancel": "Cancel",
     "delete": "Delete",
     "salaryAmount": "Salary amount",
     "responsibleOffice": "Responsible Office",
+    "responsibleOfficeNumber": "Responsible Office Number",
+    "responsibleOfficeNumberPlaceholder": "0555555555",
+    "passportExpiryDate": "Passport Expiry Date",
     "visaSentDate": "Visa Sent Date",
     "underProcedure": "Under Procedure",
     "olderThan45Days": "Older than 45 days",
@@ -144,6 +217,7 @@
     "confirmDeleteEmployee": "Are you sure you want to delete this employee? This action cannot be undone.",
     "deleting": "Deleting...",
     "view": "View",
+    "download": "Download",
     "back": "Back",
     "images": "Images",
     "expiry": "Expiry",
@@ -193,11 +267,14 @@
     "fullNameRequired": "Full name is required",
     "nationalityRequired": "Nationality is required",
     "passportNumberRequired": "Passport number is required",
+    "passportExpiryDateRequired": "Passport expiry date is required",
     "responsibleOfficeRequired": "Responsible office is required",
+    "responsibleOfficeNumberMaxDigits": "Responsible office number must be at most 10 digits",
     "passportImageRequired": "Passport image is required",
     "exportExcel": "Export Excel",
     "print": "Print",
     "printStatement": "Print statement",
+    "resetZoom": "Reset zoom",
     "previous": "Previous"
   },
   "assets": {
