@@ -17,6 +17,8 @@ interface FileUploadProps {
   icon?: React.ReactNode;
   /** Optional class for card variant label (e.g. validation state: danger/success border and background). When provided, replaces default border/background. */
   wrapperClassName?: string;
+  /** Optional unique suffix for the file input id (use when multiple FileUpload instances share the same purpose_code, e.g. in a table). */
+  instanceId?: string;
 }
 
 export function FileUpload({
@@ -29,6 +31,7 @@ export function FileUpload({
   variant = "default",
   icon,
   wrapperClassName,
+  instanceId,
 }: FileUploadProps) {
   const t = useTranslations();
   const [uploading, setUploading] = useState(false);
@@ -100,7 +103,9 @@ export function FileUpload({
     }
   };
 
-  const inputId = `file-upload-${purpose_code}`;
+  const inputId = instanceId
+    ? `file-upload-${purpose_code}-${instanceId}`
+    : `file-upload-${purpose_code}`;
 
   if (variant === "iconButton") {
     const Icon = icon ?? <Upload className="h-4 w-4" />;

@@ -522,6 +522,7 @@ export function RecruitmentBulkAddModal({ isOpen, onClose, locale }: Recruitment
                           purpose_code="PASSPORT_IMAGE"
                           label={t("common.passportImage")}
                           required
+                          instanceId={`row-${index}-passport`}
                           fileId={row.passport_image_file_id}
                           onFileIdChange={(id) =>
                             updateRow(index, { passport_image_file_id: id })
@@ -539,6 +540,7 @@ export function RecruitmentBulkAddModal({ isOpen, onClose, locale }: Recruitment
                           icon={<FileText className="h-4 w-4" />}
                           purpose_code="VISA_IMAGE"
                           label={t("common.visaImage")}
+                          instanceId={`row-${index}-visa`}
                           fileId={row.visa_image_file_id}
                           onFileIdChange={(id) =>
                             updateRow(index, { visa_image_file_id: id })
@@ -551,6 +553,7 @@ export function RecruitmentBulkAddModal({ isOpen, onClose, locale }: Recruitment
                           icon={<Plane className="h-4 w-4" />}
                           purpose_code="FLIGHT_TICKET_IMAGE"
                           label={t("common.flightTicketImage")}
+                          instanceId={`row-${index}-flight`}
                           fileId={row.flight_ticket_image_file_id}
                           onFileIdChange={(id) =>
                             updateRow(index, { flight_ticket_image_file_id: id })
@@ -563,6 +566,7 @@ export function RecruitmentBulkAddModal({ isOpen, onClose, locale }: Recruitment
                           icon={<User className="h-4 w-4" />}
                           purpose_code="PERSONAL_PICTURE"
                           label={t("common.personalPicture")}
+                          instanceId={`row-${index}-picture`}
                           fileId={row.personal_picture_file_id}
                           onFileIdChange={(id) =>
                             updateRow(index, { personal_picture_file_id: id })
