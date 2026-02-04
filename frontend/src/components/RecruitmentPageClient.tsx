@@ -62,7 +62,7 @@ export function RecruitmentPageClient({
     const params = new URLSearchParams();
     if (searchParams.q) params.set("q", searchParams.q);
     if (searchParams.status_code) params.set("status_code", searchParams.status_code);
-    if (opts.sort != null && opts.sort !== "") params.set("sort", opts.sort);
+    if (opts.sort != null) params.set("sort", opts.sort);
     if (opts.page != null && opts.page > 1) params.set("page", String(opts.page));
     const qs = params.toString();
     return `/${locale}/recruitment${qs ? `?${qs}` : ""}`;
