@@ -192,10 +192,6 @@ export class SalariesPayrollService {
           company_id,
           deleted_at: null,
           status_code: 'EMPLOYMENT_STATUS_ACTIVE',
-          OR: [
-            { start_date_at: null },
-            { start_date_at: { lte: end } },
-          ],
         },
         include: {
           recruitment_candidate: true,

@@ -92,6 +92,55 @@ export class HrRecruitmentService {
     }
   }
 
+  /** Get passport file_id from FileLink for a recruitment candidate (PASSPORT_IMAGE purpose). */
+  private async getPassportFileIdForCandidate(
+    company_id: string,
+    candidate_id: string,
+  ): Promise<string | null> {
+    const link = await this.prisma.fileLink.findFirst({
+      where: {
+        company_id,
+        entity_type: 'RECRUITMENT_CANDIDATE',
+        entity_id: candidate_id,
+        purpose_code: 'PASSPORT_IMAGE',
+      },
+      select: { file_id: true },
+    });
+    return link?.file_id ?? null;
+  }
+
+  /**
+   * Build employment create payload from a recruitment candidate, carrying all relevant data.
+   * Pass passportFileId when available (e.g. from create/bulk request); otherwise it can be resolved via getPassportFileIdForCandidate.
+   */
+  private buildEmploymentPayloadFromRecruitment(
+    candidate: {
+      id: string;
+      full_name_ar: string;
+      full_name_en: string | null;
+      avatar_file_id: string | null;
+      nationality: string;
+      passport_no: string;
+      passport_expiry_at: Date | null;
+      job_title_code: string | null;
+      expected_arrival_at: Date | null;
+    },
+    passportFileId?: string | null,
+  ): Record<string, unknown> {
+    return {
+      recruitment_candidate_id: candidate.id,
+      full_name_ar: candidate.full_name_ar,
+      full_name_en: candidate.full_name_en ?? null,
+      avatar_file_id: candidate.avatar_file_id ?? null,
+      nationality: candidate.nationality ?? null,
+      passport_no: candidate.passport_no ?? null,
+      passport_expiry_at: candidate.passport_expiry_at ?? null,
+      passport_file_id: passportFileId ?? null,
+      job_type: candidate.job_title_code ?? null,
+      status_code: 'EMPLOYMENT_STATUS_UNDER_PROCEDURE',
+    };
+  }
+
   async list(
     company_id: string,
     input: {
@@ -319,15 +368,9 @@ export class HrRecruitmentService {
       },
     });
 
-    // If status is Arrived, create employment record
+    // If status is Arrived, create employment record with all carried recruitment data
     if (created.status_code === RECRUITMENT_STATUS.ARRIVED) {
-      await this.employmentSvc.create(company_id, actor_user_id, {
-        recruitment_candidate_id: created.id,
-        full_name_ar: created.full_name_ar,
-        full_name_en: created.full_name_en,
-        avatar_file_id: created.avatar_file_id,
-        status_code: 'EMPLOYMENT_STATUS_UNDER_PROCEDURE',
-      });
+      await this.employmentSvc.create(company_id, actor_user_id, this.buildEmploymentPayloadFromRecruitment(created, data.passport_image_file_id) as Parameters<HrEmploymentService['create']>[2]);
     }
 
     // Link files
@@ -554,13 +597,8 @@ export class HrRecruitmentService {
       }
 
       if (created.status_code === RECRUITMENT_STATUS.ARRIVED) {
-        await this.employmentSvc.create(company_id, actor_user_id, {
-          recruitment_candidate_id: created.id,
-          full_name_ar: created.full_name_ar,
-          full_name_en: created.full_name_en,
-          avatar_file_id: created.avatar_file_id,
-          status_code: 'EMPLOYMENT_STATUS_UNDER_PROCEDURE',
-        });
+        const passportFileId = data.passport_image_file_id != null && String(data.passport_image_file_id).length > 0 ? String(data.passport_image_file_id) : await this.getPassportFileIdForCandidate(company_id, created.id);
+        await this.employmentSvc.create(company_id, actor_user_id, this.buildEmploymentPayloadFromRecruitment(created, passportFileId) as Parameters<HrEmploymentService['create']>[2]);
       }
     }
 
@@ -810,15 +848,10 @@ export class HrRecruitmentService {
       });
     }
 
-    // If status changed to "Arrived", create employment record
+    // If status changed to "Arrived", create employment record with all carried recruitment data
     if (isChangingToArrived) {
-      await this.employmentSvc.create(company_id, actor_user_id, {
-        recruitment_candidate_id: id,
-        full_name_ar: updated.full_name_ar,
-        full_name_en: updated.full_name_en,
-        avatar_file_id: updated.avatar_file_id,
-        status_code: 'EMPLOYMENT_STATUS_UNDER_PROCEDURE',
-      });
+      const passportFileId = data.passport_image_file_id ?? await this.getPassportFileIdForCandidate(company_id, id);
+      await this.employmentSvc.create(company_id, actor_user_id, this.buildEmploymentPayloadFromRecruitment(updated, passportFileId) as Parameters<HrEmploymentService['create']>[2]);
     }
 
     await this.audit.log({

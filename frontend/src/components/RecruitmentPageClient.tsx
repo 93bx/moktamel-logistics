@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CheckCircle, Eye, Pencil } from "lucide-react";
+import { CheckCircle, Eye, Pencil, User } from "lucide-react";
 import { RecruitmentNewButton } from "@/components/RecruitmentNewButton";
 import { RecruitmentEditModal } from "@/components/RecruitmentEditModal";
+import { RecruitmentViewModal } from "@/components/RecruitmentViewModal";
+import { EmploymentModal } from "@/components/EmploymentModal";
 
 type CandidateListItem = {
   id: string;
@@ -69,7 +71,13 @@ export function RecruitmentPageClient({
   }
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [viewCandidateId, setViewCandidateId] = useState<string | null>(null);
   const [markingAsArrivedId, setMarkingAsArrivedId] = useState<string | null>(null);
+  const [addToEmploymentCandidateId, setAddToEmploymentCandidateId] = useState<string | null>(null);
+
+  const handleViewClick = (candidateId: string) => {
+    setViewCandidateId(candidateId);
+  };
 
   const handleEditClick = (candidateId: string) => {
     setSelectedCandidateId(candidateId);
@@ -228,10 +236,14 @@ export function RecruitmentPageClient({
                       const arrivalStart = startOfDayUTC(new Date(c.expected_arrival_at!));
                       return arrivalStart >= todayStart && arrivalStart <= twoDaysLater;
                     })();
+                  const onArrivalPastDue =
+                    c.status_code === "ON_ARRIVAL" &&
+                    !!c.expected_arrival_at &&
+                    startOfDayUTC(new Date(c.expected_arrival_at)) < todayStart;
                   return (
                     <tr
                       key={c.id}
-                      className={`border-b border-zinc-100 dark:border-zinc-700 ${c.status_code === "DRAFT" ? "bg-zinc-300 dark:bg-zinc-800/80" : c.status_code === "ARRIVED" ? "bg-green-100 dark:bg-green-900/20" : arrivalSoon ? "bg-amber-100 dark:bg-amber-900/20" : olderThan45Days ? "bg-red-200 dark:bg-red-900/20" : ""} ${isArrivalImminent ? "font-semibold" : ""} ${locale === "ar" ? "text-right" : "text-left"}`}
+                      className={`border-b border-zinc-100 dark:border-zinc-700 ${c.status_code === "DRAFT" ? "bg-zinc-300 dark:bg-zinc-800/80" : c.status_code === "ARRIVED" ? "bg-green-100 dark:bg-green-900/20" : arrivalSoon ? "bg-amber-100 dark:bg-amber-900/20" : olderThan45Days ? "bg-red-200 dark:bg-red-900/20" : onArrivalPastDue ? "bg-red-200 dark:bg-red-900/20" : ""} ${isArrivalImminent || onArrivalPastDue ? "font-semibold" : ""} ${locale === "ar" ? "text-right" : "text-left"}`}
                     >
                       <td className="px-3 py-2">
                         <div className="h-10 w-10 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-700">
@@ -261,14 +273,15 @@ export function RecruitmentPageClient({
                       <td className="px-3 py-2">{getStatusTranslation(c.status_code)}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
-                          <Link
-                            href={`/${locale}/recruitment/${c.id}/view`}
+                          <button
+                            type="button"
+                            onClick={() => handleViewClick(c.id)}
                             className="rounded-md p-1.5 text-primary hover:bg-zinc-100 dark:hover:bg-zinc-700"
                             title={t("common.view")}
                             aria-label={t("common.view")}
                           >
                             <Eye className="h-4 w-4" />
-                          </Link>
+                          </button>
                           <button
                             onClick={() => handleEditClick(c.id)}
                             className="rounded-md p-1.5 text-primary hover:bg-zinc-100 dark:hover:bg-zinc-700"
@@ -288,6 +301,15 @@ export function RecruitmentPageClient({
                               <CheckCircle className="h-4 w-4" />
                             </button>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => setAddToEmploymentCandidateId(c.id)}
+                            className="rounded-md p-1.5 text-primary hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                            title={t("employment.addToEmployment")}
+                            aria-label={t("employment.addToEmployment")}
+                          >
+                            <User className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -331,6 +353,13 @@ export function RecruitmentPageClient({
           </div>
         </div>
       </div>
+      <RecruitmentViewModal
+        isOpen={!!viewCandidateId}
+        onClose={() => setViewCandidateId(null)}
+        candidateId={viewCandidateId}
+        locale={locale}
+        onDataChange={() => router.refresh()}
+      />
       <RecruitmentEditModal
         isOpen={editModalOpen}
         onClose={() => {
@@ -339,6 +368,12 @@ export function RecruitmentPageClient({
         }}
         locale={locale}
         candidateId={selectedCandidateId}
+      />
+      <EmploymentModal
+        isOpen={!!addToEmploymentCandidateId}
+        onClose={() => setAddToEmploymentCandidateId(null)}
+        locale={locale}
+        recruitmentCandidateId={addToEmploymentCandidateId}
       />
     </>
   );

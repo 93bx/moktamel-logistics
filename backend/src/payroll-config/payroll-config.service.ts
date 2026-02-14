@@ -165,10 +165,6 @@ export class PayrollConfigService {
         company_id,
         deleted_at: null,
         status_code: 'EMPLOYMENT_STATUS_ACTIVE',
-        OR: [
-          { start_date_at: null }, // Started before tracking
-          { start_date_at: { lte: endDate } }, // Started before/within month
-        ],
       },
     });
 

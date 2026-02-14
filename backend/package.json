@@ -21,6 +21,7 @@
     "seed": "ts-node -r tsconfig-paths/register src/prisma/seed.ts",
     "sync-perms": "ts-node -r tsconfig-paths/register src/scripts/sync-permissions.ts",
     "validate-schema": "ts-node -r tsconfig-paths/register src/scripts/validate-schema.ts",
+    "migrate-employee-codes": "ts-node -r tsconfig-paths/register src/scripts/migrate-employee-codes.ts",
     "prebuild": "npm run validate-schema",
     "prestart:prod": "npm run validate-schema"
   },

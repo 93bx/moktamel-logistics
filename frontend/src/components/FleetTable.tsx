@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import Tooltip from "@mui/material/Tooltip";
 import { Eye, Pencil, Trash2, UserPlus, ArrowRightLeft, Wrench, FileText, Shield, Activity, CreditCard } from "lucide-react";
 import { VehicleListItem } from "@/app/[locale]/(app)/fleet/page";
 import { StatusBadge } from "./StatusBadge";
@@ -31,6 +32,14 @@ export function FleetTable({
     if (days < 40) return "text-red-500";
     if (days < 80) return "text-amber-500";
     return "text-emerald-500";
+  };
+
+  const getDocStatus = (expiryDate: string) => {
+    const days = Math.ceil((new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (days < 0) return { labelKey: "fleet.docExpired", colorClass: "text-red-500" as const };
+    if (days < 40) return { labelKey: "fleet.daysLeft", colorClass: "text-red-500" as const, days };
+    if (days < 80) return { labelKey: "fleet.daysLeft", colorClass: "text-amber-500" as const, days };
+    return { labelKey: "fleet.daysLeft", colorClass: "text-emerald-500" as const, days };
   };
 
   return (
@@ -84,15 +93,62 @@ export function FleetTable({
                     {["REGISTRATION", "INSURANCE", "CHECKUP", "OPERATING_CARD"].map((type) => {
                       const doc = v.documents.find((d) => d.type_code === type);
                       if (!doc && type === "OPERATING_CARD" && v.type_code !== "MOTORCYCLE") return null;
-                      
+
+                      const docLabelKey =
+                        type === "REGISTRATION" ? "fleet.registration" :
+                        type === "INSURANCE" ? "fleet.insurance" :
+                        type === "CHECKUP" ? "fleet.periodicCheck" : "fleet.operatingCard";
+
                       const colorClass = doc ? getDocIconColor(doc.expiry_date) : "text-zinc-300 dark:text-zinc-600";
-                      
+                      const status = doc ? getDocStatus(doc.expiry_date) : null;
+                      const statusText = status
+                        ? "days" in status && status.days !== undefined
+                          ? t("fleet.daysLeft", { count: status.days })
+                          : t("fleet.docExpired")
+                        : t("fleet.docNotUploaded");
+                      const statusColorClass = status?.colorClass ?? "text-zinc-400";
+
+                      const tooltipContent = (
+                        <div className="flex flex-col gap-0.5 py-0.5">
+                          <span className="font-medium text-zinc-100">{t(docLabelKey)}</span>
+                          <span className={statusColorClass}>{statusText}</span>
+                        </div>
+                      );
+
                       const Icon = type === "REGISTRATION" ? FileText :
                                    type === "INSURANCE" ? Shield :
                                    type === "CHECKUP" ? Activity : CreditCard;
 
                       return (
-                        <Icon key={type} className={`h-4 w-4 ${colorClass}`} />
+                        <Tooltip
+                          key={type}
+                          title={tooltipContent}
+                          arrow
+                          placement="top"
+                          slotProps={{
+                            popper: {
+                              sx: {
+                                "& .MuiTooltip-tooltip": {
+                                  backgroundColor: "rgb(39 39 42)",
+                                  color: "rgb(244 244 245)",
+                                  border: "1px solid rgb(63 63 70)",
+                                  borderRadius: "8px",
+                                  boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+                                  padding: "10px 14px",
+                                  fontSize: "0.8125rem",
+                                },
+                                "& .MuiTooltip-arrow": {
+                                  color: "rgb(39 39 42)",
+                                  "&::before": { border: "1px solid rgb(63 63 70)" },
+                                },
+                              },
+                            },
+                          }}
+                        >
+                          <span className="cursor-help inline-flex">
+                            <Icon className={`h-4 w-4 ${colorClass}`} />
+                          </span>
+                        </Tooltip>
                       );
                     })}
                   </div>

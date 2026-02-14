@@ -1,8 +1,15 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PayrollConfigService } from '../payroll-config/payroll-config.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+/** Sequence length for employee code suffix (001, 002, …). Increase to 4+ for more than 999 employees per company. */
+const EMPLOYEE_CODE_SEQ_DIGITS = 3;
+
+const ALLOWED_STATUS_CODES_CREATE = ['EMPLOYMENT_STATUS_DRAFT', 'EMPLOYMENT_STATUS_UNDER_PROCEDURE', 'EMPLOYMENT_STATUS_ACTIVE'] as const;
+const ALLOWED_STATUS_CODES_UPDATE = ['EMPLOYMENT_STATUS_DRAFT', 'EMPLOYMENT_STATUS_UNDER_PROCEDURE', 'EMPLOYMENT_STATUS_ACTIVE', 'EMPLOYMENT_STATUS_DEACTIVATED', 'EMPLOYMENT_STATUS_DESERTED'] as const;
 
 @Injectable()
 export class HrEmploymentService {
@@ -11,6 +18,7 @@ export class HrEmploymentService {
     private readonly audit: AuditService,
     private readonly analytics: AnalyticsService,
     private readonly notifications: NotificationsService,
+    private readonly payrollConfig: PayrollConfigService,
   ) {}
 
   async list(company_id: string, input: { q?: string; status_code?: string; platform?: string; has_assets?: string; page: number; page_size: number }) {
@@ -27,7 +35,6 @@ export class HrEmploymentService {
         { full_name_ar: { contains: input.q, mode: 'insensitive' } },
         { full_name_en: { contains: input.q, mode: 'insensitive' } },
         { iqama_no: { contains: input.q, mode: 'insensitive' } },
-        { cost_center_code: { contains: input.q, mode: 'insensitive' } },
       ];
     }
 
@@ -60,13 +67,9 @@ export class HrEmploymentService {
           license_file_id: true,
           promissory_note_file_id: true,
           avatar_file_id: true,
-          custody_status: true,
-          start_date_at: true,
-          medical_expiry_at: true,
           status_code: true,
           salary_amount: true,
           salary_currency_code: true,
-          cost_center_code: true,
           assigned_platform: true,
           platform_user_no: true,
           job_type: true,
@@ -99,15 +102,11 @@ export class HrEmploymentService {
   }
 
   async getStats(company_id: string) {
-    const now = new Date();
-    const twentyDaysFromNow = new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000);
-
     const [
       totalEmployees,
       employeesOnDuty,
       employeesOnboarding,
-      documentsExpiringSoon,
-      employeesLostOrEscaped,
+      employeesDeserted,
     ] = await this.prisma.$transaction([
       // Total employees
       this.prisma.employmentRecord.count({
@@ -116,13 +115,12 @@ export class HrEmploymentService {
           deleted_at: null,
         },
       }),
-      // Employees on duty (ready for work + custody received)
+      // Employees on duty (active employees)
       this.prisma.employmentRecord.count({
         where: {
           company_id,
           deleted_at: null,
-          status_code: 'EMPLOYMENT_STATUS_READY_FOR_WORK',
-          custody_status: 'received',
+          status_code: 'EMPLOYMENT_STATUS_ACTIVE',
         },
       }),
       // Employees onboarding (under procedure)
@@ -133,47 +131,12 @@ export class HrEmploymentService {
           status_code: 'EMPLOYMENT_STATUS_UNDER_PROCEDURE',
         },
       }),
-      // Documents expiring within 20 days
+      // Employees deserted
       this.prisma.employmentRecord.count({
         where: {
           company_id,
           deleted_at: null,
-          OR: [
-            {
-              contract_end_at: {
-                gte: now,
-                lte: twentyDaysFromNow,
-              },
-            },
-            {
-              iqama_expiry_at: {
-                gte: now,
-                lte: twentyDaysFromNow,
-              },
-            },
-            {
-              passport_expiry_at: {
-                gte: now,
-                lte: twentyDaysFromNow,
-              },
-            },
-            {
-              medical_expiry_at: {
-                gte: now,
-                lte: twentyDaysFromNow,
-              },
-            },
-          ],
-        },
-      }),
-      // Employees lost contact or escaped
-      this.prisma.employmentRecord.count({
-        where: {
-          company_id,
-          deleted_at: null,
-          status_code: {
-            in: ['EMPLOYMENT_STATUS_LOST_CONTACT', 'EMPLOYMENT_STATUS_ESCAPED'],
-          },
+          status_code: 'EMPLOYMENT_STATUS_DESERTED',
         },
       }),
     ]);
@@ -182,8 +145,7 @@ export class HrEmploymentService {
       totalEmployees,
       employeesOnDuty,
       employeesOnboarding,
-      documentsExpiringSoon,
-      employeesLostOrEscaped,
+      employeesDeserted,
     };
   }
 
@@ -197,74 +159,135 @@ export class HrEmploymentService {
             asset: true,
           },
         },
+        extra_documents: {
+          orderBy: { sort_order: 'asc' },
+        },
       },
     });
     if (!row) throw new NotFoundException();
-    return row;
+
+    const audit_logs = await this.prisma.auditLog.findMany({
+      where: { company_id, entity_type: 'EMPLOYMENT_RECORD', entity_id: id },
+      orderBy: { created_at: 'desc' },
+      take: 100,
+      select: { id: true, action: true, created_at: true },
+    });
+
+    return { ...row, audit_logs };
   }
 
-  private generateEmployeeCode(): string {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // Exclude I, O for clarity
-    const nums = '123456789'; // Exclude 0 for clarity
-    const r = (set: string) => set.charAt(Math.floor(Math.random() * set.length));
-    // Pattern: A1B2C
-    return `${r(chars)}${r(nums)}${r(chars)}${r(nums)}${r(chars)}`;
-  }
-
-  private validateActiveStatus(data: any) {
-    if (data.status_code === 'EMPLOYMENT_STATUS_ACTIVE') {
-      const requiredFiles = [
-        { id: data.passport_file_id, name: 'Passport' },
-        { id: data.iqama_file_id, name: 'Iqama' },
-        { id: data.contract_file_id, name: 'Contract' },
-      ];
-
-      for (const file of requiredFiles) {
-        if (!file.id) {
-          throw new BadRequestException(`${file.name} file is required for Active status`);
-        }
-      }
-
-      const now = new Date();
-      const expiries = [
-        { date: data.passport_expiry_at, name: 'Passport' },
-        { date: data.iqama_expiry_at, name: 'Iqama' },
-        { date: data.contract_end_at, name: 'Contract' },
-      ];
-
-      for (const exp of expiries) {
-        if (!exp.date) {
-          throw new BadRequestException(`${exp.name} expiry date is required for Active status`);
-        }
-        if (new Date(exp.date) <= now) {
-          throw new BadRequestException(`${exp.name} has expired. Cannot set status to Active.`);
-        }
-      }
+  /** Prefix from company name: 2 words → first letters; else first 2 chars. Uppercase A–Z only (fallback X). */
+  private getCompanyCodePrefix(companyName: string): string {
+    const trimmed = (companyName ?? '').trim().replace(/\s+/g, ' ');
+    const words = trimmed ? trimmed.split(' ') : [];
+    let a: string;
+    let b: string;
+    if (words.length >= 2) {
+      a = words[0].charAt(0).toUpperCase();
+      b = words[1].charAt(0).toUpperCase();
+    } else {
+      const s = trimmed.toUpperCase();
+      a = s.charAt(0) || 'X';
+      b = s.charAt(1) || 'X';
     }
+    const safe = (c: string) => (/^[A-Z]$/.test(c) ? c : 'X');
+    return safe(a) + safe(b);
+  }
+
+  /** Next per-company sequence value, formatted with EMPLOYEE_CODE_SEQ_DIGITS (e.g. "001"). */
+  private async getNextEmployeeCodeSequence(company_id: string): Promise<string> {
+    const counter = await this.prisma.usageCounter.upsert({
+      where: { company_id_counter_code: { company_id, counter_code: 'EMPLOYEE_CODE_SEQ' } },
+      update: { value: { increment: 1 } },
+      create: { company_id, counter_code: 'EMPLOYEE_CODE_SEQ', value: 1 },
+      select: { value: true },
+    });
+    return String(counter.value).padStart(EMPLOYEE_CODE_SEQ_DIGITS, '0');
+  }
+
+  /** Three random chars: A–Z (excl. I/O) and 1–9, uppercase. */
+  private generateThreeRandomChars(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const nums = '123456789';
+    const r = (set: string) => set.charAt(Math.floor(Math.random() * set.length));
+    return `${r(chars)}${r(nums)}${r(chars)}`;
+  }
+
+  /** Generate employee code: prefix + 3 random + 3 sequential digits (per company). */
+  private async generateEmployeeCode(company_id: string): Promise<string> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: company_id },
+      select: { name: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    const prefix = this.getCompanyCodePrefix(company.name);
+    const suffix = await this.getNextEmployeeCodeSequence(company_id);
+    const random3 = this.generateThreeRandomChars();
+    return prefix + random3 + suffix;
   }
 
   private async getUniqueEmployeeCode(company_id: string): Promise<string> {
-    let code = '';
-    let exists = true;
-    let attempts = 0;
-    while (exists && attempts < 10) {
-      code = this.generateEmployeeCode();
-      const count = await this.prisma.employmentRecord.count({
-        where: { company_id, employee_code: code },
-      });
-      exists = count > 0;
-      attempts++;
+    return this.generateEmployeeCode(company_id);
+  }
+
+  private async validateActiveStatus(company_id: string, data: any) {
+    const now = new Date();
+
+    // Step 1 (all except Avatar & Employee Code)
+    if (!(data.full_name_ar?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_FULL_NAME_AR');
+    if (!(data.full_name_en?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_FULL_NAME_EN');
+    if (!(data.nationality?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_NATIONALITY');
+    const phone = (data.phone ?? '').toString().replace(/\D/g, '');
+    if (phone.length !== 9) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PHONE_9_DIGITS');
+    if (!data.date_of_birth) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_DATE_OF_BIRTH');
+    const hasSource = data.recruitment_candidate_id || (data.employment_source && data.employment_source !== '');
+    if (!hasSource) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_SOURCE');
+
+    // Step 2: Passport, Iqama, Contract
+    if (!(data.passport_no?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_NO');
+    if (!data.passport_expiry_at) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_EXPIRY');
+    if (new Date(data.passport_expiry_at) <= now) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_EXPIRED');
+    if (!data.passport_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_FILE');
+
+    if (!(data.iqama_no?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_NO');
+    if (!data.iqama_expiry_at) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_EXPIRY');
+    if (new Date(data.iqama_expiry_at) <= now) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_EXPIRED');
+    if (!data.iqama_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_FILE');
+
+    if (!(data.contract_no?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_NO');
+    if (!data.contract_end_at) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_END');
+    if (new Date(data.contract_end_at) <= now) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_EXPIRED');
+    if (!data.contract_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_FILE');
+
+    // Step 3 (all except notes)
+    if (!(data.assigned_platform?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PLATFORM');
+    if (!(data.platform_user_no?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PLATFORM_USER_NO');
+    if (data.salary_amount == null || Number(data.salary_amount) < 0) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_SALARY');
+
+    const config = await this.payrollConfig.getConfig(company_id, now.getFullYear(), now.getMonth() + 1);
+    const minSalary = config.minimum_salary ?? 0;
+    if (Number(data.salary_amount) < minSalary) {
+      throw new BadRequestException({ error_code: 'HR_EMPLOYMENT_ACTIVE_SALARY_MIN', min: minSalary });
     }
-    return code;
+
+    const method = config.calculation_method;
+    if (method === 'ORDERS_COUNT' || method === 'FIXED_DEDUCTION') {
+      if (data.monthly_orders_target == null) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_ORDERS_TARGET');
+    } else if (method === 'REVENUE') {
+      if (data.monthly_target_amount == null) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_REVENUE_TARGET');
+    }
+
+    if (!data.license_expiry_at) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_EXPIRY');
+    if (new Date(data.license_expiry_at) <= now) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_EXPIRED');
+    if (!data.license_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_FILE');
+    if (!data.promissory_note_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PROMISSORY_NOTE');
   }
 
   async create(company_id: string, actor_user_id: string | null, data: any) {
     const dateFields = [
-      'start_date_at',
       'contract_end_at',
       'iqama_expiry_at',
       'passport_expiry_at',
-      'medical_expiry_at',
       'date_of_birth',
       'license_expiry_at',
     ];
@@ -274,9 +297,26 @@ export class HrEmploymentService {
       }
     }
 
-    this.validateActiveStatus(data);
+    let statusCode: string;
+    if (data.status_code != null) {
+      if (!ALLOWED_STATUS_CODES_CREATE.includes(data.status_code as any)) {
+        throw new BadRequestException('Invalid status code. Allowed: Draft, In Progress, Active.');
+      }
+      statusCode = data.status_code;
+      if (statusCode === 'EMPLOYMENT_STATUS_ACTIVE') {
+        await this.validateActiveStatus(company_id, data);
+      }
+    } else {
+      try {
+        await this.validateActiveStatus(company_id, data);
+        statusCode = 'EMPLOYMENT_STATUS_ACTIVE';
+      } catch {
+        statusCode = 'EMPLOYMENT_STATUS_UNDER_PROCEDURE';
+      }
+    }
 
     const employee_code = data.employee_code || (await this.getUniqueEmployeeCode(company_id));
+    const jobType = data.job_type ?? 'REPRESENTATIVE';
 
     const created = await this.prisma.employmentRecord.create({
       data: {
@@ -303,18 +343,33 @@ export class HrEmploymentService {
         license_file_id: data.license_file_id ?? null,
         promissory_note_file_id: data.promissory_note_file_id ?? null,
         avatar_file_id: data.avatar_file_id ?? null,
-        custody_status: data.custody_status ?? null,
-        start_date_at: data.start_date_at ? new Date(data.start_date_at) : null,
-        medical_expiry_at: data.medical_expiry_at ? new Date(data.medical_expiry_at) : null,
-        status_code: data.status_code ?? 'EMPLOYMENT_STATUS_ACTIVE',
+        status_code: statusCode,
+        employment_source: data.employment_source ?? null,
         salary_amount: data.salary_amount ?? null,
         salary_currency_code: data.salary_currency_code ?? 'SAR',
-        cost_center_code: data.cost_center_code ?? null,
         assigned_platform: data.assigned_platform ?? null,
         platform_user_no: data.platform_user_no ?? null,
-        job_type: data.job_type ?? null,
+        job_type: jobType,
+        monthly_orders_target: data.monthly_orders_target ?? null,
+        monthly_target_amount: data.monthly_target_amount ?? null,
       },
     });
+
+    const extraDocs = Array.isArray(data.extra_documents) ? data.extra_documents.slice(0, 2) : [];
+    for (let i = 0; i < extraDocs.length; i++) {
+      const doc = extraDocs[i];
+      await this.prisma.employmentDocument.create({
+        data: {
+          company_id,
+          employment_record_id: created.id,
+          document_name: doc.document_name || 'Document',
+          expiry_at: doc.expiry_at ? new Date(doc.expiry_at) : null,
+          file_id: doc.file_id ?? null,
+          sort_order: i,
+          created_by_user_id: actor_user_id ?? null,
+        },
+      });
+    }
 
     await this.audit.log({
       company_id,
@@ -357,47 +412,95 @@ export class HrEmploymentService {
     });
     if (!existing) throw new NotFoundException();
 
-    // For validation, we merge existing with updates if checking for ACTIVE status
-    if (data.status_code === 'EMPLOYMENT_STATUS_ACTIVE') {
-      this.validateActiveStatus({ ...existing, ...data });
+    const merged = { ...existing, ...data };
+    let resolvedStatus: string | undefined;
+    if (data.status_code != null) {
+      if (!ALLOWED_STATUS_CODES_UPDATE.includes(data.status_code as any)) {
+        throw new BadRequestException('Invalid status code. Allowed: Draft, In Progress, Active, Deactivated, Deserted.');
+      }
+      resolvedStatus = data.status_code;
+      if (resolvedStatus === 'EMPLOYMENT_STATUS_DESERTED' && existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE') {
+        throw new BadRequestException('HR_EMPLOYMENT_004');
+      }
+      if (resolvedStatus === 'EMPLOYMENT_STATUS_DEACTIVATED' && existing.status_code !== 'EMPLOYMENT_STATUS_ACTIVE') {
+        throw new BadRequestException('HR_EMPLOYMENT_002: Only active employees can be deactivated.');
+      }
+      if (existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE' && resolvedStatus !== 'EMPLOYMENT_STATUS_DEACTIVATED') {
+        throw new BadRequestException('HR_EMPLOYMENT_003: Active employees can only be deactivated.');
+      }
+      if (resolvedStatus === 'EMPLOYMENT_STATUS_ACTIVE') {
+        await this.validateActiveStatus(company_id, merged);
+      }
+    } else {
+      try {
+        await this.validateActiveStatus(company_id, merged);
+        resolvedStatus = 'EMPLOYMENT_STATUS_ACTIVE';
+      } catch {
+        resolvedStatus = 'EMPLOYMENT_STATUS_UNDER_PROCEDURE';
+      }
     }
+
+    const updatePayload: any = {
+      recruitment_candidate_id: data.recruitment_candidate_id ?? undefined,
+      employee_no: data.employee_no ?? undefined,
+      employee_code: data.employee_code ?? undefined,
+      full_name_ar: data.full_name_ar ?? undefined,
+      full_name_en: data.full_name_en ?? undefined,
+      nationality: data.nationality ?? undefined,
+      phone: data.phone ?? undefined,
+      date_of_birth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
+      iqama_no: data.iqama_no ?? undefined,
+      iqama_expiry_at: data.iqama_expiry_at ? new Date(data.iqama_expiry_at) : undefined,
+      iqama_file_id: data.iqama_file_id ?? undefined,
+      passport_no: data.passport_no ?? undefined,
+      passport_expiry_at: data.passport_expiry_at ? new Date(data.passport_expiry_at) : undefined,
+      passport_file_id: data.passport_file_id ?? undefined,
+      contract_no: data.contract_no ?? undefined,
+      contract_end_at: data.contract_end_at ? new Date(data.contract_end_at) : undefined,
+      contract_file_id: data.contract_file_id ?? undefined,
+      license_expiry_at: data.license_expiry_at ? new Date(data.license_expiry_at) : undefined,
+      license_file_id: data.license_file_id ?? undefined,
+      promissory_note_file_id: data.promissory_note_file_id ?? undefined,
+      avatar_file_id: data.avatar_file_id ?? undefined,
+      status_code: resolvedStatus,
+      employment_source: data.employment_source ?? undefined,
+      salary_amount: data.salary_amount ?? undefined,
+      salary_currency_code: data.salary_currency_code ?? undefined,
+      assigned_platform: data.assigned_platform ?? undefined,
+      platform_user_no: data.platform_user_no ?? undefined,
+      job_type: data.job_type ?? undefined,
+      monthly_orders_target: data.monthly_orders_target ?? undefined,
+      monthly_target_amount: data.monthly_target_amount ?? undefined,
+    };
+    Object.keys(updatePayload).forEach((k) => {
+      if (updatePayload[k] === undefined) delete updatePayload[k];
+    });
 
     const updated = await this.prisma.employmentRecord.update({
       where: { id },
-      data: {
-        recruitment_candidate_id: data.recruitment_candidate_id ?? undefined,
-        employee_no: data.employee_no ?? undefined,
-        employee_code: data.employee_code ?? undefined,
-        full_name_ar: data.full_name_ar ?? undefined,
-        full_name_en: data.full_name_en ?? undefined,
-        nationality: data.nationality ?? undefined,
-        phone: data.phone ?? undefined,
-        date_of_birth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
-        iqama_no: data.iqama_no ?? undefined,
-        iqama_expiry_at: data.iqama_expiry_at ? new Date(data.iqama_expiry_at) : undefined,
-        iqama_file_id: data.iqama_file_id ?? undefined,
-        passport_no: data.passport_no ?? undefined,
-        passport_expiry_at: data.passport_expiry_at ? new Date(data.passport_expiry_at) : undefined,
-        passport_file_id: data.passport_file_id ?? undefined,
-        contract_no: data.contract_no ?? undefined,
-        contract_end_at: data.contract_end_at ? new Date(data.contract_end_at) : undefined,
-        contract_file_id: data.contract_file_id ?? undefined,
-        license_expiry_at: data.license_expiry_at ? new Date(data.license_expiry_at) : undefined,
-        license_file_id: data.license_file_id ?? undefined,
-        promissory_note_file_id: data.promissory_note_file_id ?? undefined,
-        avatar_file_id: data.avatar_file_id ?? undefined,
-        custody_status: data.custody_status ?? undefined,
-        start_date_at: data.start_date_at ? new Date(data.start_date_at) : undefined,
-        medical_expiry_at: data.medical_expiry_at ? new Date(data.medical_expiry_at) : undefined,
-        status_code: data.status_code ?? undefined,
-        salary_amount: data.salary_amount ?? undefined,
-        salary_currency_code: data.salary_currency_code ?? undefined,
-        cost_center_code: data.cost_center_code ?? undefined,
-        assigned_platform: data.assigned_platform ?? undefined,
-        platform_user_no: data.platform_user_no ?? undefined,
-        job_type: data.job_type ?? undefined,
-      },
+      data: updatePayload,
     });
+
+    if (Array.isArray(data.extra_documents)) {
+      await this.prisma.employmentDocument.deleteMany({
+        where: { employment_record_id: id, company_id },
+      });
+      const extraDocs = data.extra_documents.slice(0, 2);
+      for (let i = 0; i < extraDocs.length; i++) {
+        const doc = extraDocs[i];
+        await this.prisma.employmentDocument.create({
+          data: {
+            company_id,
+            employment_record_id: id,
+            document_name: doc.document_name || 'Document',
+            expiry_at: doc.expiry_at ? new Date(doc.expiry_at) : null,
+            file_id: doc.file_id ?? null,
+            sort_order: i,
+            created_by_user_id: actor_user_id,
+          },
+        });
+      }
+    }
 
     await this.audit.log({
       company_id,
@@ -428,6 +531,9 @@ export class HrEmploymentService {
       where: { id, company_id, deleted_at: null },
     });
     if (!existing) throw new NotFoundException();
+    if (existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE') {
+      throw new ForbiddenException('HR_EMPLOYMENT_001: Cannot delete an active employee. Archive to Draft instead.');
+    }
 
     const deleted = await this.prisma.employmentRecord.update({
       where: { id },

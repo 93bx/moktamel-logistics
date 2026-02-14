@@ -1,12 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
 import { PrismaService } from '../prisma/prisma.service';
-import { HrEmploymentService } from '../hr-employment/hr-employment.service';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
   const prisma = app.get(PrismaService);
-  const employmentSvc = app.get(HrEmploymentService);
 
   console.log('Starting One-Time Data Sync...');
 
@@ -35,27 +33,7 @@ async function bootstrap() {
         if (!record.passport_no) updateData.passport_no = record.recruitment_candidate.passport_no;
       }
 
-      // Generate Employee Code if missing
-      if (!record.employee_code) {
-        // Use the service logic to ensure uniqueness
-        // We'll call the private methods via any or just replicate here for safety in a script
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-        const nums = '123456789';
-        const r = (set: string) => set.charAt(Math.floor(Math.random() * set.length));
-        
-        let code = '';
-        let exists = true;
-        let attempts = 0;
-        while (exists && attempts < 10) {
-          code = `${r(chars)}${r(nums)}${r(chars)}${r(nums)}${r(chars)}`;
-          const count = await prisma.employmentRecord.count({
-            where: { company_id: record.company_id, employee_code: code },
-          });
-          exists = count > 0;
-          attempts++;
-        }
-        updateData.employee_code = code;
-      }
+      // Employee codes for missing records are set by migrate-employee-codes.ts; new records get code from HrEmploymentService on create.
 
       if (Object.keys(updateData).length > 0) {
         await prisma.employmentRecord.update({

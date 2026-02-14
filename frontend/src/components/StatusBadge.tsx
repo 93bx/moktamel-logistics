@@ -43,6 +43,11 @@ export function StatusBadge({ status }: { status: string }) {
           label: t("common.statusAssigned"),
           className: "bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800",
         };
+      case "EMPLOYMENT_STATUS_DRAFT":
+        return {
+          label: t("common.statusDraft"),
+          className: "bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-900/30 dark:text-zinc-400 dark:border-zinc-800",
+        };
       case "EMPLOYMENT_STATUS_UNDER_PROCEDURE":
         return {
           label: t("common.statusInProgress"),
@@ -63,19 +68,22 @@ export function StatusBadge({ status }: { status: string }) {
           label: t("fleet.inWorkshop"),
           className: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
         };
-      case "EMPLOYMENT_STATUS_LOST_CONTACT":
-      case "LOST_CONTACT":
+      case "EMPLOYMENT_STATUS_DESERTED":
+      case "DESERTED":
         return {
-          label: t("common.lostContact"),
+          label: t("common.deserted"),
           className: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
         };
+      case "EMPLOYMENT_STATUS_LOST_CONTACT":
+      case "LOST_CONTACT":
       case "EMPLOYMENT_STATUS_ESCAPED":
       case "ESCAPED":
         return {
-          label: t("common.escaped"),
+          label: t("common.deserted"),
           className: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
         };
       case "DEACTIVATED":
+      case "EMPLOYMENT_STATUS_DEACTIVATED":
         return {
           label: t("common.deactivated") || "Deactivated",
           className: "bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-900/30 dark:text-zinc-400 dark:border-zinc-800",

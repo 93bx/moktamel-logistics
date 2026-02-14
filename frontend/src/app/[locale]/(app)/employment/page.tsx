@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
 import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
@@ -13,18 +14,15 @@ type EmploymentListItem = {
   full_name_ar: string | null;
   full_name_en: string | null;
   iqama_no: string | null;
-  custody_status: string | null;
-  start_date_at: string | null;
   contract_end_at: string | null;
   iqama_expiry_at: string | null;
   passport_expiry_at: string | null;
-  medical_expiry_at: string | null;
   license_expiry_at: string | null;
   status_code: string;
   salary_amount: string | null;
   salary_currency_code: string | null;
-  cost_center_code: string | null;
   assigned_platform: string | null;
+  platform_user_no: string | null;
   avatar_file_id: string | null;
   assets?: Array<{ id: string; asset: { type: string; name: string } }>;
   created_at: string;
@@ -39,8 +37,7 @@ type StatsData = {
   totalEmployees: number;
   employeesOnDuty: number;
   employeesOnboarding: number;
-  documentsExpiringSoon: number;
-  employeesLostOrEscaped: number;
+  employeesDeserted: number;
 };
 
 export default async function EmploymentPage({
@@ -114,69 +111,105 @@ export default async function EmploymentPage({
     throw error;
   }
 
+  function buildEmploymentUrl(opts: { status_code?: string | null; page?: number }) {
+    const params = new URLSearchParams();
+    if (sp.q) params.set("q", sp.q);
+    if (sp.platform) params.set("platform", sp.platform);
+    if (sp.has_assets) params.set("has_assets", sp.has_assets);
+    if (opts.status_code != null && opts.status_code) params.set("status_code", opts.status_code);
+    if (opts.page != null && opts.page > 1) params.set("page", String(opts.page));
+    const qs = params.toString();
+    return `/${locale}/employment${qs ? `?${qs}` : ""}`;
+  }
+
+  const statCards = [
+    {
+      statusCode: null as string | null,
+      label: t("common.totalEmployees"),
+      value: stats.totalEmployees,
+    },
+    {
+      statusCode: "EMPLOYMENT_STATUS_ACTIVE" as const,
+      label: t("common.employeesOnDuty"),
+      value: stats.employeesOnDuty,
+    },
+    {
+      statusCode: "EMPLOYMENT_STATUS_UNDER_PROCEDURE" as const,
+      label: t("common.employeesOnboarding"),
+      value: stats.employeesOnboarding,
+    },
+    {
+      statusCode: "EMPLOYMENT_STATUS_DESERTED" as const,
+      label: t("common.employeesDeserted"),
+      value: stats.employeesDeserted,
+    },
+  ] as const;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-primary">{t("nav.employment")}</h1>
-        <EmploymentNewButton locale={locale} />
-      </div>
-
-      {/* Part 1: Quick Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard label={t("common.totalEmployees")} value={stats.totalEmployees} />
-        <StatCard label={t("common.employeesOnDuty")} value={stats.employeesOnDuty} />
-        <StatCard label={t("common.employeesOnboarding")} value={stats.employeesOnboarding} />
-        <StatCard label={t("common.documentsExpiringSoon")} value={stats.documentsExpiringSoon} />
-        <StatCard label={t("common.employeesLostOrEscaped")} value={stats.employeesLostOrEscaped} />
+      {/* Part 1: Quick Stats Cards (click to filter; click again to clear) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map(({ statusCode, label, value }) => {
+          const isActive = statusCode !== null && sp.status_code === statusCode;
+          const href =
+            isActive
+              ? buildEmploymentUrl({ status_code: null, page: 1 })
+              : buildEmploymentUrl({ status_code: statusCode ?? undefined, page: 1 });
+          return (
+            <Link
+              key={statusCode ?? "total"}
+              href={href}
+              className={`rounded-lg border p-4 transition-colors dark:bg-zinc-800 ${
+                isActive
+                  ? "border-primary bg-primary/5 ring-2 ring-primary/20 dark:bg-primary/10"
+                  : "border-zinc-200 bg-white dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
+              } cursor-pointer`}
+            >
+              <div className="text-sm text-primary/60">{label}</div>
+              <div className="mt-1 text-2xl font-semibold text-primary">{value}</div>
+            </Link>
+          );
+        })}
       </div>
 
       {/* Part 2: Controls Row */}
-      <form className="flex flex-wrap items-center gap-2" action={`/${locale}/employment`} method="get">
-        <input
-          name="q"
-          defaultValue={sp.q ?? ""}
-          placeholder={t("common.searchEmployeeCostCenter")}
-          className="w-full max-w-xs rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
-        />
-        <select
-          name="status_code"
-          defaultValue={sp.status_code ?? ""}
-          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
-        >
-          <option value="">{t("common.allStatuses")}</option>
-          <option value="EMPLOYMENT_STATUS_ACTIVE">{t("common.statusActive")}</option>
-          <option value="EMPLOYMENT_STATUS_UNDER_PROCEDURE">{t("common.statusInProgress")}</option>
-          <option value="INCOMPLETE_FILE">{t("common.statusIncompleteFile")}</option>
-          <option value="NOT_ASSIGNED">{t("common.statusNotAssigned")}</option>
-          <option value="IN_TRAINING">{t("common.statusInTraining")}</option>
-          <option value="COMPLETE_FILE">{t("common.statusCompleteFile")}</option>
-          <option value="ASSIGNED">{t("common.statusAssigned")}</option>
-        </select>
-        <select
-          name="platform"
-          defaultValue={sp.platform ?? ""}
-          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
-        >
-          <option value="">{t("dailyOps.tablePlatform")}</option>
-          <option value="JAHEZ">{t("common.platformJahez")}</option>
-          <option value="HUNGERSTATION">{t("common.platformHungerstation")}</option>
-          <option value="NINJA">{t("common.platformNinja")}</option>
-          <option value="KEETA">{t("common.platformKeeta")}</option>
-        </select>
-        <label className="flex items-center gap-2 text-sm text-primary">
+      <div className="flex items-center justify-between gap-2">
+        <form className="flex items-center gap-2 bg-[#244473] p-2 rounded-md w-full max-w-2xl" action={`/${locale}/employment`} method="get">
           <input
-            type="checkbox"
-            name="has_assets"
-            value="true"
-            defaultChecked={sp.has_assets === "true"}
-            className="h-4 w-4 rounded border-zinc-300 text-primary focus:ring-primary"
+            name="q"
+            defaultValue={sp.q ?? ""}
+            placeholder={t("common.searchEmployeeCostCenter")}
+            className="w-full max-w-xs rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
           />
-          {t("common.hasAssets")}
-        </label>
-        <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-600">
-          {t("common.filter")}
-        </button>
-      </form>
+          <select
+            name="status_code"
+            defaultValue={sp.status_code ?? ""}
+            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
+          >
+            <option value="">{t("common.allStatuses")}</option>
+            <option value="EMPLOYMENT_STATUS_DRAFT">{t("common.statusDraft")}</option>
+            <option value="EMPLOYMENT_STATUS_UNDER_PROCEDURE">{t("common.statusInProgress")}</option>
+            <option value="EMPLOYMENT_STATUS_ACTIVE">{t("common.statusActive")}</option>
+            <option value="EMPLOYMENT_STATUS_DEACTIVATED">{t("common.deactivated")}</option>
+            <option value="EMPLOYMENT_STATUS_DESERTED">{t("common.deserted")}</option>
+          </select>
+          <select
+            name="platform"
+            defaultValue={sp.platform ?? ""}
+            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
+          >
+            <option value="">{t("dailyOps.tablePlatform")}</option>
+            <option value="JAHEZ">{t("common.platformJahez")}</option>
+            <option value="HUNGERSTATION">{t("common.platformHungerstation")}</option>
+            <option value="NINJA">{t("common.platformNinja")}</option>
+            <option value="KEETA">{t("common.platformKeeta")}</option>
+          </select>
+          <button className="rounded-md bg-white px-4 py-2 text-sm font-bold text-primary hover:bg-white/80">
+            {t("common.filter")}
+          </button>
+        </form>
+        <EmploymentNewButton locale={locale} />
+      </div>
 
       {/* Part 3: Employees Table Client */}
       <EmploymentPageClient
@@ -186,15 +219,6 @@ export default async function EmploymentPage({
         page={data.page}
         pageSize={data.page_size}
       />
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-      <div className="text-sm text-primary/60">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-primary">{value}</div>
     </div>
   );
 }

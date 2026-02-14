@@ -13,7 +13,7 @@ export function EmploymentNewButton({ locale }: { locale: string }) {
       <button
         type="button"
         onClick={() => setIsModalOpen(true)}
-        className="ml-auto rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-600"
+        className="rounded-md bg-primary px-3 py-2 text-sm font-bold text-white hover:bg-primary-600"
       >
         + {t("common.new")}
       </button>

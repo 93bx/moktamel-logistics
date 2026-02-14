@@ -15,6 +15,12 @@ const ListQuerySchema = z.object({
   page_size: z.coerce.number().int().min(1).max(200).default(25),
 });
 
+const ExtraDocumentSchema = z.object({
+  document_name: z.string().min(1),
+  expiry_at: z.string().datetime().optional().nullable(),
+  file_id: z.string().uuid().optional().nullable(),
+});
+
 const EmploymentCreateSchema = z.object({
   recruitment_candidate_id: z.string().uuid().optional().nullable(),
   employee_no: z.string().min(1).optional().nullable(),
@@ -37,16 +43,16 @@ const EmploymentCreateSchema = z.object({
   license_file_id: z.string().uuid().optional().nullable(),
   promissory_note_file_id: z.string().uuid().optional().nullable(),
   avatar_file_id: z.string().uuid().optional().nullable(),
-  custody_status: z.string().min(1).optional().nullable(),
-  start_date_at: z.string().datetime().optional().nullable(),
-  medical_expiry_at: z.string().datetime().optional().nullable(),
   status_code: z.string().min(1).optional(),
+  employment_source: z.enum(['RECRUITMENT', 'AJEEER_CONTRACT', 'WITHIN_KINGDOM']).optional().nullable(),
   salary_amount: z.number().optional().nullable(),
   salary_currency_code: z.string().min(1).optional().nullable(),
-  cost_center_code: z.string().min(1).optional().nullable(),
   assigned_platform: z.enum(['JAHEZ', 'HUNGERSTATION', 'NINJA', 'KEETA']).optional().nullable(),
   platform_user_no: z.string().min(1).optional().nullable(),
   job_type: z.string().min(1).optional().nullable(),
+  monthly_orders_target: z.number().int().min(0).optional().nullable(),
+  monthly_target_amount: z.number().min(0).optional().nullable(),
+  extra_documents: z.array(ExtraDocumentSchema).max(2).optional(),
 });
 
 const EmploymentUpdateSchema = EmploymentCreateSchema.partial();
