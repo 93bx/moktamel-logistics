@@ -6,7 +6,6 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { AnalyticsService } from '../analytics/analytics.service';
 
 type CostTypeCode =
   | 'COST_TYPE_EMPLOYEE_SALARIES'
@@ -53,7 +52,6 @@ export class CostsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly analytics: AnalyticsService,
   ) {}
 
   private computeVatAndNet(amountInput: number, vatIncluded: boolean) {
@@ -186,18 +184,6 @@ export class CostsService {
       new_values: created,
     });
 
-    await this.analytics.track({
-      company_id,
-      actor_user_id,
-      event_code: 'COST_CREATED',
-      entity_type: 'COST',
-      entity_id: created.id,
-      payload: {
-        type_code: created.type_code,
-        amount_input: Number(created.amount_input),
-        net_amount: Number(created.net_amount),
-      },
-    });
 
     return this.mapCost(created as unknown as CostRow);
   }
@@ -281,18 +267,6 @@ export class CostsService {
       new_values: updated,
     });
 
-    await this.analytics.track({
-      company_id,
-      actor_user_id,
-      event_code: 'COST_UPDATED',
-      entity_type: 'COST',
-      entity_id: updated.id,
-      payload: {
-        type_code: updated.type_code,
-        amount_input: Number(updated.amount_input),
-        net_amount: Number(updated.net_amount),
-      },
-    });
 
     return this.mapCost(updated as unknown as CostRow);
   }
@@ -321,14 +295,6 @@ export class CostsService {
       entity_id: deleted.id,
       old_values: existing,
       new_values: deleted,
-    });
-
-    await this.analytics.track({
-      company_id,
-      actor_user_id,
-      event_code: 'COST_DELETED',
-      entity_type: 'COST',
-      entity_id: deleted.id,
     });
 
     return { ok: true };

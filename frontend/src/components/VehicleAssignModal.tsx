@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
+import { LicensePlate } from "./LicensePlate";
 import { Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -16,12 +17,27 @@ interface VehicleAssignModalProps {
 export function VehicleAssignModal({ isOpen, onClose, locale, vehicleId }: VehicleAssignModalProps) {
   const t = useTranslations();
   const router = useRouter();
+  const [vehicle, setVehicle] = useState<{ license_plate: string; model: string; year: number } | null>(null);
   const [query, setQuery] = useState("");
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [odometer, setOdometer] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && vehicleId) {
+      fetch(`/api/fleet/vehicles/${vehicleId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setVehicle(data);
+          setOdometer(data.current_odometer?.toString() ?? "");
+        })
+        .catch(() => setVehicle(null));
+    } else {
+      setVehicle(null);
+    }
+  }, [isOpen, vehicleId]);
 
   useEffect(() => {
     if (query.length < 2) {
@@ -67,8 +83,15 @@ export function VehicleAssignModal({ isOpen, onClose, locale, vehicleId }: Vehic
     }
   };
 
+  const titleNode = vehicle ? (
+    <>
+      {t("fleet.assignToEmployee")} — <LicensePlate value={vehicle.license_plate} size="md" /> {vehicle.model} {vehicle.year}
+    </>
+  ) : (
+    t("fleet.assignToEmployee")
+  );
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t("fleet.assignToEmployee")} maxWidth="2xl">
+    <Modal isOpen={isOpen} onClose={onClose} title={titleNode} maxWidth="2xl">
       <div className="space-y-4">
         <div>
           <label className="text-sm font-medium text-primary">{t("fleet.currentOdometer")} (km)</label>

@@ -3,10 +3,9 @@ import { CostsController } from './costs.controller';
 import { CostsService } from './costs.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuditModule } from '../audit/audit.module';
-import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
-  imports: [PrismaModule, AuditModule, AnalyticsModule],
+  imports: [PrismaModule, AuditModule],
   controllers: [CostsController],
   providers: [CostsService],
   exports: [CostsService],

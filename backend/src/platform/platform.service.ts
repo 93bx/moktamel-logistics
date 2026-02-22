@@ -150,8 +150,6 @@ export class PlatformService {
         { key: 'FIN_CASH_LOANS_MANAGE', module: 'FINANCE_CASH_LOANS', action: 'MANAGE' },
         { key: 'NOTIFICATIONS_READ', module: 'NOTIFICATIONS', action: 'READ' },
         { key: 'NOTIFICATIONS_CONFIGURE', module: 'NOTIFICATIONS', action: 'CONFIGURE' },
-        { key: 'ANALYTICS_READ', module: 'ANALYTICS', action: 'READ' },
-        { key: 'ANALYTICS_EXPORT', module: 'ANALYTICS', action: 'EXPORT' },
         { key: 'SUBSCRIPTIONS_READ', module: 'SUBSCRIPTIONS', action: 'READ' },
         { key: 'SUBSCRIPTIONS_MANAGE', module: 'SUBSCRIPTIONS', action: 'MANAGE' },
         { key: 'FLEET_READ', module: 'FLEET', action: 'READ' },
@@ -160,6 +158,7 @@ export class PlatformService {
         { key: 'FLEET_DELETE', module: 'FLEET', action: 'DELETE' },
         { key: 'FLEET_ASSIGN', module: 'FLEET', action: 'ASSIGN' },
         { key: 'FLEET_MAINTENANCE', module: 'FLEET', action: 'MAINTENANCE' },
+        { key: 'FLEET_GAS', module: 'FLEET', action: 'GAS' },
       ];
 
       for (const p of perms) {

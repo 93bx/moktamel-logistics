@@ -36,6 +36,16 @@ const VehicleCreateSchema = z.object({
 
 const VehicleUpdateSchema = VehicleCreateSchema.partial();
 
+const GasCreateSchema = z.object({
+  vehicle_id: z.string().uuid(),
+  date: z.string().min(1),
+  gas_quantity_liters: z.coerce.number().positive(),
+  gas_cost: z.coerce.number().positive(),
+  payment_method_code: z.enum(['CASH', 'CARD', 'INVOICE']),
+  invoice_file_id: z.string().uuid().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
 @Controller('fleet')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class FleetManagementController {
@@ -58,6 +68,12 @@ export class FleetManagementController {
   async list(@Req() req: Request & { user?: any }, @Query() query: any) {
     const q = ListQuerySchema.parse(query);
     return this.svc.list(req.user.company_id, q);
+  }
+
+  @Get('vehicles/search')
+  @Permissions('FLEET_READ')
+  async searchVehiclesForGas(@Req() req: Request & { user?: any }, @Query('q') q: string) {
+    return this.svc.searchVehiclesForGas(req.user.company_id, q ?? '');
   }
 
   @Get('vehicles/:id')
@@ -114,6 +130,13 @@ export class FleetManagementController {
   @Permissions('FLEET_MAINTENANCE')
   async exitMaintenance(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: any) {
     return this.svc.exitMaintenance(req.user.company_id, req.user.sub, id, body);
+  }
+
+  @Post('gas')
+  @Permissions('FLEET_GAS')
+  async createGasRecord(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+    const data = GasCreateSchema.parse(body);
+    return this.svc.createGasRecord(req.user.company_id, req.user.sub, data);
   }
 }
 

@@ -152,19 +152,6 @@ export function SideNav() {
         {t("nav.notifications")}
       </Link>
 
-      <div className="border-t border-primary-600 dark:border-primary-700" />
-
-      {/* Analytics */}
-      <Link
-        href={`/${locale}/analytics`}
-        className={`block rounded-md px-3 py-2 text-base transition-colors ${
-          isActive(`/${locale}/analytics`)
-            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-        }`}
-      >
-        {t("nav.analytics")}
-      </Link>
     </nav>
   );
 }

@@ -48,11 +48,19 @@ export class HrAssetsService {
 
     const [assignedAssets, custodiansList, deductionsAgg, pendingRecoveryList] = await this.prisma.$transaction([
       this.prisma.assetAssignment.findMany({
-        where: { company_id, status_code: 'ASSIGNED' },
+        where: {
+          company_id,
+          status_code: 'ASSIGNED',
+          employment_record: { deleted_at: null },
+        },
         select: { asset: { select: { price: true } } },
       }),
       this.prisma.assetAssignment.findMany({
-        where: { company_id, status_code: 'ASSIGNED' },
+        where: {
+          company_id,
+          status_code: 'ASSIGNED',
+          employment_record: { deleted_at: null },
+        },
         distinct: ['employment_record_id'],
         select: { employment_record_id: true },
       }),
@@ -69,6 +77,7 @@ export class HrAssetsService {
           company_id,
           status_code: 'ASSIGNED',
           employment_record: {
+            deleted_at: null,
             contract_end_at: { not: null, lt: now },
           },
         },
@@ -121,6 +130,8 @@ export class HrAssetsService {
         select: {
           id: true,
           employee_no: true,
+          employee_code: true,
+          avatar_file_id: true,
           recruitment_candidate: { select: { full_name_ar: true, full_name_en: true, passport_no: true, nationality: true } },
           assets: {
             select: {

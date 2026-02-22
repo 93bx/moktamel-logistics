@@ -1,11 +1,13 @@
 import { Eye, ArrowDownToLine, ShieldAlert, Smartphone, HardHat, Shirt, ShoppingBag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { format } from "date-fns";
+import { LicensePlate } from "./LicensePlate";
 
 type AssetListItem = {
   id: string;
   employee_no: string | null;
   employee_code?: string | null;
+  avatar_file_id: string | null;
   recruitment_candidate: { full_name_ar: string; full_name_en: string | null; passport_no: string; nationality: string } | null;
   assets: Array<{
     id: string;
@@ -81,10 +83,18 @@ export function AssetsTable({
                 <tr key={row.id} className="border-b border-zinc-100 dark:border-zinc-700">
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-xs font-bold text-primary">
-                          {row.recruitment_candidate?.full_name_en?.charAt(0) || "?"}
-                        </span>
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center">
+                        {row.avatar_file_id ? (
+                          <img
+                            src={`/api/files/${row.avatar_file_id}/view`}
+                            alt={row.recruitment_candidate?.full_name_en ?? ""}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-xs font-bold text-primary">
+                            {row.recruitment_candidate?.full_name_en?.charAt(0) || row.recruitment_candidate?.full_name_ar?.charAt(0) || "?"}
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-col">
                         <span className="font-medium">{row.recruitment_candidate?.full_name_ar}</span>
@@ -98,7 +108,7 @@ export function AssetsTable({
                       <div className="flex flex-col">
                         <span className="font-medium">{mainAsset.asset.name}</span>
                         {mainAsset.asset.license_plate && (
-                          <span className="text-xs text-primary/60">{mainAsset.asset.license_plate}</span>
+                          <LicensePlate value={mainAsset.asset.license_plate} size="sm" className="mt-0.5" />
                         )}
                       </div>
                     ) : "-"}

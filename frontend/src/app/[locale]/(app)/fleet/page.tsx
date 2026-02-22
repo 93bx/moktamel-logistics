@@ -18,11 +18,13 @@ export type VehicleListItem = {
     full_name_ar: string;
     full_name_en: string | null;
     employee_code: string | null;
+    avatar_file_id: string | null;
   } | null;
   documents: Array<{
     type_code: string;
     expiry_date: string;
   }>;
+  maintenance_logs?: Array<{ workshop_name: string }>;
   created_at: string;
 };
 
@@ -31,7 +33,7 @@ export type FleetStatsData = {
   onDuty: number;
   idle: number;
   inWorkshop: number;
-  nearExpiry: number;
+  maintenanceCostThisMonth: number;
 };
 
 export default async function FleetPage({

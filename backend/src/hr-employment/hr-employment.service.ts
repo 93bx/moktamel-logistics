@@ -1,6 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
-import { AnalyticsService } from '../analytics/analytics.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PayrollConfigService } from '../payroll-config/payroll-config.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,7 +15,6 @@ export class HrEmploymentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly analytics: AnalyticsService,
     private readonly notifications: NotificationsService,
     private readonly payrollConfig: PayrollConfigService,
   ) {}
@@ -380,15 +378,6 @@ export class HrEmploymentService {
       new_values: created,
     });
 
-    await this.analytics.track({
-      company_id,
-      actor_user_id: actor_user_id ?? null,
-      event_code: 'HR_EMPLOYMENT_CREATED',
-      entity_type: 'EMPLOYMENT_RECORD',
-      entity_id: created.id,
-      payload: { status_code: created.status_code },
-    });
-
     // Placeholder notification: expiry soon
     if (created.iqama_expiry_at) {
       const days = Math.ceil((created.iqama_expiry_at.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -512,17 +501,6 @@ export class HrEmploymentService {
       new_values: updated,
     });
 
-    if (existing.status_code !== updated.status_code) {
-      await this.analytics.track({
-        company_id,
-        actor_user_id,
-        event_code: 'HR_EMPLOYMENT_STATUS_CHANGED',
-        entity_type: 'EMPLOYMENT_RECORD',
-        entity_id: updated.id,
-        payload: { from: existing.status_code, to: updated.status_code },
-      });
-    }
-
     return updated;
   }
 
@@ -548,14 +526,6 @@ export class HrEmploymentService {
       entity_id: deleted.id,
       old_values: existing,
       new_values: { deleted_at: deleted.deleted_at },
-    });
-
-    await this.analytics.track({
-      company_id,
-      actor_user_id,
-      event_code: 'HR_EMPLOYMENT_DELETED',
-      entity_type: 'EMPLOYMENT_RECORD',
-      entity_id: deleted.id,
     });
 
     return { ok: true };

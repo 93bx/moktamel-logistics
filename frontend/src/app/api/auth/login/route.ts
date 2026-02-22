@@ -35,6 +35,14 @@ export async function POST(request: Request) {
     secure: process.env.NODE_ENV === "production",
     path: "/",
   });
+  if (data.company_name != null) {
+    response.cookies.set("moktamel_company_name", String(data.company_name), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    });
+  }
   // Clear refresh flag on new login to reset the refresh-once limit
   response.cookies.set("moktamel_refreshed_once", "", {
     httpOnly: true,

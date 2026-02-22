@@ -4,7 +4,45 @@ import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
 import { StatusBadge } from "./StatusBadge";
-import { User, Wrench, ArrowRightLeft, UserMinus, UserPlus } from "lucide-react";
+import { LicensePlate } from "./LicensePlate";
+import { CandidateImageCard } from "./CandidateImageCard";
+import { ImageViewerModal } from "./ImageViewerModal";
+import { User, Wrench, ArrowRightLeft, UserMinus, UserPlus, FileText, Eye, Download, Printer } from "lucide-react";
+
+async function downloadFile(url: string, filename: string) {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) throw new Error("Download failed");
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename || "file";
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, "_blank", "noopener");
+  }
+}
+
+function printFile(url: string, title: string) {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head><title>${title}</title></head>
+      <body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;">
+        <img src="${url}" alt="${title}" style="max-width:100%;height:auto;" />
+      </body>
+    </html>
+  `);
+  w.document.close();
+  w.onload = () => {
+    w.print();
+    w.close();
+  };
+}
 
 interface VehicleViewModalProps {
   isOpen: boolean;
@@ -15,6 +53,16 @@ interface VehicleViewModalProps {
   onTransfer?: (id: string) => void;
   onMaintenance?: (id: string) => void;
   onUnassign?: (id: string) => void;
+}
+
+function DocumentPlaceholder({ label, detail }: { label: string; detail: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-zinc-300 bg-white p-4 dark:border-zinc-600 dark:bg-zinc-800/50">
+      <p className="text-sm font-medium text-primary/80">{label}</p>
+      <p className="mt-1 text-xs text-primary/60">{detail}</p>
+      <p className="mt-2 text-xs italic text-primary/50">—</p>
+    </div>
+  );
 }
 
 export function VehicleViewModal({
@@ -28,9 +76,11 @@ export function VehicleViewModal({
   onUnassign,
 }: VehicleViewModalProps) {
   const t = useTranslations();
-  const [activeTab, setActiveTab] = useState<"info" | "logs" | "maintenance">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "documents" | "logs" | "maintenance" | "gas">("info");
   const [loading, setLoading] = useState(false);
   const [vehicle, setVehicle] = useState<any>(null);
+  const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({});
+  const [viewerState, setViewerState] = useState<{ url: string; title: string; filename: string } | null>(null);
 
   useEffect(() => {
     if (isOpen && vehicleId) {
@@ -47,7 +97,79 @@ export function VehicleViewModal({
     }
   }, [isOpen, vehicleId]);
 
+  useEffect(() => {
+    if (!vehicle) {
+      setDocumentUrls({});
+      return;
+    }
+    const docsWithFile = (vehicle.documents ?? []).filter((d: { file_id: string | null }) => d.file_id);
+    const maintenanceWithInvoice = (vehicle.maintenance_logs ?? []).filter(
+      (log: { invoice_file_id: string | null }) => log.invoice_file_id
+    );
+    const gasWithInvoice = (vehicle.gas_logs ?? []).filter(
+      (log: { invoice_file_id: string | null }) => log.invoice_file_id
+    );
+    if (docsWithFile.length === 0 && maintenanceWithInvoice.length === 0 && gasWithInvoice.length === 0) {
+      setDocumentUrls({});
+      return;
+    }
+    let cancelled = false;
+    const urlMap: Record<string, string> = {};
+    const fetchUrl = async (key: string, fileId: string) => {
+      try {
+        const urlRes = await fetch("/api/files/download-url", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ file_id: fileId }),
+        });
+        if (urlRes.ok && !cancelled) {
+          const urlData = await urlRes.json();
+          if (urlData.download_url) urlMap[key] = urlData.download_url;
+        }
+      } catch {
+        // ignore
+      }
+    };
+    Promise.all([
+      ...docsWithFile.map((doc: { id: string; file_id: string }) => fetchUrl(doc.id, doc.file_id)),
+      ...maintenanceWithInvoice.map((log: { id: string; invoice_file_id: string }) =>
+        fetchUrl(`maintenance_${log.id}`, log.invoice_file_id)
+      ),
+      ...gasWithInvoice.map((log: { id: string; invoice_file_id: string }) =>
+        fetchUrl(`gas_${log.id}`, log.invoice_file_id)
+      ),
+    ]).then(() => {
+      if (!cancelled) setDocumentUrls(urlMap);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicle]);
+
   if (!isOpen) return null;
+
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return "-";
+    try {
+      return new Date(dateString).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getDocumentTypeLabel = (typeCode: string): string => {
+    const map: Record<string, string> = {
+      REGISTRATION: t("fleet.registration"),
+      INSURANCE: t("fleet.insurance"),
+      CHECKUP: t("fleet.periodicCheck"),
+      OPERATING_CARD: t("fleet.operatingCard"),
+    };
+    return map[typeCode] ?? typeCode;
+  };
 
   const calculateDaysSince = (dateString: string) => {
     const start = new Date(dateString);
@@ -56,6 +178,7 @@ export function VehicleViewModal({
   };
 
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} title={t("fleet.viewVehicle")} maxWidth="5xl">
       {loading || !vehicle ? (
         <div className="py-20 text-center text-zinc-400">{t("common.loading")}</div>
@@ -67,7 +190,7 @@ export function VehicleViewModal({
                 <span className="text-4xl">{vehicle.type_code === "MOTORCYCLE" ? "🏍️" : "🚗"}</span>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold font-mono tracking-wider">{vehicle.license_plate}</div>
+                <LicensePlate value={vehicle.license_plate} size="lg" />
                 <div className="mt-2">
                   <StatusBadge status={vehicle.status_code} />
                 </div>
@@ -178,6 +301,12 @@ export function VehicleViewModal({
                 {t("fleet.vehicleInfo")}
               </button>
               <button
+                onClick={() => setActiveTab("documents")}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "documents" ? "border-b-2 border-primary text-primary" : "text-zinc-500 hover:text-primary"}`}
+              >
+                {t("fleet.documents")}
+              </button>
+              <button
                 onClick={() => setActiveTab("logs")}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "logs" ? "border-b-2 border-primary text-primary" : "text-zinc-500 hover:text-primary"}`}
               >
@@ -188,6 +317,12 @@ export function VehicleViewModal({
                 className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "maintenance" ? "border-b-2 border-primary text-primary" : "text-zinc-500 hover:text-primary"}`}
               >
                 {t("fleet.maintenance")}
+              </button>
+              <button
+                onClick={() => setActiveTab("gas")}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "gas" ? "border-b-2 border-primary text-primary" : "text-zinc-500 hover:text-primary"}`}
+              >
+                {t("fleet.gas")}
               </button>
             </div>
 
@@ -226,6 +361,42 @@ export function VehicleViewModal({
                   <div className="text-xs text-zinc-500 uppercase">{t("fleet.purchaseCondition")}</div>
                   <div className="font-medium">{t(`fleet.${vehicle.purchase_condition.toLowerCase()}`)}</div>
                 </div>
+              </div>
+            )}
+
+            {activeTab === "documents" && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {!vehicle.documents?.length ? (
+                  <div className="col-span-full rounded-md border border-dashed border-zinc-300 bg-white p-6 text-center text-primary/60 dark:border-zinc-600 dark:bg-zinc-800/50">
+                    <FileText className="mx-auto h-10 w-10 text-primary/40" />
+                    <p className="mt-2 text-sm">{t("fleet.noDocuments")}</p>
+                  </div>
+                ) : (
+                  vehicle.documents?.map((doc: { id: string; type_code: string; number: string | null; expiry_date: string; issuer: string | null; file_id: string | null }) =>
+                    documentUrls[doc.id] ? (
+                      <CandidateImageCard
+                        key={doc.id}
+                        src={documentUrls[doc.id]}
+                        alt={getDocumentTypeLabel(doc.type_code)}
+                        label={`${getDocumentTypeLabel(doc.type_code)}${doc.number ? ` (${doc.number})` : ""} · ${formatDate(doc.expiry_date)}${doc.issuer ? ` · ${doc.issuer}` : ""}`}
+                        downloadFilename={`${vehicle.license_plate}_${doc.type_code}`}
+                        onView={() =>
+                          setViewerState({
+                            url: documentUrls[doc.id],
+                            title: getDocumentTypeLabel(doc.type_code),
+                            filename: `${vehicle.license_plate}_${doc.type_code}`,
+                          })
+                        }
+                      />
+                    ) : (
+                      <DocumentPlaceholder
+                        key={doc.id}
+                        label={getDocumentTypeLabel(doc.type_code)}
+                        detail={`${doc.number || "-"} · ${formatDate(doc.expiry_date)}${doc.issuer ? ` · ${doc.issuer}` : ""}`}
+                      />
+                    )
+                  )
+                )}
               </div>
             )}
 
@@ -268,20 +439,164 @@ export function VehicleViewModal({
                       <th className="px-3 py-2">{t("fleet.endDate")}</th>
                       <th className="px-3 py-2">{t("fleet.workshopName")}</th>
                       <th className="px-3 py-2">{t("fleet.cost")}</th>
+                      <th className="px-3 py-2">{t("common.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {vehicle.maintenance_logs?.map((log: any) => (
-                      <tr key={log.id} className="border-t border-zinc-100 dark:border-zinc-800">
-                        <td className="px-3 py-2 whitespace-nowrap">{log.start_date.split("T")[0]}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{log.end_date?.split("T")[0] || t("fleet.inWorkshop")}</td>
-                        <td className="px-3 py-2">{log.workshop_name}</td>
-                        <td className="px-3 py-2">{log.cost ? `${parseFloat(log.cost).toLocaleString()} SAR` : "-"}</td>
-                      </tr>
-                    ))}
+                    {vehicle.maintenance_logs?.map((log: any) => {
+                      const invoiceKey = `maintenance_${log.id}`;
+                      const invoiceUrl = documentUrls[invoiceKey];
+                      const invoiceLabel = `${t("fleet.maintenanceInvoice")} – ${log.workshop_name} – ${formatDate(log.start_date)}`;
+                      const invoiceFilename = `${vehicle.license_plate}_maintenance_${log.start_date.split("T")[0]}`;
+                      return (
+                        <tr key={log.id} className="border-t border-zinc-100 dark:border-zinc-800">
+                          <td className="px-3 py-2 whitespace-nowrap">{log.start_date.split("T")[0]}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{log.end_date?.split("T")[0] || t("fleet.inWorkshop")}</td>
+                          <td className="px-3 py-2">{log.workshop_name}</td>
+                          <td className="px-3 py-2">{log.cost ? `${parseFloat(log.cost).toLocaleString()} SAR` : "-"}</td>
+                          <td className="px-3 py-2">
+                            {log.invoice_file_id ? (
+                              invoiceUrl ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewerState({
+                                        url: invoiceUrl,
+                                        title: invoiceLabel,
+                                        filename: invoiceFilename,
+                                      })
+                                    }
+                                    className="rounded p-1.5 text-primary/70 hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
+                                    title={t("common.view")}
+                                    aria-label={t("common.view")}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadFile(invoiceUrl, invoiceFilename)}
+                                    className="rounded p-1.5 text-primary/70 hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
+                                    title={t("common.download")}
+                                    aria-label={t("common.download")}
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => printFile(invoiceUrl, invoiceLabel)}
+                                    className="rounded p-1.5 text-primary/70 hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
+                                    title={t("common.print")}
+                                    aria-label={t("common.print")}
+                                  >
+                                    <Printer className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-primary/50">{t("common.loading")}</span>
+                              )
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {(!vehicle.maintenance_logs || vehicle.maintenance_logs.length === 0) && (
                       <tr>
-                        <td colSpan={4} className="px-3 py-6 text-center text-zinc-400">
+                        <td colSpan={5} className="px-3 py-6 text-center text-zinc-400">
+                          {t("common.noResults")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {activeTab === "gas" && (
+              <div className="overflow-hidden rounded-md border border-zinc-100 dark:border-zinc-800">
+                <table className="w-full text-sm">
+                  <thead className="bg-zinc-50 dark:bg-zinc-900/50">
+                    <tr className={`${locale === "ar" ? "text-right" : "text-left"}`}>
+                      <th className="px-3 py-2">{t("fleet.date")}</th>
+                      <th className="px-3 py-2">{t("fleet.gasQuantityLiters")}</th>
+                      <th className="px-3 py-2">{t("fleet.gasCost")}</th>
+                      <th className="px-3 py-2">{t("fleet.paymentMethod")}</th>
+                      <th className="px-3 py-2">{t("fleet.notes")}</th>
+                      <th className="px-3 py-2">{t("common.actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vehicle.gas_logs?.map((log: { id: string; date: string; gas_quantity_liters: string | number; gas_cost: string | number; payment_method_code: string; notes: string | null; invoice_file_id: string | null }) => {
+                      const invoiceKey = `gas_${log.id}`;
+                      const invoiceUrl = documentUrls[invoiceKey];
+                      const invoiceLabel = `${t("fleet.uploadInvoice")} – ${formatDate(log.date)}`;
+                      const invoiceFilename = `${vehicle.license_plate}_gas_${log.date.split("T")[0]}`;
+                      const paymentLabel =
+                        log.payment_method_code === "CASH"
+                          ? t("fleet.paymentCash")
+                          : log.payment_method_code === "CARD"
+                            ? t("fleet.paymentCard")
+                            : t("fleet.paymentInvoice");
+                      return (
+                        <tr key={log.id} className="border-t border-zinc-100 dark:border-zinc-800">
+                          <td className="px-3 py-2 whitespace-nowrap">{formatDate(log.date)}</td>
+                          <td className="px-3 py-2">{Number(log.gas_quantity_liters).toLocaleString()} L</td>
+                          <td className="px-3 py-2">{Number(log.gas_cost).toLocaleString()} SAR</td>
+                          <td className="px-3 py-2">{paymentLabel}</td>
+                          <td className="px-3 py-2 max-w-[12rem] truncate" title={log.notes ?? undefined}>{log.notes || "—"}</td>
+                          <td className="px-3 py-2">
+                            {log.invoice_file_id ? (
+                              invoiceUrl ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewerState({
+                                        url: invoiceUrl,
+                                        title: invoiceLabel,
+                                        filename: invoiceFilename,
+                                      })
+                                    }
+                                    className="rounded p-1.5 text-primary/70 hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
+                                    title={t("common.view")}
+                                    aria-label={t("common.view")}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadFile(invoiceUrl, invoiceFilename)}
+                                    className="rounded p-1.5 text-primary/70 hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
+                                    title={t("common.download")}
+                                    aria-label={t("common.download")}
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => printFile(invoiceUrl, invoiceLabel)}
+                                    className="rounded p-1.5 text-primary/70 hover:bg-zinc-100 hover:text-primary dark:hover:bg-zinc-700"
+                                    title={t("common.print")}
+                                    aria-label={t("common.print")}
+                                  >
+                                    <Printer className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-primary/50">{t("common.loading")}</span>
+                              )
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {(!vehicle.gas_logs || vehicle.gas_logs.length === 0) && (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-6 text-center text-zinc-400">
                           {t("common.noResults")}
                         </td>
                       </tr>
@@ -294,6 +609,16 @@ export function VehicleViewModal({
         </div>
       )}
     </Modal>
+    {viewerState && (
+      <ImageViewerModal
+        isOpen={!!viewerState}
+        onClose={() => setViewerState(null)}
+        imageUrl={viewerState.url}
+        imageTitle={viewerState.title}
+        downloadFilename={viewerState.filename}
+      />
+    )}
+    </>
   );
 }
 

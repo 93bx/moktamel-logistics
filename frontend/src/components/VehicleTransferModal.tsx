@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
+import { LicensePlate } from "./LicensePlate";
 import { Search, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -79,8 +80,15 @@ export function VehicleTransferModal({ isOpen, onClose, locale, vehicleId }: Veh
     }
   };
 
+  const titleNode = vehicle ? (
+    <>
+      {t("fleet.transferToEmployee")} — <LicensePlate value={vehicle.license_plate} size="md" /> {vehicle.model} {vehicle.year}
+    </>
+  ) : (
+    t("fleet.transferToEmployee")
+  );
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t("fleet.transferToEmployee")} maxWidth="2xl">
+    <Modal isOpen={isOpen} onClose={onClose} title={titleNode} maxWidth="2xl">
       <div className="space-y-6">
         {vehicle?.current_driver && (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">

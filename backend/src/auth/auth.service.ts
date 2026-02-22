@@ -10,6 +10,7 @@ export type AuthTokens = {
   refresh_token: string;
   expires_in_seconds: number;
   company_id: string;
+  company_name: string;
   user_id: string;
 };
 
@@ -89,6 +90,11 @@ export class AuthService {
       expiresIn: accessTtl,
     });
 
+    const company = await this.prisma.company.findUnique({
+      where: { id: input.company_id },
+      select: { name: true },
+    });
+
     // Refresh token is opaque; we still sign a small JWT wrapper for tamper resistance if desired later.
     // For now we keep it opaque and validated via DB hash only.
     return {
@@ -96,6 +102,7 @@ export class AuthService {
       refresh_token,
       expires_in_seconds: accessTtl,
       company_id: input.company_id,
+      company_name: company?.name ?? '',
       user_id: input.user_id,
     };
   }

@@ -60,7 +60,15 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === "production",
       path: "/",
     });
-    
+    if (data.company_name != null) {
+      response.cookies.set("moktamel_company_name", String(data.company_name), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      });
+    }
+
     // Set refresh flag cookie to indicate we've refreshed once in this 8-hour window
     // Cookie expires in 8 hours (28800 seconds) or when access token expires, whichever is shorter
     // Access token typically expires in 15 minutes (900 seconds), so we'll use 8 hours as max

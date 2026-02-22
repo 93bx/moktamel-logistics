@@ -8,7 +8,6 @@ import { AuthModule } from './auth/auth.module';
 import { PlatformModule } from './platform/platform.module';
 import { CompaniesModule } from './companies/companies.module';
 import { AuditModule } from './audit/audit.module';
-import { AnalyticsModule } from './analytics/analytics.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { HrRecruitmentModule } from './hr-recruitment/hr-recruitment.module';
 import { HrEmploymentModule } from './hr-employment/hr-employment.module';
@@ -30,7 +29,6 @@ import { SalariesPayrollModule } from './salaries-payroll/salaries-payroll.modul
     ScheduleModule.forRoot(),
     PrismaModule,
     AuditModule,
-    AnalyticsModule,
     NotificationsModule,
     AuthModule,
     PlatformModule,

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
 import { FileUpload } from "./FileUpload";
+import { LicensePlate } from "./LicensePlate";
 
 interface VehicleFormModalProps {
   isOpen: boolean;
@@ -409,11 +410,19 @@ export function VehicleFormModal({ isOpen, onClose, locale, vehicleId }: Vehicle
     </div>
   );
 
+  const titleBase = vehicleId ? t("fleet.editVehicle") : t("fleet.addVehicle");
+  const titleNode = vehicleId && form.license_plate ? (
+    <>
+      {titleBase} — <LicensePlate value={form.license_plate} size="md" /> {form.model} {form.year}
+    </>
+  ) : (
+    titleBase
+  );
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={vehicleId ? t("fleet.editVehicle") : t("fleet.addVehicle")}
+      title={titleNode}
       maxWidth="4xl"
     >
       <div className="space-y-6">

@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
-import { AnalyticsService } from '../analytics/analytics.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -9,7 +8,6 @@ export class FleetManagementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly analytics: AnalyticsService,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -35,6 +33,12 @@ export class FleetManagementService {
         include: {
           current_driver: true,
           documents: true,
+          maintenance_logs: {
+            where: { end_date: null },
+            orderBy: { start_date: 'desc' },
+            take: 1,
+            select: { workshop_name: true },
+          },
         },
       }),
       this.prisma.vehicle.count({ where }),
@@ -45,32 +49,64 @@ export class FleetManagementService {
 
   async getStats(company_id: string) {
     const now = new Date();
-    const expiryThreshold = new Date(now.getTime() + 40 * 24 * 60 * 60 * 1000);
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
 
-    const [
-      totalFleet,
-      onDuty,
-      idle,
-      inWorkshop,
-      nearExpiry,
-    ] = await this.prisma.$transaction([
+    const [totalFleet, onDuty, idle, inWorkshop, maintenanceCostAgg] = await this.prisma.$transaction([
       this.prisma.vehicle.count({ where: { company_id } }),
       this.prisma.vehicle.count({ where: { company_id, status_code: 'ACTIVE' } }),
       this.prisma.vehicle.count({ where: { company_id, status_code: 'AVAILABLE' } }),
       this.prisma.vehicle.count({ where: { company_id, status_code: 'MAINTENANCE' } }),
-      this.prisma.vehicle.count({
+      this.prisma.vehicleMaintenance.aggregate({
         where: {
           company_id,
-          documents: {
-            some: {
-              expiry_date: { lte: expiryThreshold },
-            },
-          },
+          end_date: { not: null, gte: startOfMonth, lte: endOfMonth },
         },
+        _sum: { cost: true },
       }),
     ]);
 
-    return { totalFleet, onDuty, idle, inWorkshop, nearExpiry };
+    const maintenanceCostThisMonth = Number(maintenanceCostAgg._sum.cost ?? 0);
+
+    return { totalFleet, onDuty, idle, inWorkshop, maintenanceCostThisMonth };
+  }
+
+  async searchVehiclesForGas(company_id: string, q: string) {
+    const where: any = {
+      company_id,
+      status_code: { not: 'MAINTENANCE' },
+    };
+    if (q && q.trim()) {
+      const term = q.trim();
+      where.OR = [
+        { license_plate: { contains: term, mode: 'insensitive' } },
+        { model: { contains: term, mode: 'insensitive' } },
+        { vin: { contains: term, mode: 'insensitive' } },
+        { current_driver: { full_name_ar: { contains: term, mode: 'insensitive' } } },
+        { current_driver: { full_name_en: { contains: term, mode: 'insensitive' } } },
+        { current_driver: { employee_code: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
+    return this.prisma.vehicle.findMany({
+      where,
+      orderBy: { license_plate: 'asc' },
+      take: 15,
+      select: {
+        id: true,
+        license_plate: true,
+        model: true,
+        year: true,
+        vin: true,
+        current_driver: {
+          select: {
+            id: true,
+            full_name_ar: true,
+            full_name_en: true,
+            employee_code: true,
+          },
+        },
+      },
+    });
   }
 
   async searchEmployees(company_id: string, q: string) {
@@ -115,6 +151,10 @@ export class FleetManagementService {
           include: {
             employee: true,
           },
+        },
+        gas_logs: {
+          orderBy: { date: 'desc' },
+          take: 100,
         },
       },
     });
@@ -223,8 +263,8 @@ export class FleetManagementService {
     });
     if (!existing) throw new NotFoundException();
 
-    if (existing.status_code === 'ACTIVE') {
-        throw new BadRequestException('Cannot delete an assigned vehicle. Unassign it first.');
+    if (existing.status_code !== 'AVAILABLE') {
+      throw new BadRequestException('Vehicle can only be deleted when status is Idle. Unassign or exit maintenance first.');
     }
 
     await this.prisma.vehicle.delete({ where: { id } });
@@ -427,6 +467,7 @@ export class FleetManagementService {
           cost: data.cost ? parseFloat(data.cost) : null,
           invoice_number: data.invoice_number,
           invoice_file_id: data.invoice_file_id,
+          notes: data.notes ?? null,
         },
       }),
     ]);
@@ -470,6 +511,7 @@ export class FleetManagementService {
           cost: data.cost ? parseFloat(data.cost) : maintenance.cost,
           invoice_number: data.invoice_number ?? maintenance.invoice_number,
           invoice_file_id: data.invoice_file_id ?? maintenance.invoice_file_id,
+          notes: data.notes !== undefined ? data.notes : maintenance.notes,
         },
       }),
     ]);
@@ -484,6 +526,60 @@ export class FleetManagementService {
     });
 
     return updatedVehicle;
+  }
+
+  async createGasRecord(
+    company_id: string,
+    actor_user_id: string,
+    data: {
+      vehicle_id: string;
+      date: string;
+      gas_quantity_liters: number;
+      gas_cost: number;
+      payment_method_code: string;
+      invoice_file_id?: string | null;
+      notes?: string | null;
+    },
+  ) {
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id: data.vehicle_id, company_id },
+    });
+    if (!vehicle) throw new NotFoundException('Vehicle not found');
+    if (vehicle.status_code === 'MAINTENANCE') {
+      throw new BadRequestException('Vehicle in maintenance cannot be linked to a gas record');
+    }
+    if (data.gas_quantity_liters <= 0 || data.gas_cost <= 0) {
+      throw new BadRequestException('Gas quantity and cost must be positive numbers');
+    }
+    const validPayment = ['CASH', 'CARD', 'INVOICE'].includes(data.payment_method_code);
+    if (!validPayment) {
+      throw new BadRequestException('Invalid payment method');
+    }
+
+    const record = await this.prisma.vehicleGasRecord.create({
+      data: {
+        company_id,
+        vehicle_id: data.vehicle_id,
+        date: new Date(data.date),
+        gas_quantity_liters: data.gas_quantity_liters,
+        gas_cost: data.gas_cost,
+        payment_method_code: data.payment_method_code,
+        invoice_file_id: data.invoice_file_id ?? undefined,
+        notes: data.notes ?? undefined,
+        created_by_user_id: actor_user_id,
+      },
+    });
+
+    await this.audit.log({
+      company_id,
+      actor_user_id,
+      action: 'FLEET_GAS_CREATE',
+      entity_type: 'VEHICLE_GAS_RECORD',
+      entity_id: record.id,
+      new_values: record,
+    });
+
+    return record;
   }
 }
 

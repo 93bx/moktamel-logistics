@@ -103,7 +103,18 @@ export function AssetViewEditModal({
       }}
       title={t("assets.viewEditAsset")}
     >
-      {!record ? (
+      {error && !record ? (
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-3 rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
+          >
+            {t("common.cancel")}
+          </button>
+        </div>
+      ) : !record ? (
         <div className="text-sm text-primary/60">{t("common.loading")}</div>
       ) : (
         <div className="space-y-3">

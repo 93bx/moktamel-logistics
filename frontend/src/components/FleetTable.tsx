@@ -2,9 +2,10 @@
 
 import { useTranslations } from "next-intl";
 import Tooltip from "@mui/material/Tooltip";
-import { Eye, Pencil, Trash2, UserPlus, ArrowRightLeft, Wrench, FileText, Shield, Activity, CreditCard } from "lucide-react";
+import { Eye, Pencil, Trash2, UserPlus, ArrowRightLeft, Wrench, Fuel, FileText, Shield, Activity, CreditCard } from "lucide-react";
 import { VehicleListItem } from "@/app/[locale]/(app)/fleet/page";
 import { StatusBadge } from "./StatusBadge";
+import { LicensePlate } from "./LicensePlate";
 
 export function FleetTable({
   locale,
@@ -15,6 +16,7 @@ export function FleetTable({
   onAssign,
   onTransfer,
   onMaintenance,
+  onGas,
 }: {
   locale: string;
   items: VehicleListItem[];
@@ -24,6 +26,7 @@ export function FleetTable({
   onAssign?: (id: string) => void;
   onTransfer?: (id: string) => void;
   onMaintenance?: (id: string) => void;
+  onGas?: (id: string) => void;
 }) {
   const t = useTranslations();
 
@@ -64,10 +67,18 @@ export function FleetTable({
               >
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 flex-shrink-0 rounded bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center">
-                      <span className="text-xs font-bold text-zinc-400">
-                        {v.type_code === "MOTORCYCLE" ? "🏍️" : "🚗"}
-                      </span>
+                    <div className="h-10 w-10 flex-shrink-0 rounded bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center overflow-hidden">
+                      {v.status_code === "ACTIVE" && v.current_driver?.avatar_file_id ? (
+                        <img
+                          src={`/api/files/${v.current_driver.avatar_file_id}/view`}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs font-bold text-zinc-400">
+                          {v.type_code === "MOTORCYCLE" ? "🏍️" : "🚗"}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <div className="font-medium">{v.model}</div>
@@ -75,15 +86,26 @@ export function FleetTable({
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-3 font-mono">{v.license_plate}</td>
+                <td className="px-3 py-3"><LicensePlate value={v.license_plate} size="sm" /></td>
                 <td className="px-3 py-3">
-                  <div className="flex flex-col gap-1">
+                  <div className="inline-flex w-fit flex-col gap-1 items-start">
                     <StatusBadge status={v.status_code} />
-                    <span className="text-xs text-primary/60">
-                      {v.status_code === "ACTIVE" && v.current_driver?.full_name_ar}
-                      {v.status_code === "AVAILABLE" && t("fleet.inWarehouse")}
-                      {v.status_code === "MAINTENANCE" && t("fleet.inWorkshop")}
-                    </span>
+                    {v.status_code === "ACTIVE" && v.current_driver && (
+                      <span className="text-xs text-primary/60">
+                        {locale === "ar"
+                          ? v.current_driver.full_name_ar
+                          : (v.current_driver.full_name_en ?? v.current_driver.full_name_ar)}
+                        {v.current_driver.employee_code ? ` (${v.current_driver.employee_code})` : ""}
+                      </span>
+                    )}
+                    {v.status_code === "AVAILABLE" && (
+                      <span className="text-xs text-primary/60">{t("fleet.inWarehouse")}</span>
+                    )}
+                    {v.status_code === "MAINTENANCE" && (
+                      <span className="text-xs text-primary/60">
+                        {v.maintenance_logs?.[0]?.workshop_name ?? t("fleet.inWorkshop")}
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-3 py-3">{v.current_odometer.toLocaleString()} km</td>
@@ -198,7 +220,16 @@ export function FleetTable({
                         <Wrench className="h-4 w-4" />
                       </button>
                     )}
-                    {onDelete && (
+                    {onGas && v.status_code !== "MAINTENANCE" && (
+                      <button
+                        onClick={() => onGas(v.id)}
+                        className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                        title={t("fleet.addGasRecord")}
+                      >
+                        <Fuel className="h-4 w-4" />
+                      </button>
+                    )}
+                    {onDelete && v.status_code === "AVAILABLE" && (
                       <button
                         onClick={() => onDelete(v.id)}
                         className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"

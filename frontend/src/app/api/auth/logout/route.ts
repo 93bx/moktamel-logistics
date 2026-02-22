@@ -5,6 +5,7 @@ export async function POST() {
   response.cookies.set("moktamel_access", "", { httpOnly: true, path: "/", maxAge: 0 });
   response.cookies.set("moktamel_refresh", "", { httpOnly: true, path: "/", maxAge: 0 });
   response.cookies.set("moktamel_company", "", { httpOnly: true, path: "/", maxAge: 0 });
+  response.cookies.set("moktamel_company_name", "", { httpOnly: true, path: "/", maxAge: 0 });
   response.cookies.set("moktamel_refreshed_once", "", { httpOnly: true, path: "/", maxAge: 0 });
   return response;
 }

@@ -10,6 +10,7 @@ import { VehicleViewModal } from "./VehicleViewModal";
 import { VehicleAssignModal } from "./VehicleAssignModal";
 import { VehicleTransferModal } from "./VehicleTransferModal";
 import { VehicleMaintenanceModal } from "./VehicleMaintenanceModal";
+import { GasFormModal } from "./GasFormModal";
 import { useRouter } from "next/navigation";
 
 export function FleetPageClient({
@@ -34,15 +35,22 @@ export function FleetPageClient({
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+  const [showGasModal, setShowGasModal] = useState(false);
+  const [gasPreFillVehicleId, setGasPreFillVehicleId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     if (!confirm(t("common.confirmDelete"))) return;
     try {
       const res = await fetch(`/api/fleet/vehicles/${id}`, { method: "DELETE" });
       if (res.ok) router.refresh();
-      else alert("Delete failed");
+      else {
+        const body = await res.json().catch(() => ({}));
+        const msg = body?.message ?? t("fleet.deleteOnlyWhenIdle");
+        alert(msg);
+      }
     } catch (e) {
       console.error(e);
+      alert(t("fleet.deleteOnlyWhenIdle"));
     }
   };
 
@@ -82,9 +90,16 @@ export function FleetPageClient({
           <div className="text-sm text-primary/60">{t("fleet.inWorkshop")}</div>
           <div className="mt-1 text-2xl font-semibold text-primary">{stats.inWorkshop}</div>
         </div>
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
-          <div className="text-sm text-amber-900/60 dark:text-amber-200/60">{t("fleet.nearExpiry")}</div>
-          <div className="mt-1 text-2xl font-semibold text-amber-900 dark:text-amber-200">{stats.nearExpiry}</div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
+          <div className="text-sm text-primary/60">{t("fleet.maintenanceCostThisMonth")}</div>
+          <div className="mt-1 text-2xl font-semibold text-primary">
+            {new Intl.NumberFormat(locale === "ar" ? "ar-SA" : "en", {
+              style: "currency",
+              currency: "SAR",
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            }).format(stats.maintenanceCostThisMonth)}
+          </div>
         </div>
       </div>
 
@@ -119,16 +134,28 @@ export function FleetPageClient({
           </button>
         </div>
         
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedVehicleId(null);
-            setShowAddModal(true);
-          }}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white shadow hover:bg-primary/90"
-        >
-          {t("fleet.addVehicle")}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setGasPreFillVehicleId(null);
+              setShowGasModal(true);
+            }}
+            className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+          >
+            {t("fleet.addGasRecord")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedVehicleId(null);
+              setShowAddModal(true);
+            }}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white shadow hover:bg-primary/90"
+          >
+            {t("fleet.addVehicle")}
+          </button>
+        </div>
       </form>
 
       {/* Fleet Table */}
@@ -155,6 +182,10 @@ export function FleetPageClient({
         onMaintenance={(id) => {
           setSelectedVehicleId(id);
           setShowMaintenanceModal(true);
+        }}
+        onGas={(id) => {
+          setGasPreFillVehicleId(id);
+          setShowGasModal(true);
         }}
       />
 
@@ -241,6 +272,16 @@ export function FleetPageClient({
         }}
         locale={locale}
         vehicleId={selectedVehicleId}
+      />
+
+      <GasFormModal
+        isOpen={showGasModal}
+        onClose={() => {
+          setShowGasModal(false);
+          setGasPreFillVehicleId(null);
+        }}
+        locale={locale}
+        vehicleId={gasPreFillVehicleId}
       />
     </div>
   );

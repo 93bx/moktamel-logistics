@@ -17,7 +17,7 @@ export function Header() {
     if (pathname.includes("/recruitment")) return t("nav.recruitment");
     if (pathname.includes("/employment")) return t("nav.employment");
     if (pathname.includes("/notifications")) return t("nav.notifications");
-    if (pathname.includes("/analytics")) return t("nav.analytics");
+    if (pathname.includes("/assets")) return t("nav.assets");
     if (pathname.includes("/profile")) return t("common.profile");
     return t("app.title");
   };

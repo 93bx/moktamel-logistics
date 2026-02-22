@@ -62,13 +62,13 @@ export class SubscriptionsService {
           code: 'PLAN_FREE',
           name_code: 'PLAN_FREE',
           limits: { users: 5, storage_mb: 500 },
-          features: { HR: true, FILES: true, ANALYTICS: false, IMPORT_EXPORT: false },
+          features: { HR: true, FILES: true, IMPORT_EXPORT: false },
         },
         {
           code: 'PLAN_PRO',
           name_code: 'PLAN_PRO',
           limits: { users: 50, storage_mb: 5000 },
-          features: { HR: true, FILES: true, ANALYTICS: true, IMPORT_EXPORT: true },
+          features: { HR: true, FILES: true, IMPORT_EXPORT: true },
         },
       ];
 

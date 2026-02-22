@@ -16,7 +16,6 @@ model Company {
   created_at          DateTime             @default(now())
   updated_at          DateTime             @updatedAt
   created_by_user_id  String?              @db.Uuid
-  analytics_events    AnalyticsEvent[]
   api_request_logs    ApiRequestLog[]
   audit_logs          AuditLog[]
   memberships         CompanyMembership[]
@@ -28,6 +27,7 @@ model Company {
   vehicle_documents   VehicleDocument[]
   vehicle_maintenance VehicleMaintenance[]
   vehicle_assignments VehicleAssignment[]
+  vehicle_gas_records VehicleGasRecord[]
   cash_transactions   CashTransaction[]
   handover_batches    HandoverBatch[]
   handover_expenses   HandoverExpense[]
@@ -156,21 +156,6 @@ model AuditLog {
 
   @@index([company_id, created_at])
   @@index([entity_type, entity_id])
-}
-
-model AnalyticsEvent {
-  id            String   @id @default(uuid()) @db.Uuid
-  company_id    String   @db.Uuid
-  actor_user_id String?  @db.Uuid
-  event_code    String
-  entity_type   String?
-  entity_id     String?
-  payload       Json?
-  occurred_at   DateTime @default(now())
-  company       Company  @relation(fields: [company_id], references: [id], onDelete: Cascade)
-
-  @@index([company_id, occurred_at])
-  @@index([event_code, occurred_at])
 }
 
 model Notification {
@@ -304,21 +289,6 @@ model ExportJob {
 
   @@index([company_id, created_at])
   @@index([company_id, status])
-}
-
-model MetricDaily {
-  id          String   @id @default(uuid()) @db.Uuid
-  company_id  String   @db.Uuid
-  metric_code String
-  date        DateTime
-  value       Decimal  @db.Decimal(20, 4)
-  dimensions  Json?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  @@unique([company_id, metric_code, date])
-  @@index([company_id, date])
-  @@index([company_id, metric_code, date])
 }
 
 model SubscriptionPlan {
@@ -593,8 +563,30 @@ model Vehicle {
   documents        VehicleDocument[]
   maintenance_logs VehicleMaintenance[]
   assignment_logs  VehicleAssignment[]
+  gas_logs         VehicleGasRecord[]
 
   @@index([company_id, status_code])
+}
+
+model VehicleGasRecord {
+  id                   String    @id @default(uuid()) @db.Uuid
+  company_id           String    @db.Uuid
+  vehicle_id           String    @db.Uuid
+  date                 DateTime
+  gas_quantity_liters  Decimal   @db.Decimal(12, 2)
+  gas_cost             Decimal   @db.Decimal(12, 2)
+  payment_method_code  String    // CASH, CARD, INVOICE
+  invoice_file_id      String?   @db.Uuid
+  notes                String?
+
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+  created_by_user_id   String?   @db.Uuid
+
+  company Company @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id, vehicle_id])
 }
 
 model VehicleDocument {
@@ -624,6 +616,7 @@ model VehicleMaintenance {
   cost               Decimal?  @db.Decimal(12, 2)
   invoice_number     String?
   invoice_file_id    String?   @db.Uuid
+  notes              String?
 
   company Company @relation(fields: [company_id], references: [id], onDelete: Cascade)
   vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)

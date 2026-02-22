@@ -7,12 +7,14 @@ import { AssetNewModal } from "./AssetNewModal";
 import { AssetRecoveryModal } from "./AssetRecoveryModal";
 import { AssetLossReportModal } from "./AssetLossReportModal";
 import { AssetViewEditModal } from "./AssetViewEditModal";
+import { EmployeeAssetsViewModal } from "./EmployeeAssetsViewModal";
 import { AssetsTable } from "./AssetsTable";
 
 type AssetListItem = {
   id: string;
   employee_no: string | null;
   employee_code?: string | null;
+  avatar_file_id: string | null;
   recruitment_candidate: { full_name_ar: string; full_name_en: string | null; passport_no: string; nationality: string } | null;
   assets: Array<{
     id: string;
@@ -50,11 +52,12 @@ export function AssetsPageClient({
   const [showNewAsset, setShowNewAsset] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [showLossReport, setShowLossReport] = useState(false);
+  const [selectedEmployeeIdForView, setSelectedEmployeeIdForView] = useState<string | null>(null);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
   const openView = (id: string) => {
-    setSelectedAssignmentId(id);
+    setSelectedEmployeeIdForView(id);
   };
 
   const closeView = () => setSelectedAssignmentId(null);
@@ -173,6 +176,16 @@ export function AssetsPageClient({
         onClose={() => window.location.reload()} 
         locale={locale} 
         initialEmployeeId={selectedEmployeeId}
+      />
+      <EmployeeAssetsViewModal
+        isOpen={!!selectedEmployeeIdForView}
+        onClose={() => setSelectedEmployeeIdForView(null)}
+        employmentRecordId={selectedEmployeeIdForView}
+        locale={locale}
+        onEditAssignment={(assignmentId) => {
+          setSelectedEmployeeIdForView(null);
+          setSelectedAssignmentId(assignmentId);
+        }}
       />
       <AssetViewEditModal isOpen={!!selectedAssignmentId} onClose={() => closeView()} locale={locale} assignmentId={selectedAssignmentId} />
     </>

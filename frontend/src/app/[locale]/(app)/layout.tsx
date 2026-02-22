@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
 import { Header } from "@/components/Header";
@@ -38,12 +39,27 @@ export default async function AppLayout({
     redirect(`/${locale}/login`);
   }
 
+  const companyName = cookieStore.get("moktamel_company_name")?.value;
+
   return (
     <div className="min-h-screen bg-white text-primary dark:bg-black dark:text-primary">
       <div className="flex">
-        <aside className="hidden w-64 border-r border-primary-700 bg-primary p-4 dark:border-primary-800 dark:bg-primary-900 md:block">
-          <div className="text-lg font-semibold text-white">{t("app.title")}</div>
-          <SideNav />
+        <aside className="hidden min-h-screen w-64 flex-col border-r border-primary-700 bg-primary p-4 dark:border-primary-800 dark:bg-primary-900 md:flex">
+          <div className="flex flex-1 flex-col min-h-0">
+            <div className="text-lg font-semibold text-white truncate" title={companyName ?? t("app.title")}>
+              {companyName ?? t("app.title")}
+            </div>
+            <SideNav />
+          </div>
+          <div className="mt-auto pt-4 flex justify-center">
+            <Image
+              src="/logo.png"
+              alt="Moktamel Logistics"
+              width={200}
+              height={64}
+              className="max-w-full h-auto object-contain"
+            />
+          </div>
         </aside>
 
         <div className="flex min-h-screen flex-1 flex-col">

@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, OperatingPlatform } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type SubmitAction = 'draft' | 'approve';
@@ -28,7 +27,6 @@ export class DailyOperationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly analytics: AnalyticsService,
   ) {}
 
   private async resolveCompanyTimezone(company_id: string) {
@@ -353,24 +351,6 @@ export class DailyOperationsService {
       new_values: created,
     });
 
-    if (!isDraft) {
-      await this.analytics.track({
-        company_id,
-        actor_user_id,
-        event_code: 'OPS_DAILY_RECORDED',
-        entity_type: 'DAILY_OPERATION',
-        entity_id: created.id,
-        payload: {
-          platform: created.platform,
-          orders_count: created.orders_count,
-          deduction_amount: created.deduction_amount,
-          loan_amount: created.loan_amount,
-          cash_received: created.cash_received,
-          difference_amount: created.difference_amount,
-        },
-      });
-    }
-
     return created;
   }
 
@@ -434,17 +414,6 @@ export class DailyOperationsService {
       entity_id: created.count.toString(),
       new_values: { date: input.date, count: created.count },
     });
-
-    if (!isDraft) {
-      await this.analytics.track({
-        company_id,
-        actor_user_id,
-        event_code: 'OPS_DAILY_BULK_RECORDED',
-        entity_type: 'DAILY_OPERATION',
-        entity_id: created.count.toString(),
-        payload: { count: created.count, date: input.date },
-      });
-    }
 
     return { created: created.count };
   }

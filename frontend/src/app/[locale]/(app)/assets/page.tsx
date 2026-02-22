@@ -7,6 +7,8 @@ import { AssetsPageClient } from "@/components/AssetsPageClient";
 type AssetListItem = {
   id: string;
   employee_no: string | null;
+  employee_code?: string | null;
+  avatar_file_id: string | null;
   recruitment_candidate: { full_name_ar: string; full_name_en: string | null; passport_no: string; nationality: string } | null;
   assets: Array<{
     id: string;
@@ -60,6 +62,8 @@ export default async function AssetsPage({
       }),
       backendApi<StatsData>({ path: `/hr/assets/stats` }),
     ]);
+    console.log('data: ', data);
+    console.log("stats: ", stats);
   } catch (e: any) {
     if (e instanceof AuthError) {
       redirect(`/${locale}/login`);
@@ -77,7 +81,6 @@ export default async function AssetsPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-primary">{t("nav.assets")}</h1>
       <AssetsPageClient locale={locale} data={data} stats={stats} searchParams={sp} page={page} />
     </div>
   );

@@ -2,7 +2,6 @@ import { randomUUID } from 'crypto';
 import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CashHandoverStatus, CashTransactionStatus, CashTransactionType, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type SubmitAction = 'draft' | 'approve';
@@ -16,7 +15,6 @@ export class CashLoansService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly analytics: AnalyticsService,
   ) {}
 
   private async resolveCompanyTimezone(company_id: string) {
@@ -578,17 +576,6 @@ export class CashLoansService {
         new_values: created,
       });
 
-      if (!isDraft) {
-        await this.analytics.track({
-          company_id,
-          actor_user_id,
-          event_code: 'FIN_CASH_RECEIPT_APPROVED',
-          entity_type: 'CASH_TRANSACTION',
-          entity_id: created.id,
-          payload: { amount, employment_record_id: employment.id },
-        });
-      }
-
       return created;
     });
   }
@@ -647,17 +634,6 @@ export class CashLoansService {
         entity_id: created.id,
         new_values: created,
       });
-
-      if (!isDraft) {
-        await this.analytics.track({
-          company_id,
-          actor_user_id,
-          event_code: 'FIN_CASH_LOAN_APPROVED',
-          entity_type: 'CASH_TRANSACTION',
-          entity_id: created.id,
-          payload: { amount, employment_record_id: employment.id },
-        });
-      }
 
       return created;
     });

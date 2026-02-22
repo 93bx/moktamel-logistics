@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { AnalyticsService } from '../analytics/analytics.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
@@ -20,7 +19,6 @@ export class HrRecruitmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly analytics: AnalyticsService,
     private readonly notifications: NotificationsService,
     private readonly files: FilesService,
     private readonly employmentSvc: HrEmploymentService,
@@ -402,15 +400,6 @@ export class HrRecruitmentService {
       new_values: created,
     });
 
-    await this.analytics.track({
-      company_id,
-      actor_user_id,
-      event_code: 'HR_RECRUITMENT_CREATED',
-      entity_type: 'RECRUITMENT_CANDIDATE',
-      entity_id: created.id,
-      payload: { status_code: created.status_code },
-    });
-
     if (created.expected_arrival_at && this.isWithinArrivalSoonWindow(created.expected_arrival_at)) {
       await this.upsertArrivalSoonNotification(
         company_id,
@@ -576,15 +565,6 @@ export class HrRecruitmentService {
         new_values: created,
       });
 
-      await this.analytics.track({
-        company_id,
-        actor_user_id,
-        event_code: 'HR_RECRUITMENT_CREATED',
-        entity_type: 'RECRUITMENT_CANDIDATE',
-        entity_id: created.id,
-        payload: { status_code: created.status_code },
-      });
-
       if (created.expected_arrival_at && this.isWithinArrivalSoonWindow(created.expected_arrival_at)) {
         await this.upsertArrivalSoonNotification(
           company_id,
@@ -713,15 +693,6 @@ export class HrRecruitmentService {
       entity_type: 'RECRUITMENT_CANDIDATE',
       entity_id: created.id,
       new_values: created,
-    });
-
-    await this.analytics.track({
-      company_id,
-      actor_user_id,
-      event_code: 'HR_RECRUITMENT_CREATED',
-      entity_type: 'RECRUITMENT_CANDIDATE',
-      entity_id: created.id,
-      payload: { status_code: created.status_code },
     });
 
     return created;
@@ -865,17 +836,6 @@ export class HrRecruitmentService {
       new_values: updated,
     });
 
-    if (existing.status_code !== updated.status_code) {
-      await this.analytics.track({
-        company_id,
-        actor_user_id,
-        event_code: 'HR_RECRUITMENT_STATUS_CHANGED',
-        entity_type: 'RECRUITMENT_CANDIDATE',
-        entity_id: updated.id,
-        payload: { from: existing.status_code, to: updated.status_code },
-      });
-    }
-
     // Notification for visa deadline
     if (updated.visa_deadline_at) {
       const days = Math.ceil((updated.visa_deadline_at.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -924,14 +884,6 @@ export class HrRecruitmentService {
       entity_id: deleted.id,
       old_values: existing,
       new_values: { deleted_at: deleted.deleted_at },
-    });
-
-    await this.analytics.track({
-      company_id,
-      actor_user_id,
-      event_code: 'HR_RECRUITMENT_DELETED',
-      entity_type: 'RECRUITMENT_CANDIDATE',
-      entity_id: deleted.id,
     });
 
     return { ok: true };

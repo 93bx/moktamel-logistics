@@ -23,9 +23,8 @@ describe('DailyOperationsService', () => {
     $transaction: jest.fn(),
   };
   const audit = { log: jest.fn() };
-  const analytics = { track: jest.fn() };
 
-  const service = new DailyOperationsService(prisma, audit as any, analytics as any);
+  const service = new DailyOperationsService(prisma, audit as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -76,7 +75,6 @@ describe('DailyOperationsService', () => {
 
     expect(prisma.dailyOperation.create).toHaveBeenCalled();
     expect(audit.log).toHaveBeenCalled();
-    expect(analytics.track).toHaveBeenCalled();
     expect(result.status_code).toBe('FLAGGED_DEDUCTION');
   });
 });
