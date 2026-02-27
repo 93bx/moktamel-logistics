@@ -15,8 +15,6 @@ type CreateInput = {
   tips?: number;
   deduction_amount?: number;
   deduction_reason?: string | null;
-  loan_amount?: number;
-  loan_reason?: string | null;
   submit_action: SubmitAction;
 };
 
@@ -120,7 +118,6 @@ export class DailyOperationsService {
       cash_received: Number(input.cash_received ?? 0),
       tips: Number(input.tips ?? 0),
       deduction_amount: Number(input.deduction_amount ?? 0),
-      loan_amount: Number(input.loan_amount ?? 0),
     };
   }
 
@@ -136,9 +133,6 @@ export class DailyOperationsService {
     }
     if (values.deduction_amount > 0 && !input.deduction_reason) {
       throw new BadRequestException('OPS_DAILY_008: Deduction reason required');
-    }
-    if (values.loan_amount > 0 && !input.loan_reason) {
-      throw new BadRequestException('OPS_DAILY_009: Loan reason required');
     }
   }
 
@@ -161,6 +155,52 @@ export class DailyOperationsService {
     });
     if (existing) {
       throw new BadRequestException('OPS_DAILY_004: Day already closed for this company');
+    }
+  }
+
+  /** Ensures no daily operation (draft or approved) exists for this employee on this day. */
+  private async ensureNoExistingEntryForDay(
+    company_id: string,
+    employment_record_id: string,
+    startOfDay: Date,
+    endOfDay: Date,
+  ) {
+    const existing = await this.prisma.dailyOperation.findFirst({
+      where: {
+        company_id,
+        employment_record_id,
+        date: { gte: startOfDay, lte: endOfDay },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new BadRequestException('OPS_DAILY_012');
+    }
+  }
+
+  /**
+   * Check if the given employee already has a daily operation (draft or approved) for the given date.
+   * Used by the frontend for early validation before submitting.
+   */
+  async checkHasEntryForDay(
+    company_id: string,
+    employment_record_id: string,
+    dateStr: string,
+  ): Promise<{ hasEntry: boolean }> {
+    const timeZone = await this.resolveCompanyTimezone(company_id);
+    try {
+      const { start, end } = this.getDayBounds(new Date(dateStr), timeZone);
+      const existing = await this.prisma.dailyOperation.findFirst({
+        where: {
+          company_id,
+          employment_record_id,
+          date: { gte: start, lte: end },
+        },
+        select: { id: true },
+      });
+      return { hasEntry: !!existing };
+    } catch {
+      return { hasEntry: false };
     }
   }
 
@@ -195,7 +235,9 @@ export class DailyOperationsService {
         full_name_ar: true,
         full_name_en: true,
         assigned_platform: true,
+        platform_user_no: true,
         status_code: true,
+        avatar_file_id: true,
         recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
       },
     });
@@ -253,8 +295,6 @@ export class DailyOperationsService {
           tips: true,
           deduction_amount: true,
           deduction_reason: true,
-          loan_amount: true,
-          loan_reason: true,
           is_draft: true,
           approved_at: true,
           approved_by_user_id: true,
@@ -265,6 +305,7 @@ export class DailyOperationsService {
               id: true,
               employee_no: true,
               avatar_file_id: true,
+              platform_user_no: true,
               recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
             },
           },
@@ -277,7 +318,10 @@ export class DailyOperationsService {
   }
 
   async stats(company_id: string, input: { date_from?: string; date_to?: string }) {
-    const where: Prisma.DailyOperationWhereInput = { company_id };
+    const where: Prisma.DailyOperationWhereInput = {
+      company_id,
+      status_code: 'REVIEWED',
+    };
     if (input.date_from || input.date_to) {
       where.date = {};
       if (input.date_from) (where.date as any).gte = new Date(input.date_from);
@@ -302,10 +346,96 @@ export class DailyOperationsService {
     };
   }
 
+  /** Current month bounds in company timezone (year/month from TZ, range in UTC). */
+  private async getCurrentMonthBounds(company_id: string) {
+    const timeZone = await this.resolveCompanyTimezone(company_id);
+    const parts = this.getDateParts(new Date(), timeZone);
+    const year = Number(parts.year);
+    const month = Number(parts.month);
+    const dateFrom = new Date(Date.UTC(year, month - 1, 1));
+    const dateTo = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    return { dateFrom, dateTo };
+  }
+
+  async monthlyCharts(company_id: string) {
+    const { dateFrom, dateTo } = await this.getCurrentMonthBounds(company_id);
+
+    const activeEmployments = await this.prisma.employmentRecord.findMany({
+      where: {
+        company_id,
+        deleted_at: null,
+        status_code: 'EMPLOYMENT_STATUS_ACTIVE',
+      },
+      select: {
+        id: true,
+        monthly_orders_target: true,
+        employee_no: true,
+        full_name_ar: true,
+        full_name_en: true,
+        recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
+      },
+    });
+
+    const employmentIds = activeEmployments.map((e) => e.id);
+    if (employmentIds.length === 0) {
+      return {
+        pie: { totalTarget: 0, totalAchieved: 0 },
+        byEmployee: [],
+      };
+    }
+
+    const ordersByEmployee = await this.prisma.dailyOperation.groupBy({
+      by: ['employment_record_id'],
+      where: {
+        company_id,
+        employment_record_id: { in: employmentIds },
+        date: { gte: dateFrom, lte: dateTo },
+      },
+      _sum: { orders_count: true },
+    });
+
+    const achievedMap = new Map(
+      ordersByEmployee.map((r) => [r.employment_record_id, r._sum.orders_count ?? 0]),
+    );
+
+    let totalTarget = 0;
+    const byEmployee: Array<{
+      employment_record_id: string;
+      full_name_ar: string;
+      full_name_en: string | null;
+      orders_count: number;
+      monthly_orders_target: number | null;
+    }> = [];
+
+    for (const emp of activeEmployments) {
+      const target = emp.monthly_orders_target ?? 0;
+      totalTarget += target;
+      const orders_count = achievedMap.get(emp.id) ?? 0;
+      const nameAr =
+        emp.recruitment_candidate?.full_name_ar ?? emp.full_name_ar ?? emp.employee_no ?? emp.id;
+      const nameEn = emp.recruitment_candidate?.full_name_en ?? emp.full_name_en ?? null;
+      byEmployee.push({
+        employment_record_id: emp.id,
+        full_name_ar: nameAr,
+        full_name_en: nameEn,
+        orders_count,
+        monthly_orders_target: emp.monthly_orders_target,
+      });
+    }
+
+    const totalAchieved = byEmployee.reduce((s, e) => s + e.orders_count, 0);
+
+    return {
+      pie: { totalTarget, totalAchieved },
+      byEmployee,
+    };
+  }
+
   async createOne(company_id: string, actor_user_id: string, input: CreateInput) {
     const timeZone = await this.resolveCompanyTimezone(company_id);
     const { parsed: date, startOfDay, endOfDay } = this.ensureNotFuture(input.date, timeZone);
     const employment = await this.ensureActiveEmployment(company_id, input.employment_record_id);
+    await this.ensureNoExistingEntryForDay(company_id, input.employment_record_id, startOfDay, endOfDay);
     const normalized = this.normalizeNumbers(input);
     const isDraft = input.submit_action === 'draft';
 
@@ -332,8 +462,6 @@ export class DailyOperationsService {
         tips: normalized.tips,
         deduction_amount: normalized.deduction_amount,
         deduction_reason: normalized.deduction_amount > 0 ? input.deduction_reason ?? null : null,
-        loan_amount: normalized.loan_amount,
-        loan_reason: normalized.loan_amount > 0 ? input.loan_reason ?? null : null,
         is_draft: isDraft,
         approved_at: isDraft ? null : new Date(),
         approved_by_user_id: isDraft ? null : actor_user_id,
@@ -373,6 +501,7 @@ export class DailyOperationsService {
       seen.add(row.employment_record_id);
 
       const employment = await this.ensureActiveEmployment(company_id, row.employment_record_id);
+      await this.ensureNoExistingEntryForDay(company_id, row.employment_record_id, startOfDay, endOfDay);
       const normalized = this.normalizeNumbers({ ...row, submit_action: input.submit_action, date: input.date });
       if (!isDraft) {
         this.validateForApproval(normalized, row as CreateInput);
@@ -392,8 +521,6 @@ export class DailyOperationsService {
         tips: normalized.tips,
         deduction_amount: normalized.deduction_amount,
         deduction_reason: normalized.deduction_amount > 0 ? row.deduction_reason ?? null : null,
-        loan_amount: normalized.loan_amount,
-        loan_reason: normalized.loan_amount > 0 ? row.loan_reason ?? null : null,
         is_draft: isDraft,
         approved_at: isDraft ? null : new Date(),
         approved_by_user_id: isDraft ? null : actor_user_id,
@@ -438,6 +565,25 @@ export class DailyOperationsService {
     });
 
     return updated;
+  }
+
+  async delete(company_id: string, actor_user_id: string, id: string) {
+    const existing = await this.prisma.dailyOperation.findFirst({ where: { id, company_id } });
+    if (!existing) throw new NotFoundException('OPS_DAILY_020: Operation not found');
+    if (existing.status_code !== 'DRAFT') {
+      throw new BadRequestException('OPS_DAILY_021: Only draft operations can be deleted');
+    }
+
+    await this.prisma.dailyOperation.delete({ where: { id } });
+
+    await this.audit.log({
+      company_id,
+      actor_user_id,
+      action: 'OPS_DAILY_DELETE',
+      entity_type: 'DAILY_OPERATION',
+      entity_id: id,
+      old_values: existing,
+    });
   }
 }
 

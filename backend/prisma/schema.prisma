@@ -474,8 +474,6 @@ model DailyOperation {
   tips                 Decimal           @default(0) @db.Decimal(12, 2)
   deduction_amount     Decimal           @default(0) @db.Decimal(12, 2)
   deduction_reason     String?
-  loan_amount          Decimal           @default(0) @db.Decimal(12, 2)
-  loan_reason          String?
   is_draft             Boolean           @default(false)
   approved_at          DateTime?
   approved_by_user_id  String?           @db.Uuid

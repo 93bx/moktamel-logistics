@@ -3,10 +3,43 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useTheme } from "next-themes";
+import {
+  LocalizationProvider,
+  DatePicker,
+} from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import dayjs, { type Dayjs } from "dayjs";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
+import { Trash2, Eye, CheckCircle, Pencil } from "lucide-react";
 import { EmployeeSearchBox } from "./EmployeeSearchBox";
 import { DailyOperationViewModal } from "./DailyOperationViewModal";
 import { Modal } from "./Modal";
 import { PlatformIcon } from "./PlatformIcon";
+import { StatusBadge } from "./StatusBadge";
+
+type MonthlyChartsData = {
+  pie: { totalTarget: number; totalAchieved: number };
+  byEmployee: Array<{
+    employment_record_id: string;
+    full_name_ar: string;
+    full_name_en: string | null;
+    orders_count: number;
+    monthly_orders_target: number | null;
+  }>;
+};
 
 type OperatingPlatform = "NONE" | "JAHEZ" | "HUNGERSTATION" | "NINJA" | "KEETA";
 
@@ -22,8 +55,6 @@ type DailyOperationListItem = {
   tips: string | number;
   deduction_amount: string | number;
   deduction_reason: string | null;
-  loan_amount?: string | number;
-  loan_reason?: string | null;
   is_draft?: boolean;
   approved_at?: string | null;
   approved_by_user_id?: string | null;
@@ -32,6 +63,7 @@ type DailyOperationListItem = {
     id: string;
     employee_no: string | null;
     avatar_file_id?: string | null;
+    platform_user_no?: string | null;
     recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
   } | null;
 };
@@ -47,12 +79,41 @@ type DailyOpsPageProps = {
   locale: string;
   data: { items: DailyOperationListItem[]; total: number; page: number; page_size: number };
   stats: StatsData;
+  chartsData: MonthlyChartsData | null;
   searchParams: { q?: string; date?: string };
   page: number;
 };
 
 const formatAmount = (v: number | string | null | undefined) =>
   Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const CHART_COLORS = [
+  "#6366f1", // indigo
+  "#22c55e", // emerald
+  "#f59e0b", // amber
+  "#ec4899", // pink
+  "#14b8a6", // teal
+  "#8b5cf6", // violet
+  "#ef4444", // red
+  "#3b82f6", // blue
+];
+
+/** Split name into two lines for Y-axis (break near middle, preferably at space). */
+function splitNameTwoLines(name: string, maxPerLine = 12): [string, string] {
+  if (!name || name.length <= maxPerLine) return [name, ""];
+  const mid = Math.min(maxPerLine, Math.ceil(name.length / 2));
+  const before = name.slice(0, mid);
+  const after = name.slice(mid);
+  const spaceInBefore = before.lastIndexOf(" ");
+  const spaceInAfter = after.indexOf(" ");
+  if (spaceInBefore > 0 && mid - spaceInBefore <= 4) {
+    return [before.slice(0, spaceInBefore).trim(), name.slice(spaceInBefore + 1)];
+  }
+  if (spaceInAfter > 0 && spaceInAfter <= 4) {
+    return [name.slice(0, mid + spaceInAfter).trim(), name.slice(mid + spaceInAfter + 1).trim()];
+  }
+  return [before.trim(), after.trim()];
+}
 
 const statusTone = (status: string) => {
   if (status === "FLAGGED_DEDUCTION") return "bg-amber-100 text-amber-800 border-amber-300";
@@ -65,19 +126,56 @@ const statusTone = (status: string) => {
 type EmployeeOption = {
   id: string;
   employee_no: string | null;
+  employee_code?: string | null;
+  full_name_ar?: string | null;
+  full_name_en?: string | null;
   assigned_platform?: string | null;
+  platform_user_no?: string | null;
   status_code?: string | null;
+  avatar_file_id?: string | null;
   recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
 };
 
-export function DailyOperationsPageClient({ locale, data, stats, searchParams, page }: DailyOpsPageProps) {
+export function DailyOperationsPageClient({
+  locale,
+  data,
+  stats,
+  chartsData,
+  searchParams,
+  page,
+}: DailyOpsPageProps) {
   const t = useTranslations();
   const [showSingle, setShowSingle] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [viewItem, setViewItem] = useState<DailyOperationListItem | null>(null);
+  const [barMode, setBarMode] = useState<"top5" | "worst5">("top5");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const pieData = useMemo(() => {
+    if (!chartsData) return null;
+    const { totalTarget, totalAchieved } = chartsData.pie;
+    if (totalTarget <= 0 && totalAchieved <= 0) return null;
+    const remaining = Math.max(0, totalTarget - totalAchieved);
+    const segments: { name: string; value: number; key: string }[] = [];
+    if (totalAchieved > 0) segments.push({ name: t("dailyOps.charts.achieved"), value: totalAchieved, key: "achieved" });
+    if (remaining > 0) segments.push({ name: t("dailyOps.charts.remaining"), value: remaining, key: "remaining" });
+    if (segments.length === 0) return null;
+    return segments;
+  }, [chartsData, t]);
+
+  const barData = useMemo(() => {
+    if (!chartsData?.byEmployee.length) return [];
+    const sorted =
+      barMode === "top5"
+        ? [...chartsData.byEmployee].sort((a, b) => b.orders_count - a.orders_count).slice(0, 5)
+        : [...chartsData.byEmployee].sort((a, b) => a.orders_count - b.orders_count).slice(0, 5);
+    return sorted.map((e) => ({
+      name: locale === "ar" ? e.full_name_ar : (e.full_name_en || e.full_name_ar),
+      orders: e.orders_count,
+    }));
+  }, [chartsData, barMode, locale]);
 
   const handleStatusChange = async (id: string, status_code: string) => {
     setUpdatingId(id);
@@ -87,6 +185,21 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status_code }),
       });
+      if (!res.ok) {
+        setUpdatingId(null);
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleDeleteDraft = async (id: string) => {
+    if (!window.confirm(t("dailyOps.confirmDeleteDraft"))) return;
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/daily-operations/records/${id}`, { method: "DELETE" });
       if (!res.ok) {
         setUpdatingId(null);
         return;
@@ -114,6 +227,128 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
         <StatCard label={t("dailyOps.totalSales")} value={stats.totalSales.toLocaleString()} />
         <StatCard label={t("dailyOps.totalDeductions")} value={stats.totalDeductions.toLocaleString()} />
       </div>
+
+      {/* Charts: Pie narrower, Bar wider; colorful, animated; RTL-safe labels */}
+      {chartsData && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+          <div className="rounded-xl border border-zinc-200 bg-white p-1 m-0 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 lg:col-span-2">
+            <h3 className="mb-2 text-sm font-semibold text-primary/80">{t("dailyOps.charts.monthlyTargetAchieved")}</h3>
+            {pieData && pieData.length > 0 ? (
+              <div className="flex flex-col items-center">
+                <ResponsiveContainer width="100%" height={300} bg-red-500>
+                  <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="45%"
+                      innerRadius={64}
+                      outerRadius={100}
+                      paddingAngle={1}
+                      isAnimationActive
+                      animationBegin={0}
+                      animationDuration={800}
+                    >
+                      {pieData.map((entry, i) => (
+                        <Cell key={entry.key} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="rgba(255,255,255,0.4)" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number | undefined) => [value ?? 0, t("dailyOps.charts.orders")]}
+                      contentStyle={{ borderRadius: 8 }}
+                    />
+                    <Legend layout="horizontal" verticalAlign="top" align="center" style={{ padding: 0, margin: 0 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <p className="m-0 p-0 text-center text-sm font-semibold text-primary">
+                  {chartsData.pie.totalAchieved} / {chartsData.pie.totalTarget} {t("dailyOps.charts.orders")}
+                </p>
+              </div>
+            ) : (
+              <p className="py-12 text-center text-sm text-primary/60">{t("dailyOps.charts.noTargetData")}</p>
+            )}
+          </div>
+          <div className="rounded-xl border border-zinc-200 bg-white p-1 m-0 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 lg:col-span-3 ">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-primary/80">{t("dailyOps.charts.employeeOrders")}</h3>
+              <div className="flex rounded-md border border-zinc-200 dark:border-zinc-700">
+                <button
+                  type="button"
+                  onClick={() => setBarMode("top5")}
+                  className={`rounded-s-md px-2 py-1 text-xs ${barMode === "top5" ? "bg-primary text-white" : "bg-zinc-100 text-primary dark:bg-zinc-800"}`}
+                >
+                  {t("dailyOps.charts.top5")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBarMode("worst5")}
+                  className={`rounded-e-md px-2 py-1 text-xs ${barMode === "worst5" ? "bg-primary text-white" : "bg-zinc-100 text-primary dark:bg-zinc-800"}`}
+                >
+                  {t("dailyOps.charts.worst5")}
+                </button>
+              </div>
+            </div>
+            {barData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart
+                  layout="vertical"
+                  data={barData}
+                  width="100%"
+                  margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.15)" vertical={true} />
+                  <XAxis type="number" dataKey="orders" tick={{ fontSize: 12, fontWeight: 700 }} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={locale === "ar" ? 70 : 80}
+                    tickMargin={12}
+                    interval={0}
+                    tick={(props) => {
+                      const { x, y, payload } = props;
+                      const [line1, line2] = splitNameTwoLines(String(payload?.value ?? ""));
+                      return (
+                        <g transform={`translate(${locale === "ar" ? (x as number) - 35 : (x as number) - 65},${y})`}>
+
+                          <text textAnchor={locale === "ar" ? "end" : "start"} x={locale === "ar" ? -8 : 8} y={0} dy={line2 ? -4 : 0} style={{ fontSize: 11, fontWeight: 700 }}>
+                            <tspan x={locale === "ar" ? -8 : 8} dy={0}>
+                              {line1}
+                            </tspan>
+                            {line2 ? (
+                              <tspan x={locale === "ar" ? -8 : 8} dy={14}>
+                                {line2}
+                              </tspan>
+                            ) : null}
+                          </text>
+                        </g>
+                      );
+                    }}
+                  />
+                  <Tooltip
+                    formatter={(value: number | undefined) => [value ?? 0, t("dailyOps.charts.orders")]}
+                    contentStyle={{ borderRadius: 8 }}
+                  />
+                  <Bar
+                    dataKey="orders"
+                    radius={[0, 6, 6, 0]}
+                    name={t("dailyOps.charts.orders")}
+                    isAnimationActive
+                    animationDuration={600}
+                    animationBegin={0}
+                  >
+                    {barData.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-12 text-center text-sm text-primary/60">{t("dailyOps.charts.noEmployeeData")}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Controls */}
       <form
@@ -187,8 +422,7 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
           <table className="w-full text-sm text-primary">
             <thead className="border-b border-zinc-200 dark:border-zinc-700">
               <tr className={`${locale === "ar" ? "text-right" : "text-left"}`}>
-                <th className="px-3 py-2">{t("common.personalPicture")}</th>
-                <th className="px-3 py-2">{t("dailyOps.tableName")}</th>
+                <th className="px-3 py-2">{t("common.employeeInfo")}</th>
                 <th className="px-3 py-2">{t("dailyOps.tablePlatform")}</th>
                 <th className="px-3 py-2">{t("dailyOps.tableOrders")}</th>
                 <th className="px-3 py-2">{t("dailyOps.tableRevenue")}</th>
@@ -203,18 +437,47 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
               {data.items.map((item) => {
                 const name = displayName(item);
                 const initial = name && name !== "-" ? name.charAt(0).toUpperCase() : "?";
+                const nameAr = item.employment_record?.recruitment_candidate?.full_name_ar ?? "";
+                const nameEn = item.employment_record?.recruitment_candidate?.full_name_en ?? null;
+                const fallbackLabel = item.employment_record?.employee_no ?? "-";
                 return (
                   <tr key={item.id} className="border-b border-zinc-100 dark:border-zinc-700">
                     <td className="px-3 py-2">
-                      <div className="flex items-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                          {initial}
+                      <div className="flex items-center gap-3">
+                        {item.employment_record?.avatar_file_id ? (
+                          <img
+                            src={`/api/files/${item.employment_record.avatar_file_id}/view`}
+                            alt={name}
+                            className="h-10 w-10 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                            {initial}
+                          </div>
+                        )}
+                        <div className="flex min-w-0 flex-col font-medium">
+                          {nameAr || nameEn ? (
+                            <>
+                              {nameAr ? <span>{nameAr}</span> : null}
+                              {nameEn ? (
+                                <span className="text-primary/80">{nameEn}</span>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span>{fallbackLabel}</span>
+                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-medium">{name}</td>
                     <td className="px-3 py-2">
-                      <PlatformIcon platform={item.platform} />
+                      <div className="flex flex-col gap-0.5">
+                        <PlatformIcon platform={item.platform} />
+                        {item.employment_record?.platform_user_no ? (
+                          <span className="text-xs text-primary/60">
+                            {t("common.platformUserNo")}: {item.employment_record.platform_user_no}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-3 py-2">{item.orders_count}</td>
                     <td className="px-3 py-2">{formatAmount(item.total_revenue)}</td>
@@ -243,20 +506,49 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(item.id, "REVIEWED")}
-                          disabled={updatingId === item.id}
-                          className="rounded-md border border-zinc-200 px-3 py-1 text-xs text-primary hover:bg-primary/5 disabled:opacity-50 dark:border-zinc-700"
-                        >
-                          {t("dailyOps.markReviewed")}
-                        </button>
+                        {item.status_code === "APPROVED" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(item.id, "REVIEWED")}
+                            disabled={updatingId === item.id}
+                            title={t("dailyOps.markReviewed")}
+                            aria-label={t("dailyOps.markReviewed")}
+                            className="rounded-md border border-zinc-200 p-1.5 text-primary hover:bg-primary/5 disabled:opacity-50 dark:border-zinc-700"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                        {item.status_code === "DRAFT" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDraft(item.id)}
+                            disabled={updatingId === item.id}
+                            title={t("dailyOps.deleteDraft")}
+                            aria-label={t("dailyOps.deleteDraft")}
+                            className="rounded-md border border-zinc-200 p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-red-900/20"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                        {(item.status_code === "DRAFT" || item.status_code === "APPROVED") ? (
+                          <button
+                            type="button"
+                            onClick={() => setViewItem(item)}
+                            title={t("common.edit")}
+                            aria-label={t("common.edit")}
+                            className="rounded-md border border-zinc-200 p-1.5 text-primary hover:bg-primary/5 dark:border-zinc-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => setViewItem(item)}
-                          className="rounded-md border border-zinc-200 px-3 py-1 text-xs text-primary hover:bg-primary/5 dark:border-zinc-700"
+                          title={t("common.view")}
+                          aria-label={t("common.view")}
+                          className="rounded-md border border-zinc-200 p-1.5 text-primary hover:bg-primary/5 dark:border-zinc-700"
                         >
-                          {t("common.view")}
+                          <Eye className="h-4 w-4" />
                         </button>
                       </div>
                     </td>
@@ -265,7 +557,7 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
               })}
               {data.items.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-6 text-center text-primary/60" colSpan={10}>
+                  <td className="px-3 py-6 text-center text-primary/60" colSpan={9}>
                     {t("dailyOps.noResults")}
                   </td>
                 </tr>
@@ -302,7 +594,7 @@ export function DailyOperationsPageClient({ locale, data, stats, searchParams, p
         record={viewItem}
       />
       <DailyOperationSingleModal isOpen={showSingle} onClose={() => setShowSingle(false)} today={today} />
-      <DailyOperationBulkModal isOpen={showBulk} onClose={() => setShowBulk(false)} today={today} />
+      <DailyOperationBulkModal isOpen={showBulk} onClose={() => setShowBulk(false)} today={today} locale={locale} />
     </>
   );
 }
@@ -326,26 +618,29 @@ function DailyOperationSingleModal({
   today: string;
 }) {
   const t = useTranslations();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [step, setStep] = useState<1 | 2>(1);
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [employee, setEmployee] = useState<EmployeeOption | null>(null);
-  const [date] = useState<string>(today);
+  const [date, setDate] = useState<string>(today);
   const [ordersCount, setOrdersCount] = useState<string>("");
   const [totalRevenue, setTotalRevenue] = useState<string>("");
   const [cashCollected, setCashCollected] = useState<string>("");
   const [cashReceived, setCashReceived] = useState<string>("0");
   const [deductionAmount, setDeductionAmount] = useState<string>("0");
   const [deductionReason, setDeductionReason] = useState<string>("");
-  const [loanAmount, setLoanAmount] = useState<string>("0");
-  const [loanReason, setLoanReason] = useState<string>("");
+  const [tipsAmount, setTipsAmount] = useState<string>("0");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [checkingEntry, setCheckingEntry] = useState(false);
 
   const difference = Number(cashReceived || 0) - Number(cashCollected || 0);
   const isNegativeDifference = difference < 0;
 
   const reset = () => {
     setStep(1);
+    setDate(today);
     setEmployeeId(null);
     setEmployee(null);
     setOrdersCount("");
@@ -354,10 +649,10 @@ function DailyOperationSingleModal({
     setCashReceived("0");
     setDeductionAmount("0");
     setDeductionReason("");
-    setLoanAmount("0");
-    setLoanReason("");
+    setTipsAmount("0");
     setError(null);
     setSaving(false);
+    setCheckingEntry(false);
   };
 
   const validateForApproval = () => {
@@ -366,7 +661,6 @@ function DailyOperationSingleModal({
     if (!totalRevenue || Number(totalRevenue) <= 0) return t("dailyOps.totalRevenueRequired");
     if (!cashCollected || Number(cashCollected) <= 0) return t("dailyOps.cashCollectedRequired");
     if (Number(deductionAmount || 0) > 0 && !deductionReason) return t("dailyOps.deductionReasonRequired");
-    if (Number(loanAmount || 0) > 0 && !loanReason) return t("dailyOps.loanReasonRequired");
     return null;
   };
 
@@ -388,10 +682,9 @@ function DailyOperationSingleModal({
         total_revenue: Number(totalRevenue || 0),
         cash_collected: Number(cashCollected || 0),
         cash_received: Number(cashReceived || 0),
+        tips: Number(tipsAmount || 0),
         deduction_amount: Number(deductionAmount || 0),
         deduction_reason: Number(deductionAmount || 0) > 0 ? deductionReason || undefined : undefined,
-        loan_amount: Number(loanAmount || 0),
-        loan_reason: Number(loanAmount || 0) > 0 ? loanReason || undefined : undefined,
         submit_action: action,
       };
       const res = await fetch("/api/daily-operations/records", {
@@ -401,7 +694,12 @@ function DailyOperationSingleModal({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(data?.message ?? "Save failed");
+        const msg = data?.message;
+        setError(
+          typeof msg === "string" && msg.includes("OPS_DAILY_012")
+            ? t("dailyOps.employeeAlreadyHasEntryForDate")
+            : (msg ?? "Save failed"),
+        );
         setSaving(false);
         return;
       }
@@ -416,7 +714,6 @@ function DailyOperationSingleModal({
   };
 
   const showDeductionReason = Number(deductionAmount || 0) > 0;
-  const showLoanReason = Number(loanAmount || 0) > 0;
 
   return (
     <Modal
@@ -427,6 +724,7 @@ function DailyOperationSingleModal({
       }}
       title={t("dailyOps.singleInput")}
     >
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
       <div className="space-y-4">
         <div className="text-sm font-semibold text-primary">
           {step === 1 ? t("dailyOps.stepOne") : t("dailyOps.stepTwo")}
@@ -437,13 +735,36 @@ function DailyOperationSingleModal({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="text-sm text-primary">{t("dailyOps.dateLabel")}</label>
-                <input
-                  type="date"
-                  value={date}
-                  disabled
-                  className="mt-1 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-primary disabled:text-primary/60 dark:border-zinc-700 dark:bg-zinc-900"
-                />
-                <p className="mt-1 text-xs text-primary/60">{t("dailyOps.dateLockedToToday")}</p>
+                <div className="mt-1">
+                  <DatePicker
+                    value={date ? dayjs(date) : null}
+                    onChange={(d: Dayjs | null) => setDate(d ? d.format("YYYY-MM-DD") : today)}
+                    maxDate={dayjs(today)}
+                    slotProps={{
+                      textField: {
+                        size: "small",
+                        className: "w-full",
+                        sx: {
+                          "& .MuiOutlinedInput-root": {
+                            fontSize: "0.875rem",
+                            color: "inherit",
+                            backgroundColor: isDark ? "rgb(24 24 27)" : "white",
+                            "& fieldset": {
+                              borderColor: isDark ? "rgb(63 63 70)" : "rgb(228 228 231)",
+                            },
+                            "&:hover fieldset": {
+                              borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+                            },
+                            "&.Mui-focused fieldset": {
+                              borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+                            },
+                          },
+                        },
+                      },
+                    }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-primary/60">{t("dailyOps.dateMaxToday")}</p>
               </div>
               <div>
                 <label className="text-sm text-primary">{t("dailyOps.selectEmployee")}</label>
@@ -517,23 +838,13 @@ function DailyOperationSingleModal({
               </div>
             ) : null}
             <Field
-              label={t("dailyOps.loanAmount")}
-              value={loanAmount}
-              onChange={setLoanAmount}
+              label={t("dailyOps.tips")}
+              value={tipsAmount}
+              onChange={setTipsAmount}
               type="number"
               min={0}
               step="0.01"
             />
-            {showLoanReason ? (
-              <div className="sm:col-span-2">
-                <label className="text-sm text-primary">{t("dailyOps.loanReason")}</label>
-                <input
-                  value={loanReason}
-                  onChange={(e) => setLoanReason(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-900"
-                />
-              </div>
-            ) : null}
             <div className="sm:col-span-2">
               <label className="text-sm text-primary">{t("dailyOps.difference")}</label>
               <div className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900">
@@ -573,11 +884,28 @@ function DailyOperationSingleModal({
           {step === 1 ? (
             <button
               type="button"
-              disabled={!employeeId}
-              onClick={() => setStep(2)}
+              disabled={!employeeId || checkingEntry}
+              onClick={async () => {
+                if (!employeeId) return;
+                setError(null);
+                setCheckingEntry(true);
+                try {
+                  const checkRes = await fetch(
+                    `/api/daily-operations/records/check?employment_record_id=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(date)}`,
+                  );
+                  const checkData = await checkRes.json().catch(() => null);
+                  if (checkData?.hasEntry) {
+                    setError(t("dailyOps.employeeAlreadyHasEntryForDate"));
+                    return;
+                  }
+                  setStep(2);
+                } finally {
+                  setCheckingEntry(false);
+                }
+              }}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
             >
-              {t("common.next") || "Next"}
+              {checkingEntry ? t("common.loading") : (t("common.next") || "Next")}
             </button>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -601,20 +929,34 @@ function DailyOperationSingleModal({
           )}
         </div>
       </div>
+      </LocalizationProvider>
     </Modal>
   );
 }
+
+const thAlign = (locale: string, isActions = false) =>
+  isActions
+    ? locale === "ar"
+      ? "text-left"
+      : "text-right"
+    : locale === "ar"
+      ? "text-right"
+      : "text-left";
 
 function DailyOperationBulkModal({
   isOpen,
   onClose,
   today,
+  locale,
 }: {
   isOpen: boolean;
   onClose: () => void;
   today: string;
+  locale: string;
 }) {
   const t = useTranslations();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const [date, setDate] = useState<string>(today);
   const [rows, setRows] = useState<
     Array<{
@@ -626,8 +968,7 @@ function DailyOperationBulkModal({
       cash_received: string;
       deduction_amount: string;
       deduction_reason: string;
-      loan_amount: string;
-      loan_reason: string;
+      tips: string;
     }>
   >([
     {
@@ -639,8 +980,7 @@ function DailyOperationBulkModal({
       cash_received: "0",
       deduction_amount: "0",
       deduction_reason: "",
-      loan_amount: "0",
-      loan_reason: "",
+      tips: "0",
     },
   ]);
   const [error, setError] = useState<string | null>(null);
@@ -660,8 +1000,7 @@ function DailyOperationBulkModal({
         cash_received: "0",
         deduction_amount: "0",
         deduction_reason: "",
-        loan_amount: "0",
-        loan_reason: "",
+        tips: "0",
       },
     ]);
 
@@ -678,7 +1017,7 @@ function DailyOperationBulkModal({
     cash_collected_num: Number(row.cash_collected || 0),
     cash_received_num: Number(row.cash_received || 0),
     deduction_amount_num: Number(row.deduction_amount || 0),
-    loan_amount_num: Number(row.loan_amount || 0),
+    tips_num: Number(row.tips || 0),
   }));
 
   const validRowsForSummary = parsedRows.filter(
@@ -697,10 +1036,10 @@ function DailyOperationBulkModal({
       acc.cashCollected += row.cash_collected_num;
       acc.cashReceived += row.cash_received_num;
       acc.deductions += row.deduction_amount_num;
-      acc.loans += row.loan_amount_num;
+      acc.tips += row.tips_num;
       return acc;
     },
-    { orders: 0, revenue: 0, cashCollected: 0, cashReceived: 0, deductions: 0, loans: 0 },
+    { orders: 0, revenue: 0, cashCollected: 0, cashReceived: 0, deductions: 0, tips: 0 },
   );
 
   const handleSelectEmployee = (idx: number, option: EmployeeOption) => {
@@ -729,6 +1068,26 @@ function DailyOperationBulkModal({
     }
   };
 
+  const allowPositiveInteger = (raw: string): string => {
+    const v = raw.replace(/[^\d]/g, "");
+    if (v === "") return "";
+    const n = parseInt(v, 10);
+    return n > 0 ? String(n) : "";
+  };
+
+  const allowNonNegativeDecimal = (raw: string, allowZero: boolean): string => {
+    if (raw === "" || raw === "-") return allowZero ? "0" : "";
+    const normalized = raw.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+    if (normalized === "" || normalized === ".") return allowZero ? "0" : "";
+    const n = parseFloat(normalized);
+    if (Number.isNaN(n)) return allowZero ? "0" : "";
+    if (n < 0) return allowZero ? "0" : "";
+    if (!allowZero && n === 0) return "";
+    return normalized;
+  };
+
+  const allowPositiveDecimal = (raw: string): string => allowNonNegativeDecimal(raw, false);
+
   const normalizePayloadRows = (action: "draft" | "approve") => {
     const filtered = parsedRows.filter((row) => row.employment_record_id);
     if (action === "approve") {
@@ -738,9 +1097,6 @@ function DailyOperationBulkModal({
         }
         if (row.deduction_amount_num > 0 && !row.deduction_reason) {
           throw new Error(t("dailyOps.deductionReasonRequired"));
-        }
-        if (row.loan_amount_num > 0 && !row.loan_reason) {
-          throw new Error(t("dailyOps.loanReasonRequired"));
         }
       }
     }
@@ -752,8 +1108,7 @@ function DailyOperationBulkModal({
       cash_received: row.cash_received_num,
       deduction_amount: row.deduction_amount_num,
       deduction_reason: row.deduction_amount_num > 0 ? row.deduction_reason || undefined : undefined,
-      loan_amount: row.loan_amount_num,
-      loan_reason: row.loan_amount_num > 0 ? row.loan_reason || undefined : undefined,
+      tips: row.tips_num,
     }));
   };
 
@@ -777,7 +1132,12 @@ function DailyOperationBulkModal({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.message ?? "Save failed");
+        const msg = data?.message;
+        throw new Error(
+          typeof msg === "string" && msg.includes("OPS_DAILY_012")
+            ? t("dailyOps.employeeAlreadyHasEntryForDate")
+            : (msg ?? "Save failed"),
+        );
       }
       onClose();
       window.location.reload();
@@ -801,8 +1161,7 @@ function DailyOperationBulkModal({
         row.cash_received ||
         row.deduction_amount ||
         row.deduction_reason ||
-        row.loan_amount ||
-        row.loan_reason,
+        row.tips,
     );
 
   return (
@@ -816,17 +1175,40 @@ function DailyOperationBulkModal({
       title={t("dailyOps.bulkTitle")}
       maxWidth="8xl"
     >
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
       <div className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="text-sm text-primary">{t("dailyOps.dateLabel")}</label>
-            <input
-              type="date"
-              max={today}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-            />
+            <div className="mt-1">
+              <DatePicker
+                value={date ? dayjs(date) : null}
+                onChange={(d: Dayjs | null) => setDate(d ? d.format("YYYY-MM-DD") : today)}
+                maxDate={dayjs(today)}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    className: "w-full",
+                    sx: {
+                      "& .MuiOutlinedInput-root": {
+                        fontSize: "0.875rem",
+                        color: "inherit",
+                        backgroundColor: isDark ? "rgb(24 24 27)" : "white",
+                        "& fieldset": {
+                          borderColor: isDark ? "rgb(63 63 70)" : "rgb(228 228 231)",
+                        },
+                        "&:hover fieldset": {
+                          borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+                        },
+                        "&.Mui-focused fieldset": {
+                          borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+                        },
+                      },
+                    },
+                  },
+                }}
+              />
+            </div>
             <p className="mt-1 text-xs text-primary/60">{t("dailyOps.dateMaxToday")}</p>
           </div>
           <div>
@@ -843,56 +1225,58 @@ function DailyOperationBulkModal({
 
         <div className="overflow-auto rounded-md border border-zinc-200 dark:border-zinc-700">
           <table className="min-w-full text-sm text-primary">
-            <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-primary/70 dark:bg-zinc-800/60 dark:text-primary/60">
+            <thead className="bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-primary/70 dark:bg-zinc-800/60 dark:text-primary/60">
               <tr>
-                <th className="px-3 py-2">{t("dailyOps.searchEmployeeColumn")}</th>
-                <th className="px-3 py-2">{t("dailyOps.employeeCodeName")}</th>
-                <th className="px-3 py-2">{t("dailyOps.platform")}</th>
-                <th className="px-3 py-2">{t("dailyOps.ordersCount")}</th>
-                <th className="px-3 py-2">{t("dailyOps.totalRevenue")}</th>
-                <th className="px-3 py-2">{t("dailyOps.cashCollected")}</th>
-                <th className="px-3 py-2">{t("dailyOps.cashReceived")}</th>
-                <th className="px-3 py-2">{t("dailyOps.deductions")}</th>
-                <th className="px-3 py-2">{t("dailyOps.loanAmount")}</th>
-                <th className="px-3 py-2 text-right">{t("dailyOps.tableActions")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.employeeNameCode")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.platform")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.ordersCount")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.totalRevenue")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.cashCollected")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.cashReceived")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.deductions")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.tips")}</th>
+                <th className={`px-3 py-2 ${thAlign(locale, true)}`}>{t("dailyOps.tableActions")}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, idx) => {
                 const showDeductionReason = Number(row.deduction_amount || 0) > 0;
-                const showLoanReason = Number(row.loan_amount || 0) > 0;
+                const nameAr = row.selected?.recruitment_candidate?.full_name_ar ?? row.selected?.full_name_ar ?? "";
+                const nameEn = row.selected?.recruitment_candidate?.full_name_en ?? row.selected?.full_name_en ?? "";
+                const code = row.selected?.employee_no ?? row.selected?.employee_code ?? "";
+                const nameCodeDisplay = row.selected ? `${nameAr}${nameEn ? ` | ${nameEn}` : ""} | ${code}` : null;
                 return (
                   <tr key={idx} className="border-t border-zinc-200 align-top dark:border-zinc-700">
                     <td className="px-3 py-2 min-w-[220px]">
-                      <EmployeeSearchBox
-                        value={row.employment_record_id}
-                        onChange={(id) => updateRow(idx, { employment_record_id: id })}
-                        onSelectOption={(opt) => handleSelectEmployee(idx, opt)}
-                        searchPath="/api/daily-operations/employees/search"
-                        placeholder={t("dailyOps.searchByNameOrCode")}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
                       {row.selected ? (
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{row.selected.employee_no ?? "-"}</span>
-                          <span className="text-xs text-primary/60">
-                            {row.selected.recruitment_candidate
-                              ? `${row.selected.recruitment_candidate.full_name_ar}${
-                                  row.selected.recruitment_candidate.full_name_en
-                                    ? ` / ${row.selected.recruitment_candidate.full_name_en}`
-                                    : ""
-                                }`
-                              : "-"}
-                          </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-medium text-primary">{nameCodeDisplay}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateRow(idx, { employment_record_id: null, selected: null })}
+                            className="w-fit text-xs text-primary/70 hover:underline"
+                          >
+                            {t("dailyOps.changeEmployee")}
+                          </button>
                         </div>
                       ) : (
-                        <span className="text-xs text-primary/60">-</span>
+                        <EmployeeSearchBox
+                          value={row.employment_record_id}
+                          onChange={(id) => updateRow(idx, { employment_record_id: id })}
+                          onSelectOption={(opt) => handleSelectEmployee(idx, opt)}
+                          searchPath="/api/daily-operations/employees/search"
+                          placeholder={t("dailyOps.searchByNameOrCode")}
+                        />
                       )}
                     </td>
                     <td className="px-3 py-2 min-w-[140px]">
                       {row.selected ? (
-                        <PlatformIcon platform={(row.selected.assigned_platform as string) ?? "NONE"} />
+                        <div className="flex flex-col gap-1">
+                          <PlatformIcon platform={(row.selected.assigned_platform as string) ?? "NONE"} />
+                          {row.selected.platform_user_no ? (
+                            <span className="text-xs text-primary/60">{t("common.platformUserNo")}: {row.selected.platform_user_no}</span>
+                          ) : null}
+                        </div>
                       ) : (
                         <span className="text-xs text-primary/60">{t("dailyOps.platformNone")}</span>
                       )}
@@ -902,44 +1286,40 @@ function DailyOperationBulkModal({
                         ref={(el) => {
                           if (el) orderRefs.current[idx] = el;
                         }}
-                        type="number"
-                        min={0.01}
-                        step="1"
+                        type="text"
+                        inputMode="numeric"
                         value={row.orders_count}
-                        onChange={(e) => updateRow(idx, { orders_count: e.target.value })}
+                        onChange={(e) => updateRow(idx, { orders_count: allowPositiveInteger(e.target.value) })}
                         onKeyDown={onKeyDownRow(idx)}
                         className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
                       />
                     </td>
                     <td className="px-3 py-2">
                       <input
-                        type="number"
-                        min={0.01}
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={row.total_revenue}
-                        onChange={(e) => updateRow(idx, { total_revenue: e.target.value })}
+                        onChange={(e) => updateRow(idx, { total_revenue: allowPositiveDecimal(e.target.value) })}
                         onKeyDown={onKeyDownRow(idx)}
                         className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
                       />
                     </td>
                     <td className="px-3 py-2">
                       <input
-                        type="number"
-                        min={0.01}
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={row.cash_collected}
-                        onChange={(e) => updateRow(idx, { cash_collected: e.target.value })}
+                        onChange={(e) => updateRow(idx, { cash_collected: allowPositiveDecimal(e.target.value) })}
                         onKeyDown={onKeyDownRow(idx)}
                         className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
                       />
                     </td>
                     <td className="px-3 py-2">
                       <input
-                        type="number"
-                        min={0}
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={row.cash_received}
-                        onChange={(e) => updateRow(idx, { cash_received: e.target.value })}
+                        onChange={(e) => updateRow(idx, { cash_received: allowNonNegativeDecimal(e.target.value, true) })}
                         onKeyDown={onKeyDownRow(idx)}
                         className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
                       />
@@ -947,51 +1327,43 @@ function DailyOperationBulkModal({
                     <td className="px-3 py-2">
                       <div className="flex flex-col gap-2">
                         <input
-                          type="number"
-                          min={0}
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           value={row.deduction_amount}
-                          onChange={(e) => updateRow(idx, { deduction_amount: e.target.value })}
+                          onChange={(e) => updateRow(idx, { deduction_amount: allowNonNegativeDecimal(e.target.value, true) })}
                           onKeyDown={onKeyDownRow(idx)}
                           className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
                         />
-                        <input
-                          value={row.deduction_reason}
-                          onChange={(e) => updateRow(idx, { deduction_reason: e.target.value })}
-                          placeholder={showDeductionReason ? "" : t("dailyOps.deductionReason")}
-                          disabled={!showDeductionReason}
-                          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-2 text-xs text-primary placeholder:text-primary/40 disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900"
-                        />
+                        {showDeductionReason && (
+                          <input
+                            value={row.deduction_reason}
+                            onChange={(e) => updateRow(idx, { deduction_reason: e.target.value })}
+                            placeholder={t("dailyOps.deductionReason")}
+                            className="w-full rounded-md border border-zinc-200 bg-white px-2 py-2 text-xs text-primary placeholder:text-primary/40 dark:border-zinc-700 dark:bg-zinc-900"
+                          />
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex flex-col gap-2">
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={row.loan_amount}
-                          onChange={(e) => updateRow(idx, { loan_amount: e.target.value })}
-                          onKeyDown={onKeyDownRow(idx)}
-                          className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                        />
-                        <input
-                          value={row.loan_reason}
-                          onChange={(e) => updateRow(idx, { loan_reason: e.target.value })}
-                          placeholder={showLoanReason ? "" : t("dailyOps.loanReason")}
-                          disabled={!showLoanReason}
-                          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-2 text-xs text-primary placeholder:text-primary/40 disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={row.tips}
+                        onChange={(e) => updateRow(idx, { tips: allowNonNegativeDecimal(e.target.value, true) })}
+                        onKeyDown={onKeyDownRow(idx)}
+                        className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                      />
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className={`px-3 py-2 ${thAlign(locale, true)}`}>
                       {rows.length > 1 ? (
                         <button
                           type="button"
                           onClick={() => removeRow(idx)}
-                          className="text-xs text-primary hover:underline"
+                          className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          title={t("dailyOps.removeRow")}
+                          aria-label={t("dailyOps.removeRow")}
                         >
-                          {t("dailyOps.removeRow")}
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       ) : (
                         <span className="text-xs text-primary/40">-</span>
@@ -1037,8 +1409,8 @@ function DailyOperationBulkModal({
             <div className="font-semibold">{formatAmount(summary.deductions)}</div>
           </div>
           <div>
-            <div className="text-xs text-primary/60">{t("dailyOps.summaryLoans")}</div>
-            <div className="font-semibold">{formatAmount(summary.loans)}</div>
+            <div className="text-xs text-primary/60">{t("dailyOps.summaryTips")}</div>
+            <div className="font-semibold">{formatAmount(summary.tips)}</div>
           </div>
         </div>
 
@@ -1078,6 +1450,7 @@ function DailyOperationBulkModal({
           </button>
         </div>
       </div>
+      </LocalizationProvider>
     </Modal>
   );
 }
@@ -1119,15 +1492,23 @@ function Field({
 }
 
 function EmployeeCard({ employee }: { employee: EmployeeOption }) {
-  const nameAr = employee.recruitment_candidate?.full_name_ar ?? "-";
-  const nameEn = employee.recruitment_candidate?.full_name_en ?? "-";
-  const initial = (nameAr || employee.employee_no || "?").charAt(0);
+  const nameAr = employee.recruitment_candidate?.full_name_ar ?? employee.full_name_ar ?? "-";
+  const nameEn = employee.recruitment_candidate?.full_name_en ?? employee.full_name_en ?? "-";
+  const initial = (nameAr || employee.employee_no || employee.employee_code || "?").charAt(0);
 
   return (
     <div className="rounded-md border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
       <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-lg font-semibold text-primary">
-          {initial}
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-lg font-semibold text-primary">
+          {employee.avatar_file_id ? (
+            <img
+              src={`/api/files/${employee.avatar_file_id}/view`}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            initial
+          )}
         </div>
         <div className="flex-1 space-y-1">
           <div className="flex items-center justify-between">
@@ -1136,9 +1517,11 @@ function EmployeeCard({ employee }: { employee: EmployeeOption }) {
           </div>
           <div className="flex items-center justify-between text-sm text-primary/70">
             <span>{nameEn}</span>
-            <span className="font-mono">{employee.employee_no ?? "-"}</span>
+            <span className="font-mono">{employee.employee_no ?? employee.employee_code ?? "-"}</span>
           </div>
-          <div className="text-xs text-primary/50">{employee.status_code ?? ""}</div>
+          {employee.status_code ? (
+            <StatusBadge status={employee.status_code} />
+          ) : null}
         </div>
       </div>
     </div>

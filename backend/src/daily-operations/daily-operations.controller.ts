@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { OperatingPlatform } from '@prisma/client';
@@ -34,8 +34,6 @@ const CreateSchema = z.object({
   tips: z.number().min(0).default(0),
   deduction_amount: z.number().min(0).default(0),
   deduction_reason: z.string().min(2).max(200).optional().nullable(),
-  loan_amount: z.number().min(0).default(0),
-  loan_reason: z.string().min(2).max(200).optional().nullable(),
   submit_action: SubmitActionSchema,
 });
 
@@ -53,8 +51,6 @@ const BulkCreateSchema = z.object({
         tips: z.number().min(0).default(0),
         deduction_amount: z.number().min(0).default(0),
         deduction_reason: z.string().min(2).max(200).optional().nullable(),
-        loan_amount: z.number().min(0).default(0),
-        loan_reason: z.string().min(2).max(200).optional().nullable(),
       }),
     )
     .min(1),
@@ -62,6 +58,11 @@ const BulkCreateSchema = z.object({
 
 const StatusUpdateSchema = z.object({
   status_code: z.string().min(2),
+});
+
+const CheckEntryQuerySchema = z.object({
+  employment_record_id: z.string().uuid(),
+  date: z.string(),
 });
 
 @Controller('operations/daily')
@@ -104,10 +105,29 @@ export class DailyOperationsController {
     return this.svc.updateStatus(req.user.company_id, req.user.sub, id, data.status_code);
   }
 
+  @Delete('records/:id')
+  @Permissions('DAILY_OPS_UPDATE')
+  async delete(@Req() req: Request & { user?: any }, @Param('id') id: string) {
+    await this.svc.delete(req.user.company_id, req.user.sub, id);
+  }
+
+  @Get('records/check')
+  @Permissions('DAILY_OPS_READ')
+  async checkEntry(@Req() req: Request & { user?: any }, @Query() query: unknown) {
+    const { employment_record_id, date } = CheckEntryQuerySchema.parse(query);
+    return this.svc.checkHasEntryForDay(req.user.company_id, employment_record_id, date);
+  }
+
   @Get('employees/search')
   @Permissions('DAILY_OPS_READ')
   async searchEmployees(@Req() req: Request & { user?: any }, @Query('q') q: string) {
     return this.svc.searchActiveEmployees(req.user.company_id, q ?? '');
+  }
+
+  @Get('monthly-charts')
+  @Permissions('DAILY_OPS_READ')
+  async monthlyCharts(@Req() req: Request & { user?: any }) {
+    return this.svc.monthlyCharts(req.user.company_id);
   }
 }
 

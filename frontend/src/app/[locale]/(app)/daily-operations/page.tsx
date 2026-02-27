@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { getTranslations } from "next-intl/server";
 import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
 import { DailyOperationsPageClient } from "@/components/DailyOperationsPageClient";
 import { buildDateRange } from "@/lib/dailyOps";
@@ -29,6 +28,7 @@ type DailyOperationListItem = {
     id: string;
     employee_no: string | null;
     avatar_file_id?: string | null;
+    platform_user_no?: string | null;
     recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
   } | null;
 };
@@ -40,6 +40,17 @@ type StatsData = {
   totalDeductions: number;
 };
 
+export type MonthlyChartsData = {
+  pie: { totalTarget: number; totalAchieved: number };
+  byEmployee: Array<{
+    employment_record_id: string;
+    full_name_ar: string;
+    full_name_en: string | null;
+    orders_count: number;
+    monthly_orders_target: number | null;
+  }>;
+};
+
 export default async function DailyOperationsPage({
   params,
   searchParams,
@@ -49,7 +60,6 @@ export default async function DailyOperationsPage({
 }) {
   const { locale } = await params;
   const sp = await searchParams;
-  const t = await getTranslations({ locale });
 
   const cookieStore = await cookies();
   const access = cookieStore.get("moktamel_access")?.value;
@@ -62,9 +72,10 @@ export default async function DailyOperationsPage({
 
   let data: { items: DailyOperationListItem[]; total: number; page: number; page_size: number };
   let stats: StatsData;
+  let chartsData: MonthlyChartsData | null = null;
 
   try {
-    [data, stats] = await Promise.all([
+    [data, stats, chartsData] = await Promise.all([
       backendApi<{
         items: DailyOperationListItem[];
         total: number;
@@ -78,6 +89,7 @@ export default async function DailyOperationsPage({
       backendApi<StatsData>({
         path: `/operations/daily/stats${sp.date ? `?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}` : ""}`,
       }),
+      backendApi<MonthlyChartsData>({ path: `/operations/daily/monthly-charts` }).catch(() => null),
     ]);
   } catch (error) {
     if (error instanceof AuthError) {
@@ -110,8 +122,14 @@ export default async function DailyOperationsPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-primary">{t("nav.dailyOperations")}</h1>
-      <DailyOperationsPageClient locale={locale} data={data} stats={stats} searchParams={sp} page={page} />
+      <DailyOperationsPageClient
+        locale={locale}
+        data={data}
+        stats={stats}
+        chartsData={chartsData}
+        searchParams={sp}
+        page={page}
+      />
     </div>
   );
 }

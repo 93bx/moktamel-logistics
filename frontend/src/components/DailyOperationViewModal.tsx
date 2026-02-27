@@ -18,8 +18,6 @@ type DailyOperationListItem = {
   tips: string | number;
   deduction_amount: string | number;
   deduction_reason: string | null;
-  loan_amount?: string | number;
-  loan_reason?: string | null;
   is_draft?: boolean;
   approved_at?: string | null;
   approved_by_user_id?: string | null;
@@ -154,13 +152,6 @@ export function DailyOperationViewModal({ isOpen, onClose, record }: DailyOperat
               <div className="mt-0.5 text-primary">{formatAmount(record.deduction_amount)}</div>
               {record.deduction_amount && Number(record.deduction_amount) > 0 && record.deduction_reason && (
                 <div className="mt-0.5 text-xs text-primary/70">{record.deduction_reason}</div>
-              )}
-            </div>
-            <div>
-              <span className="text-xs font-medium text-primary/60">{t("dailyOps.loanAmount")}</span>
-              <div className="mt-0.5 text-primary">{formatAmount(record.loan_amount)}</div>
-              {record.loan_amount && Number(record.loan_amount) > 0 && record.loan_reason && (
-                <div className="mt-0.5 text-xs text-primary/70">{record.loan_reason}</div>
               )}
             </div>
           </div>

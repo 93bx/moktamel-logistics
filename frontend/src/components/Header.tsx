@@ -18,6 +18,7 @@ export function Header() {
     if (pathname.includes("/employment")) return t("nav.employment");
     if (pathname.includes("/notifications")) return t("nav.notifications");
     if (pathname.includes("/assets")) return t("nav.assets");
+    if (pathname.includes("/daily-operations")) return t("nav.dailyOperations");
     if (pathname.includes("/profile")) return t("common.profile");
     return t("app.title");
   };
