@@ -136,7 +136,7 @@ export class CashLoansService {
         date: { gte: range.from, lte: range.to },
         is_draft: false,
       },
-      _sum: { total_revenue: true, cash_collected: true, deduction_amount: true, loan_amount: true },
+      _sum: { total_revenue: true, cash_collected: true, deduction_amount: true },
     });
 
     const txnAgg = await this.prisma.cashTransaction.groupBy({
@@ -411,11 +411,11 @@ export class CashLoansService {
     const computed = employees.map((emp) => {
       const ops = opsMap.get(emp.id);
       const tx = txnMap.get(emp.id);
-      const totalRevenue = new Prisma.Decimal(ops?._sum.total_revenue ?? 0);
-      const totalCashCollected = new Prisma.Decimal(ops?._sum.cash_collected ?? 0);
+      const totalRevenue = new Prisma.Decimal(ops?._sum?.total_revenue ?? 0);
+      const totalCashCollected = new Prisma.Decimal(ops?._sum?.cash_collected ?? 0);
       const loans = tx?.loan ?? new Prisma.Decimal(0);
       const receipts = tx?.receipt ?? new Prisma.Decimal(0);
-      const deductions = (tx?.deduction ?? new Prisma.Decimal(0)).plus(new Prisma.Decimal(ops?._sum.deduction_amount ?? 0));
+      const deductions = (tx?.deduction ?? new Prisma.Decimal(0)).plus(new Prisma.Decimal(ops?._sum?.deduction_amount ?? 0));
       const notCollected = totalCashCollected.minus(receipts).minus(deductions);
       const balanced = notCollected.lte(0);
       return {
@@ -461,7 +461,7 @@ export class CashLoansService {
     const [opsAgg, txns] = await Promise.all([
       this.prisma.dailyOperation.aggregate({
         where: { company_id, employment_record_id, date: { gte: range.from, lte: range.to }, is_draft: false },
-        _sum: { total_revenue: true, cash_collected: true, deduction_amount: true, loan_amount: true, cash_received: true },
+        _sum: { total_revenue: true, cash_collected: true, deduction_amount: true, cash_received: true },
       }),
       this.prisma.cashTransaction.findMany({
         where: { company_id, employment_record_id, date: { gte: range.from, lte: range.to } },
@@ -485,18 +485,19 @@ export class CashLoansService {
     const deductionTx = txns
       .filter((t) => t.type === CashTransactionType.DEDUCTION)
       .reduce((acc: Prisma.Decimal, t) => acc.plus(t.amount), new Prisma.Decimal(0));
-    const notCollected = new Prisma.Decimal(opsAgg._sum.cash_collected ?? 0)
+    const sum = opsAgg._sum;
+    const notCollected = new Prisma.Decimal(sum?.cash_collected ?? 0)
       .minus(receipts)
-      .minus(new Prisma.Decimal(opsAgg._sum.deduction_amount ?? 0))
+      .minus(new Prisma.Decimal(sum?.deduction_amount ?? 0))
       .minus(deductionTx);
 
     return {
       employee: employment,
       summary: {
-        total_revenue: Number(opsAgg._sum.total_revenue ?? 0),
-        total_cash: Number(opsAgg._sum.cash_collected ?? 0),
-        total_loan: Number(opsAgg._sum.loan_amount ?? 0),
-        total_deductions: Number(opsAgg._sum.deduction_amount ?? 0),
+        total_revenue: Number(sum?.total_revenue ?? 0),
+        total_cash: Number(sum?.cash_collected ?? 0),
+        total_loan: 0,
+        total_deductions: Number(sum?.deduction_amount ?? 0),
         cash_not_collected: Math.max(0, Number(notCollected)),
       },
       transactions: txns.map((t) => ({

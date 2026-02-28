@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, useEffect, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -150,6 +150,7 @@ export function DailyOperationsPageClient({
   const [menuOpen, setMenuOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [viewItem, setViewItem] = useState<DailyOperationListItem | null>(null);
+  const [editItem, setEditItem] = useState<DailyOperationListItem | null>(null);
   const [barMode, setBarMode] = useState<"top5" | "worst5">("top5");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -533,7 +534,7 @@ export function DailyOperationsPageClient({
                         {(item.status_code === "DRAFT" || item.status_code === "APPROVED") ? (
                           <button
                             type="button"
-                            onClick={() => setViewItem(item)}
+                            onClick={() => setEditItem(item)}
                             title={t("common.edit")}
                             aria-label={t("common.edit")}
                             className="rounded-md border border-zinc-200 p-1.5 text-primary hover:bg-primary/5 dark:border-zinc-700"
@@ -593,6 +594,11 @@ export function DailyOperationsPageClient({
         onClose={() => setViewItem(null)}
         record={viewItem}
       />
+      <DailyOperationEditModal
+        isOpen={!!editItem}
+        record={editItem}
+        onClose={() => setEditItem(null)}
+      />
       <DailyOperationSingleModal isOpen={showSingle} onClose={() => setShowSingle(false)} today={today} />
       <DailyOperationBulkModal isOpen={showBulk} onClose={() => setShowBulk(false)} today={today} locale={locale} />
     </>
@@ -605,6 +611,193 @@ function StatCard({ label, value }: { label: string; value: string }) {
       <div className="text-sm text-primary/60">{label}</div>
       <div className="mt-1 text-2xl font-semibold text-primary">{value}</div>
     </div>
+  );
+}
+
+function DailyOperationEditModal({
+  isOpen,
+  record,
+  onClose,
+}: {
+  isOpen: boolean;
+  record: DailyOperationListItem | null;
+  onClose: () => void;
+}) {
+  const t = useTranslations();
+  const [ordersCount, setOrdersCount] = useState<string>("");
+  const [totalRevenue, setTotalRevenue] = useState<string>("");
+  const [cashCollected, setCashCollected] = useState<string>("");
+  const [cashReceived, setCashReceived] = useState<string>("0");
+  const [deductionAmount, setDeductionAmount] = useState<string>("0");
+  const [deductionReason, setDeductionReason] = useState<string>("");
+  const [tipsAmount, setTipsAmount] = useState<string>("0");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (record && isOpen) {
+      setOrdersCount(String(record.orders_count ?? ""));
+      setTotalRevenue(String(record.total_revenue ?? ""));
+      setCashCollected(String(record.cash_collected ?? ""));
+      setCashReceived(String(record.cash_received ?? "0"));
+      setDeductionAmount(String(record.deduction_amount ?? "0"));
+      setDeductionReason(record.deduction_reason ?? "");
+      setTipsAmount(String(record.tips ?? "0"));
+      setError(null);
+    }
+  }, [record, isOpen]);
+
+  const difference = Number(cashReceived || 0) - Number(cashCollected || 0);
+  const isNegativeDifference = difference < 0;
+  const showDeductionReason = Number(deductionAmount || 0) > 0;
+
+  const validate = () => {
+    if (!ordersCount || Number(ordersCount) <= 0) return t("dailyOps.ordersCountRequired");
+    if (!totalRevenue || Number(totalRevenue) <= 0) return t("dailyOps.totalRevenueRequired");
+    if (!cashCollected || Number(cashCollected) <= 0) return t("dailyOps.cashCollectedRequired");
+    if (Number(deductionAmount || 0) > 0 && !deductionReason) return t("dailyOps.deductionReasonRequired");
+    return null;
+  };
+
+  const submit = async () => {
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    if (!record) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        orders_count: Number(ordersCount || 0),
+        total_revenue: Number(totalRevenue || 0),
+        cash_collected: Number(cashCollected || 0),
+        cash_received: Number(cashReceived || 0),
+        tips: Number(tipsAmount || 0),
+        deduction_amount: Number(deductionAmount || 0),
+        deduction_reason: Number(deductionAmount || 0) > 0 ? deductionReason || null : null,
+      };
+      const res = await fetch(`/api/daily-operations/records/${record.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.message ?? "Save failed");
+        setSaving(false);
+        return;
+      }
+      onClose();
+      window.location.reload();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Save failed");
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={t("dailyOps.editOperation")} maxWidth="2xl">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field
+            label={t("dailyOps.ordersCount")}
+            value={ordersCount}
+            onChange={setOrdersCount}
+            type="number"
+            min={0.01}
+            step="1"
+          />
+          <Field
+            label={t("dailyOps.totalRevenue")}
+            value={totalRevenue}
+            onChange={setTotalRevenue}
+            type="number"
+            min={0.01}
+            step="0.01"
+          />
+          <Field
+            label={t("dailyOps.cashCollected")}
+            value={cashCollected}
+            onChange={setCashCollected}
+            type="number"
+            min={0.01}
+            step="0.01"
+          />
+          <Field
+            label={t("dailyOps.cashReceived")}
+            value={cashReceived}
+            onChange={setCashReceived}
+            type="number"
+            min={0}
+            step="0.01"
+          />
+          <Field
+            label={t("dailyOps.deductions")}
+            value={deductionAmount}
+            onChange={setDeductionAmount}
+            type="number"
+            min={0}
+            step="0.01"
+          />
+          {showDeductionReason ? (
+            <div className="sm:col-span-2">
+              <label className="text-sm text-primary">{t("dailyOps.deductionReason")}</label>
+              <input
+                value={deductionReason}
+                onChange={(e) => setDeductionReason(e.target.value)}
+                className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-900"
+              />
+            </div>
+          ) : null}
+          <Field
+            label={t("dailyOps.tips")}
+            value={tipsAmount}
+            onChange={setTipsAmount}
+            type="number"
+            min={0}
+            step="0.01"
+          />
+          <div className="sm:col-span-2">
+            <label className="text-sm text-primary">{t("dailyOps.difference")}</label>
+            <div className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+              <div className={`text-lg font-semibold ${isNegativeDifference ? "text-red-600" : "text-emerald-600"}`}>
+                {formatAmount(difference)}
+              </div>
+              <div className="text-xs text-primary/60">{t("dailyOps.differenceHint")}</div>
+              {isNegativeDifference ? (
+                <div className="text-xs text-red-600">{t("dailyOps.differenceWarning")}</div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        {error ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-200">
+            {error}
+          </div>
+        ) : null}
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={saving}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+          >
+            {saving ? t("common.loading") : t("common.save")}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

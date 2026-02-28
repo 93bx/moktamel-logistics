@@ -60,6 +60,16 @@ const StatusUpdateSchema = z.object({
   status_code: z.string().min(2),
 });
 
+const UpdateRecordSchema = z.object({
+  orders_count: z.number().int().min(0),
+  total_revenue: z.number().min(0),
+  cash_collected: z.number().min(0),
+  cash_received: z.number().min(0),
+  tips: z.number().min(0),
+  deduction_amount: z.number().min(0),
+  deduction_reason: z.string().min(2).max(200).optional().nullable(),
+});
+
 const CheckEntryQuerySchema = z.object({
   employment_record_id: z.string().uuid(),
   date: z.string(),
@@ -103,6 +113,13 @@ export class DailyOperationsController {
   async updateStatus(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
     const data = StatusUpdateSchema.parse(body);
     return this.svc.updateStatus(req.user.company_id, req.user.sub, id, data.status_code);
+  }
+
+  @Patch('records/:id')
+  @Permissions('DAILY_OPS_UPDATE')
+  async updateRecord(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
+    const data = UpdateRecordSchema.parse(body);
+    return this.svc.updateRecord(req.user.company_id, req.user.sub, id, data);
   }
 
   @Delete('records/:id')

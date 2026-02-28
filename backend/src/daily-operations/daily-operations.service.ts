@@ -585,6 +585,76 @@ export class DailyOperationsService {
       old_values: existing,
     });
   }
+
+  async updateRecord(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    input: {
+      orders_count: number;
+      total_revenue: number;
+      cash_collected: number;
+      cash_received: number;
+      tips: number;
+      deduction_amount: number;
+      deduction_reason?: string | null;
+    },
+  ) {
+    const existing = await this.prisma.dailyOperation.findFirst({ where: { id, company_id } });
+    if (!existing) throw new NotFoundException('OPS_DAILY_020: Operation not found');
+    if (existing.status_code !== 'DRAFT' && existing.status_code !== 'APPROVED') {
+      throw new BadRequestException('OPS_DAILY_022: Only draft or approved operations can be edited');
+    }
+
+    const normalized = this.normalizeNumbers({
+      ...input,
+      employment_record_id: existing.employment_record_id,
+      date: existing.date.toISOString(),
+      submit_action: existing.status_code === 'DRAFT' ? 'draft' : 'approve',
+    });
+    this.validateForApproval(normalized, {
+      ...input,
+      employment_record_id: existing.employment_record_id,
+      date: existing.date.toISOString(),
+      submit_action: existing.status_code === 'DRAFT' ? 'draft' : 'approve',
+      deduction_reason: input.deduction_reason ?? undefined,
+    });
+
+    const difference_amount = normalized.cash_received - normalized.cash_collected;
+    const newStatus =
+      existing.status_code === 'DRAFT'
+        ? 'DRAFT'
+        : normalized.deduction_amount > 0
+          ? 'FLAGGED_DEDUCTION'
+          : 'APPROVED';
+
+    const updated = await this.prisma.dailyOperation.update({
+      where: { id },
+      data: {
+        orders_count: normalized.orders_count,
+        total_revenue: normalized.total_revenue,
+        cash_collected: normalized.cash_collected,
+        cash_received: normalized.cash_received,
+        tips: normalized.tips,
+        deduction_amount: normalized.deduction_amount,
+        deduction_reason: normalized.deduction_amount > 0 ? input.deduction_reason ?? null : null,
+        difference_amount,
+        status_code: newStatus,
+      },
+    });
+
+    await this.audit.log({
+      company_id,
+      actor_user_id,
+      action: 'OPS_DAILY_UPDATE',
+      entity_type: 'DAILY_OPERATION',
+      entity_id: id,
+      old_values: existing,
+      new_values: updated,
+    });
+
+    return updated;
+  }
 }
 
 

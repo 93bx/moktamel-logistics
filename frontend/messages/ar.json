@@ -481,6 +481,7 @@
     "markReviewed": "تعيين كمراجَع",
     "deleteDraft": "حذف المسودة",
     "confirmDeleteDraft": "هل أنت متأكد من حذف عملية المسودة هذه؟",
+    "editOperation": "تعديل العملية",
     "statusRecorded": "مُسجل",
     "statusFlagged": "مُعلم لاستقطاع",
     "statusApproved": "معتمد",

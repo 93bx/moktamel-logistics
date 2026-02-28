@@ -483,6 +483,7 @@
     "markReviewed": "Mark reviewed",
     "deleteDraft": "Delete draft",
     "confirmDeleteDraft": "Are you sure you want to delete this draft operation?",
+    "editOperation": "Edit operation",
     "statusRecorded": "Recorded",
     "statusFlagged": "Flagged for deduction",
     "statusApproved": "Approved",

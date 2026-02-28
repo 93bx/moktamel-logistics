@@ -35,7 +35,7 @@ async function validateSchema() {
     const criticalChecks = [
       {
         table: 'DailyOperation',
-        columns: ['is_draft', 'loan_amount', 'cash_received', 'difference_amount', 'approved_at', 'approved_by_user_id']
+        columns: ['is_draft', 'tips', 'cash_received', 'difference_amount', 'approved_at', 'approved_by_user_id']
       },
       {
         table: 'EmploymentRecord',
