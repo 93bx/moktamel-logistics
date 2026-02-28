@@ -9,8 +9,10 @@
     "recruitment": "الاستقدام",
     "employment": "التوظيف",
     "notifications": "الإشعارات",
+    "documents": "المستندات",
     "assets": "العهدة",
     "dailyOperations": "التشغيل اليومي",
+    "finance": "المالية",
     "cashLoans": "إدارة النقد والسلف",
     "fleetManagement": "إدارة الأسطول",
     "payrollConfig": "الرواتب والتكاليف",
@@ -67,6 +69,47 @@
       "HR_EMPLOYMENT_UPDATE": "تم تحديث بيانات التوظيف",
       "HR_EMPLOYMENT_DELETE": "تم حذف الموظف"
     }
+  },
+  "documents": {
+    "stats": {
+      "expiringWithin5": "تنتهي خلال 5 أيام",
+      "expiringWithin25": "تنتهي خلال 6–25 يوماً",
+      "expired": "منتهية",
+      "active": "نشطة (انتهاء بعد 30 يوماً)"
+    },
+    "tabs": {
+      "nearExpiry": "قريبة من الانتهاء",
+      "employees": "الموظفون",
+      "company": "الشركة",
+      "fleet": "الأسطول",
+      "recruitment": "الاستقدام",
+      "other": "أخرى"
+    },
+    "table": {
+      "docName": "اسم المستند",
+      "docSource": "مصدر المستند",
+      "docExpiry": "تاريخ انتهاء المستند",
+      "docStatus": "حالة المستند",
+      "actions": "إجراءات"
+    },
+    "status": {
+      "active": "نشط",
+      "nearExpiry": "قريب من الانتهاء",
+      "near_expiry": "قريب من الانتهاء",
+      "expired": "منتهٍ",
+      "noExpiry": "بدون انتهاء",
+      "no_expiry": "بدون انتهاء"
+    },
+    "actions": {
+      "view": "عرض",
+      "edit": "تعديل",
+      "delete": "حذف"
+    },
+    "confirmDelete": "هل أنت متأكد من حذف هذا المستند؟",
+    "searchPlaceholder": "البحث باسم المستند أو المصدر",
+    "noDocuments": "لا توجد مستندات",
+    "deleteError": "فشل حذف المستند",
+    "paginationSummary": "عرض {from}–{to} من {total}"
   },
   "notifications": {
     "severity": {

@@ -22,6 +22,7 @@ import { CashLoansModule } from './finance-cash-loans/cash-loans.module';
 import { PayrollConfigModule } from './payroll-config/payroll-config.module';
 import { CostsModule } from './costs/costs.module';
 import { SalariesPayrollModule } from './salaries-payroll/salaries-payroll.module';
+import { DocumentsModule } from './documents/documents.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { SalariesPayrollModule } from './salaries-payroll/salaries-payroll.modul
     PayrollConfigModule,
     CostsModule,
     SalariesPayrollModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

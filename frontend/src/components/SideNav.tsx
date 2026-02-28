@@ -22,6 +22,7 @@ export function SideNav() {
   const locale = useLocale();
   const t = useTranslations();
   const [isHROpen, setIsHROpen] = useState(true);
+  const [isFinanceOpen, setIsFinanceOpen] = useState(true);
 
   const currentPath = pathWithoutLocale(pathname);
   const isActive = (href: string) => {
@@ -29,9 +30,18 @@ export function SideNav() {
     return currentPath === hrefPath || currentPath.startsWith(hrefPath + "/");
   };
 
+  const financeItems = [
+    { href: `/${locale}/cash-loans`, label: t("nav.cashLoans") },
+    { href: `/${locale}/payroll-config`, label: t("nav.payrollConfig") },
+    { href: `/${locale}/salaries-payroll`, label: t("nav.salariesPayroll") },
+  ];
+
+  const isFinanceGroupActive = financeItems.some((item) => isActive(item.href));
+
   const hrItems = [
     { href: `/${locale}/recruitment`, label: t("nav.recruitment") },
     { href: `/${locale}/employment`, label: t("nav.employment") },
+    { href: `/${locale}/documents`, label: t("nav.documents") },
     { href: `/${locale}/assets`, label: t("nav.assets") },
     { href: `/${locale}/fleet`, label: t("nav.fleetManagement") },
   ];
@@ -66,38 +76,42 @@ export function SideNav() {
         {t("nav.dailyOperations")}
       </Link>
 
-      <Link
-        href={`/${locale}/cash-loans`}
-        className={`block rounded-md px-3 py-2 text-base transition-colors ${
-          isActive(`/${locale}/cash-loans`)
-            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-        }`}
-      >
-        {t("nav.cashLoans")}
-      </Link>
+      {/* Finance Group */}
+      <div>
+        <button
+          onClick={() => setIsFinanceOpen(!isFinanceOpen)}
+          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-base transition-colors ${
+            isFinanceGroupActive
+              ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
+              : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
+          }`}
+        >
+          <span>{t("nav.finance")}</span>
+          {isFinanceOpen ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </button>
 
-      <Link
-        href={`/${locale}/payroll-config`}
-        className={`block rounded-md px-3 py-2 text-base transition-colors ${
-          isActive(`/${locale}/payroll-config`)
-            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-        }`}
-      >
-        {t("nav.payrollConfig")}
-      </Link>
-
-      <Link
-        href={`/${locale}/salaries-payroll`}
-        className={`block rounded-md px-3 py-2 text-base transition-colors ${
-          isActive(`/${locale}/salaries-payroll`)
-            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-        }`}
-      >
-        {t("nav.salariesPayroll")}
-      </Link>
+        {isFinanceOpen && (
+          <div className="ml-4 mt-1 space-y-1">
+            {financeItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`block rounded-md px-3 py-2 text-base transition-colors ${
+                  isActive(item.href)
+                    ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
+                    : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="border-t border-primary-600 dark:border-primary-700" />
 
