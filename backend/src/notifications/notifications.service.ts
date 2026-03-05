@@ -78,7 +78,10 @@ export class NotificationsService {
       select: { id: true, payload: true },
     });
     const found = list.find(
-      (n) => n.payload && typeof n.payload === 'object' && (n.payload as { candidate_id?: string }).candidate_id === candidate_id,
+      (n) =>
+        n.payload &&
+        typeof n.payload === 'object' &&
+        (n.payload as { candidate_id?: string }).candidate_id === candidate_id,
     );
     return found ? { id: found.id, payload: found.payload } : null;
   }

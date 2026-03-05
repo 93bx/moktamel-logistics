@@ -28,7 +28,9 @@ export class HealthController {
       ]);
 
       // Check migration status
-      const latestMigration = await this.prisma.$queryRaw<Array<{migration_name: string; finished_at: Date}>>`
+      const latestMigration = await this.prisma.$queryRaw<
+        Array<{ migration_name: string; finished_at: Date }>
+      >`
         SELECT migration_name, finished_at 
         FROM _prisma_migrations 
         ORDER BY finished_at DESC 
@@ -36,21 +38,34 @@ export class HealthController {
       `;
 
       // Check critical columns exist
-      const criticalColumns = await this.prisma.$queryRawUnsafe<Array<{column_name: string; table_name: string}>>(
+      const criticalColumns = await this.prisma.$queryRawUnsafe<
+        Array<{ column_name: string; table_name: string }>
+      >(
         `SELECT column_name, table_name
          FROM information_schema.columns
          WHERE (table_name = 'DailyOperation' AND column_name IN ('is_draft', 'loan_amount', 'cash_received'))
             OR (table_name = 'EmploymentRecord' AND column_name IN ('employee_code', 'assigned_platform'))
-            OR (table_name = 'RecruitmentCandidate' AND column_name IN ('full_name_ar', 'full_name_en'))`
+            OR (table_name = 'RecruitmentCandidate' AND column_name IN ('full_name_ar', 'full_name_en'))`,
       );
 
       const expectedColumns = [
-        { table: 'DailyOperation', columns: ['is_draft', 'loan_amount', 'cash_received'] },
-        { table: 'EmploymentRecord', columns: ['employee_code', 'assigned_platform'] },
-        { table: 'RecruitmentCandidate', columns: ['full_name_ar', 'full_name_en'] },
+        {
+          table: 'DailyOperation',
+          columns: ['is_draft', 'loan_amount', 'cash_received'],
+        },
+        {
+          table: 'EmploymentRecord',
+          columns: ['employee_code', 'assigned_platform'],
+        },
+        {
+          table: 'RecruitmentCandidate',
+          columns: ['full_name_ar', 'full_name_en'],
+        },
       ];
 
-      const foundColumns = criticalColumns.map(c => `${c.table_name}.${c.column_name}`);
+      const foundColumns = criticalColumns.map(
+        (c) => `${c.table_name}.${c.column_name}`,
+      );
       const missingColumns: string[] = [];
 
       for (const expected of expectedColumns) {
@@ -75,10 +90,12 @@ export class HealthController {
       return {
         status: 'ok',
         database: 'connected',
-        migrations: latestMigration[0] ? {
-          latest: latestMigration[0].migration_name,
-          applied_at: latestMigration[0].finished_at,
-        } : 'unknown',
+        migrations: latestMigration[0]
+          ? {
+              latest: latestMigration[0].migration_name,
+              applied_at: latestMigration[0].finished_at,
+            }
+          : 'unknown',
         schema: 'valid',
         timestamp: new Date().toISOString(),
       };
@@ -94,5 +111,3 @@ export class HealthController {
     }
   }
 }
-
-

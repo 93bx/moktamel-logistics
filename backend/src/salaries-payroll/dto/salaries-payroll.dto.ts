@@ -41,4 +41,3 @@ export class CreateSalaryReceiptDto {
   @IsString()
   attachmentUrl?: string;
 }
-

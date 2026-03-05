@@ -1,8 +1,21 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PayrollRunStatus, PayrollEmployeeStatus, PaymentMethod, DocumentSequenceType, Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  PayrollRunStatus,
+  PayrollEmployeeStatus,
+  PaymentMethod,
+  DocumentSequenceType,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SalariesPayrollCalculationService } from './salaries-payroll.calculation.service';
-import { ListSalariesQueryDto, CreateSalaryReceiptDto } from './dto/salaries-payroll.dto';
+import {
+  ListSalariesQueryDto,
+  CreateSalaryReceiptDto,
+} from './dto/salaries-payroll.dto';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -34,7 +47,7 @@ export class SalariesPayrollService {
       run = await this.generateRun(company_id, start, end);
     } else if (run.status === PayrollRunStatus.DRAFT) {
       // For draft runs, we might want to refresh data from sources
-      // but for now let's just return what's there. 
+      // but for now let's just return what's there.
       // A "Refresh" button could trigger regeneration.
     }
 
@@ -90,7 +103,9 @@ export class SalariesPayrollService {
         activeEmployeesCount: statsAgg._count.id,
         totalLoansAmount: Number(statsAgg._sum.total_outstanding_loans ?? 0),
         totalDeductionsAmount: Number(statsAgg._sum.total_deductions ?? 0),
-        totalSalariesDueAmount: Number(salariesDueAgg._sum.salary_after_deductions ?? 0),
+        totalSalariesDueAmount: Number(
+          salariesDueAgg._sum.salary_after_deductions ?? 0,
+        ),
         totalRevenueAmount: Number(statsAgg._sum.total_revenue ?? 0),
       },
       items: employees,
@@ -116,7 +131,12 @@ export class SalariesPayrollService {
     return employee;
   }
 
-  async createReceipt(company_id: string, actor_user_id: string, payrollRunEmployeeId: string, data: CreateSalaryReceiptDto) {
+  async createReceipt(
+    company_id: string,
+    actor_user_id: string,
+    payrollRunEmployeeId: string,
+    data: CreateSalaryReceiptDto,
+  ) {
     const employee = await this.prisma.payrollRunEmployee.findFirst({
       where: { id: payrollRunEmployeeId, company_id },
       include: { receipt: true, payroll_run: true },
@@ -124,7 +144,9 @@ export class SalariesPayrollService {
 
     if (!employee) throw new NotFoundException('Payroll record not found');
     if (employee.status === 'PAID' || employee.receipt) {
-      throw new BadRequestException('PAYROLL_SALARIES_002: Salary already paid for this month');
+      throw new BadRequestException(
+        'PAYROLL_SALARIES_002: Salary already paid for this month',
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -204,7 +226,9 @@ export class SalariesPayrollService {
       });
 
       if (!config) {
-        throw new BadRequestException('PAYROLL_SALARIES_001: Payroll configuration not found for this company');
+        throw new BadRequestException(
+          'PAYROLL_SALARIES_001: Payroll configuration not found for this company',
+        );
       }
 
       // 3. Create the run record
@@ -228,12 +252,17 @@ export class SalariesPayrollService {
             date: { gte: start, lte: end },
             is_draft: false,
           },
-          _sum: { orders_count: true, total_revenue: true, cash_collected: true, cash_received: true },
+          _sum: {
+            orders_count: true,
+            total_revenue: true,
+            cash_collected: true,
+            cash_received: true,
+          },
           _count: { id: true },
         });
 
         // Fetch loans data
-        // For now, let's sum all approved loans that are not fully paid? 
+        // For now, let's sum all approved loans that are not fully paid?
         // Or as per requirement: "Total outstanding balance of all loans".
         const loansAgg = await tx.cashTransaction.aggregate({
           where: {
@@ -244,7 +273,7 @@ export class SalariesPayrollService {
           },
           _sum: { amount: true },
         });
-        
+
         // Sum repayments (receipts tied to loans - assuming we have a way to distinguish)
         // If not, we'll just use total loans for now.
         const totalOutstandingLoans = Number(loansAgg._sum.amount ?? 0);
@@ -261,7 +290,9 @@ export class SalariesPayrollService {
         });
 
         // Unreceived cash
-        const unreceivedCash = Number(opsAgg._sum.cash_collected ?? 0) - Number(opsAgg._sum.cash_received ?? 0);
+        const unreceivedCash =
+          Number(opsAgg._sum.cash_collected ?? 0) -
+          Number(opsAgg._sum.cash_received ?? 0);
 
         const calculation = this.calculator.calculate({
           baseSalary: Number(emp.salary_amount ?? 0),
@@ -293,7 +324,9 @@ export class SalariesPayrollService {
             target_difference: calculation.targetDifference,
             deduction_method: config.calculation_method,
             total_deductions: calculation.totalDeductions,
-            scheduled_loan_installments: Number(installmentsAgg._sum.amount ?? 0),
+            scheduled_loan_installments: Number(
+              installmentsAgg._sum.amount ?? 0,
+            ),
             total_outstanding_loans: totalOutstandingLoans,
             total_unreceived_cash: unreceivedCash,
             total_bonus: 0,
@@ -310,4 +343,3 @@ export class SalariesPayrollService {
     });
   }
 }
-

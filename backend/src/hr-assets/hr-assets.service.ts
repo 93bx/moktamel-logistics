@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -43,50 +47,58 @@ export class HrAssetsService {
 
   async getStats(company_id: string) {
     const now = new Date();
-    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const startOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    const nextMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+    );
 
-    const [assignedAssets, custodiansList, deductionsAgg, pendingRecoveryList] = await this.prisma.$transaction([
-      this.prisma.assetAssignment.findMany({
-        where: {
-          company_id,
-          status_code: 'ASSIGNED',
-          employment_record: { deleted_at: null },
-        },
-        select: { asset: { select: { price: true } } },
-      }),
-      this.prisma.assetAssignment.findMany({
-        where: {
-          company_id,
-          status_code: 'ASSIGNED',
-          employment_record: { deleted_at: null },
-        },
-        distinct: ['employment_record_id'],
-        select: { employment_record_id: true },
-      }),
-      this.prisma.assetDeduction.aggregate({
-        where: {
-          company_id,
-          status_code: 'DEDUCTED',
-          deducted_at: { gte: startOfMonth, lt: nextMonth },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.assetAssignment.findMany({
-        where: {
-          company_id,
-          status_code: 'ASSIGNED',
-          employment_record: {
-            deleted_at: null,
-            contract_end_at: { not: null, lt: now },
+    const [assignedAssets, custodiansList, deductionsAgg, pendingRecoveryList] =
+      await this.prisma.$transaction([
+        this.prisma.assetAssignment.findMany({
+          where: {
+            company_id,
+            status_code: 'ASSIGNED',
+            employment_record: { deleted_at: null },
           },
-        },
-        distinct: ['employment_record_id'],
-        select: { employment_record_id: true },
-      }),
-    ]);
+          select: { asset: { select: { price: true } } },
+        }),
+        this.prisma.assetAssignment.findMany({
+          where: {
+            company_id,
+            status_code: 'ASSIGNED',
+            employment_record: { deleted_at: null },
+          },
+          distinct: ['employment_record_id'],
+          select: { employment_record_id: true },
+        }),
+        this.prisma.assetDeduction.aggregate({
+          where: {
+            company_id,
+            status_code: 'DEDUCTED',
+            deducted_at: { gte: startOfMonth, lt: nextMonth },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.assetAssignment.findMany({
+          where: {
+            company_id,
+            status_code: 'ASSIGNED',
+            employment_record: {
+              deleted_at: null,
+              contract_end_at: { not: null, lt: now },
+            },
+          },
+          distinct: ['employment_record_id'],
+          select: { employment_record_id: true },
+        }),
+      ]);
 
-    const assetsValue = assignedAssets.reduce((sum, a) => sum + Number(a.asset.price), 0);
+    const assetsValue = assignedAssets.reduce(
+      (sum, a) => sum + Number(a.asset.price),
+      0,
+    );
     const custodians = custodiansList.length;
     const deductions = Number(deductionsAgg._sum.amount ?? 0);
     const pendingRecovery = pendingRecoveryList.length;
@@ -99,7 +111,15 @@ export class HrAssetsService {
     };
   }
 
-  async list(company_id: string, input: { page: number; page_size: number; q?: string; employment_record_id?: string }) {
+  async list(
+    company_id: string,
+    input: {
+      page: number;
+      page_size: number;
+      q?: string;
+      employment_record_id?: string;
+    },
+  ) {
     const whereEmployment: any = { company_id, deleted_at: null };
     if (input.q) {
       whereEmployment.OR = [
@@ -132,14 +152,29 @@ export class HrAssetsService {
           employee_no: true,
           employee_code: true,
           avatar_file_id: true,
-          recruitment_candidate: { select: { full_name_ar: true, full_name_en: true, passport_no: true, nationality: true } },
+          recruitment_candidate: {
+            select: {
+              full_name_ar: true,
+              full_name_en: true,
+              passport_no: true,
+              nationality: true,
+            },
+          },
           assets: {
             select: {
               id: true,
               status_code: true,
               receive_date: true,
               condition_code: true,
-              asset: { select: { id: true, type: true, name: true, price: true, vehicle_id: true } },
+              asset: {
+                select: {
+                  id: true,
+                  type: true,
+                  name: true,
+                  price: true,
+                  vehicle_id: true,
+                },
+              },
               created_at: true,
             },
           },
@@ -162,7 +197,9 @@ export class HrAssetsService {
       where: { id: employment_record_id, company_id, deleted_at: null },
       select: {
         id: true,
-        recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
+        recruitment_candidate: {
+          select: { full_name_ar: true, full_name_en: true },
+        },
         assets: {
           orderBy: { created_at: 'desc' },
           select: {
@@ -173,7 +210,15 @@ export class HrAssetsService {
             recovered_at: true,
             asset_record: true,
             asset_image_file_id: true,
-            asset: { select: { id: true, type: true, name: true, price: true, vehicle_id: true } },
+            asset: {
+              select: {
+                id: true,
+                type: true,
+                name: true,
+                price: true,
+                vehicle_id: true,
+              },
+            },
           },
         },
       },
@@ -182,7 +227,11 @@ export class HrAssetsService {
     return record;
   }
 
-  async createAssignment(company_id: string, actor_user_id: string, input: AssignmentInput) {
+  async createAssignment(
+    company_id: string,
+    actor_user_id: string,
+    input: AssignmentInput,
+  ) {
     const employment = await this.prisma.employmentRecord.findFirst({
       where: { id: input.employment_record_id, company_id, deleted_at: null },
       select: { id: true, contract_end_at: true },
@@ -236,7 +285,10 @@ export class HrAssetsService {
         company_id,
         type_code: 'HR_ASSETS_PENDING_RECOVERY',
         severity: 'WARNING',
-        payload: { employment_record_id: employment.id, assignments: createdAssignments.map((a) => a.id) },
+        payload: {
+          employment_record_id: employment.id,
+          assignments: createdAssignments.map((a) => a.id),
+        },
         created_by_user_id: actor_user_id,
       });
     }
@@ -244,7 +296,11 @@ export class HrAssetsService {
     return createdAssignments;
   }
 
-  async recoverAsset(company_id: string, actor_user_id: string, input: RecoveryInput) {
+  async recoverAsset(
+    company_id: string,
+    actor_user_id: string,
+    input: RecoveryInput,
+  ) {
     const assignment = await this.prisma.assetAssignment.findFirst({
       where: { id: input.assignment_id, company_id },
       select: { id: true },
@@ -274,14 +330,22 @@ export class HrAssetsService {
     return updated;
   }
 
-  async createLossReport(company_id: string, actor_user_id: string, input: LossReportInput) {
+  async createLossReport(
+    company_id: string,
+    actor_user_id: string,
+    input: LossReportInput,
+  ) {
     const assignment = await this.prisma.assetAssignment.findFirst({
       where: { id: input.asset_assignment_id, company_id },
       select: { id: true, employment_record_id: true },
     });
     if (!assignment) throw new NotFoundException('Asset assignment not found');
 
-    if (input.action_code === 'DEDUCT_IN_INSTALLMENTS' && input.installment_count && input.installment_count > 12) {
+    if (
+      input.action_code === 'DEDUCT_IN_INSTALLMENTS' &&
+      input.installment_count &&
+      input.installment_count > 12
+    ) {
       throw new BadRequestException('Installments cannot exceed 12');
     }
 
@@ -293,7 +357,8 @@ export class HrAssetsService {
         asset_value: input.asset_value,
         action_code: input.action_code,
         installment_count: input.installment_count ?? null,
-        approval_status_code: input.action_code === 'ADMINISTRATIVE_EXEMPTION' ? 'PENDING' : null,
+        approval_status_code:
+          input.action_code === 'ADMINISTRATIVE_EXEMPTION' ? 'PENDING' : null,
         notes: input.notes ?? null,
         created_by_user_id: actor_user_id,
       },
@@ -318,7 +383,10 @@ export class HrAssetsService {
         company_id,
         type_code: 'HR_ASSETS_LOSS_REPORT_APPROVAL_REQUIRED',
         severity: 'WARNING',
-        payload: { report_id: report.id, assignment_id: input.asset_assignment_id },
+        payload: {
+          report_id: report.id,
+          assignment_id: input.asset_assignment_id,
+        },
         created_by_user_id: actor_user_id,
       });
     }
@@ -335,10 +403,21 @@ export class HrAssetsService {
     return report;
   }
 
-  async approveLossReport(company_id: string, actor_user_id: string, report_id: string, approved: boolean) {
+  async approveLossReport(
+    company_id: string,
+    actor_user_id: string,
+    report_id: string,
+    approved: boolean,
+  ) {
     const report = await this.prisma.assetLossReport.findFirst({
       where: { id: report_id, company_id },
-      select: { id: true, action_code: true, installment_count: true, asset_value: true, asset_assignment_id: true },
+      select: {
+        id: true,
+        action_code: true,
+        installment_count: true,
+        asset_value: true,
+        asset_assignment_id: true,
+      },
     });
     if (!report) throw new NotFoundException('Loss report not found');
 
@@ -346,27 +425,38 @@ export class HrAssetsService {
 
     const updated = await this.prisma.assetLossReport.update({
       where: { id: report_id },
-      data: { approval_status_code: approvalStatus, approver_user_id: actor_user_id },
+      data: {
+        approval_status_code: approvalStatus,
+        approver_user_id: actor_user_id,
+      },
     });
 
     await this.prisma.approvalRequest.updateMany({
-      where: { entity_id: report_id, entity_type: 'ASSET_LOSS_REPORT', company_id },
+      where: {
+        entity_id: report_id,
+        entity_type: 'ASSET_LOSS_REPORT',
+        company_id,
+      },
       data: { status_code: approvalStatus, approver_user_id: actor_user_id },
     });
 
     // Create deduction entries when approved and deduction is required
-    if (approved && (report.action_code === 'DEDUCT_FROM_SALARY' || report.action_code === 'DEDUCT_IN_INSTALLMENTS')) {
+    if (
+      approved &&
+      (report.action_code === 'DEDUCT_FROM_SALARY' ||
+        report.action_code === 'DEDUCT_IN_INSTALLMENTS')
+    ) {
       if (report.action_code === 'DEDUCT_FROM_SALARY') {
         await this.prisma.assetDeduction.create({
           data: {
             company_id,
             asset_loss_report_id: report.id,
-            employment_record_id: (
-              await this.prisma.assetAssignment.findUnique({
+            employment_record_id: (await this.prisma.assetAssignment.findUnique(
+              {
                 where: { id: report.asset_assignment_id },
                 select: { employment_record_id: true },
-              })
-            )!.employment_record_id,
+              },
+            ))!.employment_record_id,
             amount: report.asset_value,
             status_code: 'PENDING',
           },
@@ -405,7 +495,9 @@ export class HrAssetsService {
 
     await this.notifications.create({
       company_id,
-      type_code: approved ? 'HR_ASSETS_LOSS_REPORT_APPROVED' : 'HR_ASSETS_LOSS_REPORT_REJECTED',
+      type_code: approved
+        ? 'HR_ASSETS_LOSS_REPORT_APPROVED'
+        : 'HR_ASSETS_LOSS_REPORT_REJECTED',
       severity: approved ? 'INFO' : 'WARNING',
       payload: { report_id, approved },
       created_by_user_id: actor_user_id,
@@ -427,12 +519,22 @@ export class HrAssetsService {
         recovered_at: true,
         asset_record: true,
         asset_image_file_id: true,
-        asset: { select: { id: true, type: true, name: true, price: true, vehicle_id: true } },
+        asset: {
+          select: {
+            id: true,
+            type: true,
+            name: true,
+            price: true,
+            vehicle_id: true,
+          },
+        },
         employment_record: {
           select: {
             id: true,
             employee_no: true,
-            recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
+            recruitment_candidate: {
+              select: { full_name_ar: true, full_name_en: true },
+            },
           },
         },
       },
@@ -441,7 +543,12 @@ export class HrAssetsService {
     return assignment;
   }
 
-  async update(company_id: string, actor_user_id: string, id: string, data: Partial<AssignmentInput>) {
+  async update(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: Partial<AssignmentInput>,
+  ) {
     const assignment = await this.prisma.assetAssignment.findFirst({
       where: { id, company_id },
       select: { id: true },
@@ -453,7 +560,9 @@ export class HrAssetsService {
       data: {
         condition_code: (data as any).condition_code ?? undefined,
         status_code: (data as any).status_code ?? undefined,
-        receive_date: (data as any).receive_date ? new Date((data as any).receive_date) : undefined,
+        receive_date: (data as any).receive_date
+          ? new Date((data as any).receive_date)
+          : undefined,
         asset_record: (data as any).asset_record ?? undefined,
       },
     });
@@ -493,7 +602,9 @@ export class HrAssetsService {
       select: {
         id: true,
         employee_no: true,
-        recruitment_candidate: { select: { full_name_ar: true, full_name_en: true } },
+        recruitment_candidate: {
+          select: { full_name_ar: true, full_name_en: true },
+        },
       },
     });
   }
@@ -502,5 +613,3 @@ export class HrAssetsService {
     return [];
   }
 }
-
-

@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -6,14 +17,27 @@ import { Permissions } from '../rbac/permissions.decorator';
 import { PermissionsGuard } from '../rbac/permissions.guard';
 import { HrRecruitmentService } from './hr-recruitment.service';
 
-const SORT_VALUES = ['under_procedure', 'drafts', 'arriving_soon', 'older_than_45_days'] as const;
+const SORT_VALUES = [
+  'under_procedure',
+  'drafts',
+  'arriving_soon',
+  'older_than_45_days',
+] as const;
 const ListQuerySchema = z.object({
-  q: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
-  status_code: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(2).optional()),
+  q: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+  status_code: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(2).optional(),
+  ),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(200).default(25),
-  sort: z
-    .preprocess((val) => (val === '' ? undefined : val), z.enum(SORT_VALUES).optional()),
+  sort: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.enum(SORT_VALUES).optional(),
+  ),
 });
 
 const CandidateCreateSchema = z.object({
@@ -116,9 +140,16 @@ export class HrRecruitmentController {
 
   @Post('candidates/bulk')
   @Permissions('HR_RECRUITMENT_CREATE')
-  async createBulk(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async createBulk(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = CandidateBulkCreateSchema.parse(body);
-    return this.svc.createBulk(req.user.company_id, req.user.sub, data.candidates);
+    return this.svc.createBulk(
+      req.user.company_id,
+      req.user.sub,
+      data.candidates,
+    );
   }
 
   @Post('candidates')
@@ -149,5 +180,3 @@ export class HrRecruitmentController {
     return this.svc.remove(req.user.company_id, req.user.sub, id);
   }
 }
-
-

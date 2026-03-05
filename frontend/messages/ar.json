@@ -638,7 +638,103 @@
     "removeRow": "حذف الصف"
   },
   "dashboard": {
-    "welcome": "مرحباً"
+    "welcome": "مرحباً",
+    "controls": {
+      "month": "الشهر",
+      "apply": "تطبيق",
+      "year": "السنة",
+      "month1": "يناير",
+      "month2": "فبراير",
+      "month3": "مارس",
+      "month4": "أبريل",
+      "month5": "مايو",
+      "month6": "يونيو",
+      "month7": "يوليو",
+      "month8": "أغسطس",
+      "month9": "سبتمبر",
+      "month10": "أكتوبر",
+      "month11": "نوفمبر",
+      "month12": "ديسمبر"
+    },
+    "cards": {
+      "activeEmployees": "الموظفون النشطون",
+      "totalOrders": "إجمالي الطلبات",
+      "totalRevenue": "إجمالي الإيرادات",
+      "totalCashCollected": "إجمالي النقد المحصل",
+      "totalDeductions": "إجمالي الخصومات",
+      "gasPerOrder": "متوسط تكلفة الوقود/طلب"
+    },
+    "compareVsPrevious": "السابق:",
+    "links": {
+      "viewEmployment": "عرض التوظيف",
+      "viewDailyOps": "عرض التشغيل اليومي",
+      "viewCashLoans": "عرض النقد والسلف",
+      "viewFleet": "عرض الأسطول"
+    },
+    "operations": {
+      "title": "التشغيل",
+      "top10": "أفضل 10",
+      "worst10": "أسوأ 10",
+      "byOrders": "حسب الطلبات",
+      "byRevenue": "حسب الإيرادات",
+      "employee": "الموظف",
+      "orders": "الطلبات",
+      "revenue": "الإيرادات"
+    },
+    "chart": {
+      "orders": "الطلبات",
+      "revenue": "الإيرادات",
+      "performance": "الأداء"
+    },
+    "platforms": {
+      "title": "المنصات",
+      "orders": "الطلبات",
+      "revenue": "الإيرادات"
+    },
+    "cashFlow": {
+      "title": "التدفق النقدي",
+      "topUncollected": "أعلى 10 غير محصلة",
+      "employee": "الموظف",
+      "amount": "المبلغ",
+      "dailyCollected": "المحصل يومياً"
+    },
+    "notifications": {
+      "title": "مستندات قريبة من الانتهاء",
+      "docName": "المستند",
+      "association": "الارتباط",
+      "expiryDate": "تاريخ الانتهاء",
+      "daysRemaining": "يوم متبقي",
+      "status": "الحالة",
+      "actions": "إجراءات",
+      "statusExpired": "منتهي",
+      "statusCritical": "≤5 أيام",
+      "statusWarning": "≤30 يوماً",
+      "view": "عرض",
+      "docType": {
+        "Passport": "جواز السفر",
+        "Iqama": "الإقامة",
+        "Contract": "العقد",
+        "License": "الرخصة",
+        "Registration": "التسجيل",
+        "Insurance": "التأمين",
+        "Checkup": "الفحص",
+        "Operating Card": "بطاقة التشغيل",
+        "Visa": "التأشيرة"
+      },
+      "associationType": {
+        "Employee": "موظف",
+        "Vehicle": "مركبة",
+        "Recruitment": "استقدام"
+      }
+    },
+    "empty": {
+      "noReviewedOps": "لا توجد عمليات مراجعة في هذا الشهر.",
+      "noDailyPerf": "لا توجد بيانات أداء يومية.",
+      "noPlatformData": "لا توجد بيانات منصات لهذا الشهر.",
+      "noUncollected": "لا يوجد نقد غير محصل في النطاق.",
+      "noDailyCollected": "لا توجد بيانات محصل يومياً.",
+      "noExpiringDocs": "لا توجد مستندات تنتهي في النافذة الحالية."
+    }
   },
   "fleet": {
     "title": "إدارة الأسطول",

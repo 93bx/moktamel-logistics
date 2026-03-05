@@ -11,5 +11,3 @@ import { HrEmploymentModule } from '../hr-employment/hr-employment.module';
   providers: [HrRecruitmentService, HrRecruitmentCronService],
 })
 export class HrRecruitmentModule {}
-
-

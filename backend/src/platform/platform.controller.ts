@@ -7,7 +7,10 @@ const BootstrapSchema = z.object({
   company_slug: z
     .string()
     .min(2)
-    .regex(/^[a-z0-9-]+$/, 'company_slug must be lowercase letters/numbers/dashes'),
+    .regex(
+      /^[a-z0-9-]+$/,
+      'company_slug must be lowercase letters/numbers/dashes',
+    ),
   owner_email: z.string().email(),
   owner_password: z.string().min(12),
 });
@@ -22,5 +25,3 @@ export class PlatformController {
     return await this.platform.bootstrap(input);
   }
 }
-
-

@@ -37,7 +37,9 @@ export class NotificationsController {
 
   @Get('unread-count')
   @Permissions('NOTIFICATIONS_READ')
-  async unreadCount(@Req() req: Request & { user?: { company_id: string; sub: string } }) {
+  async unreadCount(
+    @Req() req: Request & { user?: { company_id: string; sub: string } },
+  ) {
     const company_id = req.user!.company_id;
     const user_id = req.user!.sub;
     const count = await this.notifications.unreadCount(company_id, user_id);
@@ -52,7 +54,10 @@ export class NotificationsController {
   ) {
     const company_id = req.user!.company_id;
     const user_id = req.user!.sub;
-    const limitNum = Math.min(20, Math.max(1, parseInt(String(limit || '10'), 10) || 10));
+    const limitNum = Math.min(
+      20,
+      Math.max(1, parseInt(String(limit || '10'), 10) || 10),
+    );
     return this.notifications.preview(company_id, user_id, limitNum);
   }
 

@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -7,10 +18,22 @@ import { PermissionsGuard } from '../rbac/permissions.guard';
 import { HrEmploymentService } from './hr-employment.service';
 
 const ListQuerySchema = z.object({
-  q: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
-  status_code: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(2).optional()),
-  platform: z.preprocess((val) => (val === '' ? undefined : val), z.string().optional()),
-  has_assets: z.preprocess((val) => (val === '' ? undefined : val), z.string().optional()),
+  q: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+  status_code: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(2).optional(),
+  ),
+  platform: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().optional(),
+  ),
+  has_assets: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().optional(),
+  ),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(200).default(25),
 });
@@ -44,10 +67,16 @@ const EmploymentCreateSchema = z.object({
   promissory_note_file_id: z.string().uuid().optional().nullable(),
   avatar_file_id: z.string().uuid().optional().nullable(),
   status_code: z.string().min(1).optional(),
-  employment_source: z.enum(['RECRUITMENT', 'AJEEER_CONTRACT', 'WITHIN_KINGDOM']).optional().nullable(),
+  employment_source: z
+    .enum(['RECRUITMENT', 'AJEEER_CONTRACT', 'WITHIN_KINGDOM'])
+    .optional()
+    .nullable(),
   salary_amount: z.number().optional().nullable(),
   salary_currency_code: z.string().min(1).optional().nullable(),
-  assigned_platform: z.enum(['JAHEZ', 'HUNGERSTATION', 'NINJA', 'KEETA']).optional().nullable(),
+  assigned_platform: z
+    .enum(['JAHEZ', 'HUNGERSTATION', 'NINJA', 'KEETA'])
+    .optional()
+    .nullable(),
   platform_user_no: z.string().min(1).optional().nullable(),
   job_type: z.string().min(1).optional().nullable(),
   monthly_orders_target: z.number().int().min(0).optional().nullable(),
@@ -90,7 +119,11 @@ export class HrEmploymentController {
 
   @Patch('records/:id')
   @Permissions('HR_EMPLOYMENT_UPDATE')
-  async update(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
+  async update(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
     const data = EmploymentUpdateSchema.parse(body);
     return this.svc.update(req.user.company_id, req.user.sub, id, data);
   }
@@ -101,5 +134,3 @@ export class HrEmploymentController {
     return this.svc.remove(req.user.company_id, req.user.sub, id);
   }
 }
-
-

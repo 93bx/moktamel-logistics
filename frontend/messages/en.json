@@ -640,7 +640,103 @@
     "removeRow": "Remove row"
   },
   "dashboard": {
-    "welcome": "Welcome"
+    "welcome": "Welcome",
+    "controls": {
+      "month": "Month",
+      "apply": "Apply",
+      "year": "Year",
+      "month1": "Jan",
+      "month2": "Feb",
+      "month3": "Mar",
+      "month4": "Apr",
+      "month5": "May",
+      "month6": "Jun",
+      "month7": "Jul",
+      "month8": "Aug",
+      "month9": "Sep",
+      "month10": "Oct",
+      "month11": "Nov",
+      "month12": "Dec"
+    },
+    "cards": {
+      "activeEmployees": "Active Employees",
+      "totalOrders": "Total Orders",
+      "totalRevenue": "Total Revenue",
+      "totalCashCollected": "Total Cash Collected",
+      "totalDeductions": "Total Deductions",
+      "gasPerOrder": "Avg Gas Cost/Order"
+    },
+    "compareVsPrevious": "previous:",
+    "links": {
+      "viewEmployment": "View Employment",
+      "viewDailyOps": "View Daily Ops",
+      "viewCashLoans": "View Cash & Loans",
+      "viewFleet": "View Fleet"
+    },
+    "operations": {
+      "title": "Operations",
+      "top10": "Top 10",
+      "worst10": "Worst 10",
+      "byOrders": "By Orders",
+      "byRevenue": "By Revenue",
+      "employee": "Employee",
+      "orders": "Orders",
+      "revenue": "Revenue"
+    },
+    "chart": {
+      "orders": "Orders",
+      "revenue": "Revenue",
+      "performance": "Performance"
+    },
+    "platforms": {
+      "title": "Platforms",
+      "orders": "Orders",
+      "revenue": "Revenue"
+    },
+    "cashFlow": {
+      "title": "Cash Flow",
+      "topUncollected": "Top 10 Uncollected",
+      "employee": "Employee",
+      "amount": "Amount",
+      "dailyCollected": "Daily Collected"
+    },
+    "notifications": {
+      "title": "Documents Near Expiry",
+      "docName": "Document",
+      "association": "Association",
+      "expiryDate": "Expiry Date",
+      "daysRemaining": "Days Left",
+      "status": "Status",
+      "actions": "Actions",
+      "statusExpired": "Expired",
+      "statusCritical": "≤5 days",
+      "statusWarning": "≤30 days",
+      "view": "View",
+      "docType": {
+        "Passport": "Passport",
+        "Iqama": "Iqama",
+        "Contract": "Contract",
+        "License": "License",
+        "Registration": "Registration",
+        "Insurance": "Insurance",
+        "Checkup": "Checkup",
+        "Operating Card": "Operating Card",
+        "Visa": "Visa"
+      },
+      "associationType": {
+        "Employee": "Employee",
+        "Vehicle": "Vehicle",
+        "Recruitment": "Recruitment"
+      }
+    },
+    "empty": {
+      "noReviewedOps": "No reviewed operations in this month.",
+      "noDailyPerf": "No daily performance data.",
+      "noPlatformData": "No platform data for this month.",
+      "noUncollected": "No uncollected cash in range.",
+      "noDailyCollected": "No daily collected data.",
+      "noExpiringDocs": "No documents expiring in the current window."
+    }
   },
   "fleet": {
     "title": "Fleet Management",

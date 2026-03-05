@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -7,9 +18,18 @@ import { PermissionsGuard } from '../rbac/permissions.guard';
 import { FleetManagementService } from './fleet-management.service';
 
 const ListQuerySchema = z.object({
-  q: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
-  status_code: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(2).optional()),
-  type_code: z.preprocess((val) => (val === '' ? undefined : val), z.string().optional()),
+  q: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+  status_code: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(2).optional(),
+  ),
+  type_code: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().optional(),
+  ),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(200).default(25),
 });
@@ -25,13 +45,17 @@ const VehicleCreateSchema = z.object({
   purchase_date: z.string().optional(),
   purchase_price: z.union([z.number(), z.string()]).optional(),
   purchase_condition: z.string().optional(),
-  documents: z.array(z.object({
-    type_code: z.string(),
-    number: z.string().optional(),
-    expiry_date: z.string(),
-    file_id: z.string().uuid().optional(),
-    issuer: z.string().optional(),
-  })).optional(),
+  documents: z
+    .array(
+      z.object({
+        type_code: z.string(),
+        number: z.string().optional(),
+        expiry_date: z.string(),
+        file_id: z.string().uuid().optional(),
+        issuer: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 
 const VehicleUpdateSchema = VehicleCreateSchema.partial();
@@ -59,7 +83,10 @@ export class FleetManagementController {
 
   @Get('employees/search')
   @Permissions('FLEET_READ')
-  async employeeSearch(@Req() req: Request & { user?: any }, @Query('q') q: string) {
+  async employeeSearch(
+    @Req() req: Request & { user?: any },
+    @Query('q') q: string,
+  ) {
     return this.svc.searchEmployees(req.user.company_id, q ?? '');
   }
 
@@ -72,7 +99,10 @@ export class FleetManagementController {
 
   @Get('vehicles/search')
   @Permissions('FLEET_READ')
-  async searchVehiclesForGas(@Req() req: Request & { user?: any }, @Query('q') q: string) {
+  async searchVehiclesForGas(
+    @Req() req: Request & { user?: any },
+    @Query('q') q: string,
+  ) {
     return this.svc.searchVehiclesForGas(req.user.company_id, q ?? '');
   }
 
@@ -91,7 +121,11 @@ export class FleetManagementController {
 
   @Patch('vehicles/:id')
   @Permissions('FLEET_UPDATE')
-  async update(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
+  async update(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
     const data = VehicleUpdateSchema.parse(body);
     return this.svc.update(req.user.company_id, req.user.sub, id, data);
   }
@@ -104,39 +138,71 @@ export class FleetManagementController {
 
   @Post('vehicles/:id/assign')
   @Permissions('FLEET_ASSIGN')
-  async assign(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: any) {
+  async assign(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
     return this.svc.assign(req.user.company_id, req.user.sub, id, body);
   }
 
   @Post('vehicles/:id/transfer')
   @Permissions('FLEET_ASSIGN')
-  async transfer(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: any) {
+  async transfer(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
     return this.svc.transfer(req.user.company_id, req.user.sub, id, body);
   }
 
   @Post('vehicles/:id/unassign')
   @Permissions('FLEET_ASSIGN')
-  async unassign(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: any) {
+  async unassign(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
     return this.svc.unassign(req.user.company_id, req.user.sub, id, body);
   }
 
   @Post('vehicles/:id/maintenance/enter')
   @Permissions('FLEET_MAINTENANCE')
-  async enterMaintenance(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: any) {
-    return this.svc.enterMaintenance(req.user.company_id, req.user.sub, id, body);
+  async enterMaintenance(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.svc.enterMaintenance(
+      req.user.company_id,
+      req.user.sub,
+      id,
+      body,
+    );
   }
 
   @Post('vehicles/:id/maintenance/exit')
   @Permissions('FLEET_MAINTENANCE')
-  async exitMaintenance(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: any) {
-    return this.svc.exitMaintenance(req.user.company_id, req.user.sub, id, body);
+  async exitMaintenance(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.svc.exitMaintenance(
+      req.user.company_id,
+      req.user.sub,
+      id,
+      body,
+    );
   }
 
   @Post('gas')
   @Permissions('FLEET_GAS')
-  async createGasRecord(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async createGasRecord(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = GasCreateSchema.parse(body);
     return this.svc.createGasRecord(req.user.company_id, req.user.sub, data);
   }
 }
-

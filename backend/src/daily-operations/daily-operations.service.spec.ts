@@ -78,5 +78,3 @@ describe('DailyOperationsService', () => {
     expect(result.status_code).toBe('FLAGGED_DEDUCTION');
   });
 });
-
-

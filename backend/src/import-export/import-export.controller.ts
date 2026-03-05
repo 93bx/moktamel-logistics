@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -47,10 +55,11 @@ export class ImportExportController {
 
   @Get('jobs')
   @Permissions('HR_RECRUITMENT_READ')
-  async jobs(@Req() req: Request & { user?: any }, @Query('type') type?: string) {
+  async jobs(
+    @Req() req: Request & { user?: any },
+    @Query('type') type?: string,
+  ) {
     const t = type === 'export' ? 'export' : 'import';
     return this.svc.listJobs(req.user.company_id, t);
   }
 }
-
-

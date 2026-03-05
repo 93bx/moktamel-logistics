@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { OperatingPlatform } from '@prisma/client';
@@ -8,18 +19,35 @@ import { PermissionsGuard } from '../rbac/permissions.guard';
 import { DailyOperationsService } from './daily-operations.service';
 
 const ListQuerySchema = z.object({
-  q: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
-  platform: z
-    .preprocess((val) => (val === '' ? undefined : val), z.nativeEnum(OperatingPlatform).optional()),
-  date_from: z.preprocess((val) => (val === '' ? undefined : val), z.string().datetime().optional()),
-  date_to: z.preprocess((val) => (val === '' ? undefined : val), z.string().datetime().optional()),
+  q: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+  platform: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.nativeEnum(OperatingPlatform).optional(),
+  ),
+  date_from: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().datetime().optional(),
+  ),
+  date_to: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().datetime().optional(),
+  ),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(200).default(25),
 });
 
 const StatsQuerySchema = z.object({
-  date_from: z.preprocess((val) => (val === '' ? undefined : val), z.string().datetime().optional()),
-  date_to: z.preprocess((val) => (val === '' ? undefined : val), z.string().datetime().optional()),
+  date_from: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().datetime().optional(),
+  ),
+  date_to: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().datetime().optional(),
+  ),
 });
 
 const SubmitActionSchema = z.enum(['draft', 'approve']).default('draft');
@@ -103,21 +131,37 @@ export class DailyOperationsController {
 
   @Post('bulk')
   @Permissions('DAILY_OPS_CREATE_BULK')
-  async createBulk(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async createBulk(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = BulkCreateSchema.parse(body);
     return this.svc.createBulk(req.user.company_id, req.user.sub, data);
   }
 
   @Patch('records/:id/status')
   @Permissions('DAILY_OPS_UPDATE')
-  async updateStatus(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
+  async updateStatus(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
     const data = StatusUpdateSchema.parse(body);
-    return this.svc.updateStatus(req.user.company_id, req.user.sub, id, data.status_code);
+    return this.svc.updateStatus(
+      req.user.company_id,
+      req.user.sub,
+      id,
+      data.status_code,
+    );
   }
 
   @Patch('records/:id')
   @Permissions('DAILY_OPS_UPDATE')
-  async updateRecord(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
+  async updateRecord(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
     const data = UpdateRecordSchema.parse(body);
     return this.svc.updateRecord(req.user.company_id, req.user.sub, id, data);
   }
@@ -130,14 +174,24 @@ export class DailyOperationsController {
 
   @Get('records/check')
   @Permissions('DAILY_OPS_READ')
-  async checkEntry(@Req() req: Request & { user?: any }, @Query() query: unknown) {
+  async checkEntry(
+    @Req() req: Request & { user?: any },
+    @Query() query: unknown,
+  ) {
     const { employment_record_id, date } = CheckEntryQuerySchema.parse(query);
-    return this.svc.checkHasEntryForDay(req.user.company_id, employment_record_id, date);
+    return this.svc.checkHasEntryForDay(
+      req.user.company_id,
+      employment_record_id,
+      date,
+    );
   }
 
   @Get('employees/search')
   @Permissions('DAILY_OPS_READ')
-  async searchEmployees(@Req() req: Request & { user?: any }, @Query('q') q: string) {
+  async searchEmployees(
+    @Req() req: Request & { user?: any },
+    @Query('q') q: string,
+  ) {
     return this.svc.searchActiveEmployees(req.user.company_id, q ?? '');
   }
 
@@ -147,5 +201,3 @@ export class DailyOperationsController {
     return this.svc.monthlyCharts(req.user.company_id);
   }
 }
-
-

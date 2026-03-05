@@ -7,5 +7,3 @@ import { DailyOperationsService } from './daily-operations.service';
   providers: [DailyOperationsService],
 })
 export class DailyOperationsModule {}
-
-

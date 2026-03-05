@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -11,13 +19,15 @@ const ConfigQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12),
 });
 
-const DeductionTierSchema = z.object({
-  from: z.number().int().min(0),
-  to: z.number().int().min(0),
-  deduction: z.number().min(0),
-}).refine((data) => data.from <= data.to, {
-  message: 'From must be <= To',
-});
+const DeductionTierSchema = z
+  .object({
+    from: z.number().int().min(0),
+    to: z.number().int().min(0),
+    deduction: z.number().min(0),
+  })
+  .refine((data) => data.from <= data.to, {
+    message: 'From must be <= To',
+  });
 
 const UpdateConfigSchema = z.object({
   calculation_method: z.enum(['ORDERS_COUNT', 'REVENUE', 'FIXED_DEDUCTION']),
@@ -44,7 +54,10 @@ export class PayrollConfigController {
 
   @Patch('config')
   @Permissions('PAYROLL_CONFIG_UPDATE')
-  async updateConfig(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async updateConfig(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = UpdateConfigSchema.parse(body);
     return this.svc.updateConfig(req.user.company_id, req.user.sub, data);
   }
@@ -56,5 +69,3 @@ export class PayrollConfigController {
     return this.svc.getStats(req.user.company_id, q.year, q.month);
   }
 }
-
-

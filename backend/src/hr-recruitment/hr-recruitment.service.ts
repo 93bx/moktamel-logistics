@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -28,9 +32,14 @@ export class HrRecruitmentService {
    * Derive recruitment status from expected_arrival_at.
    * Empty -> UNDER_PROCEDURE; future -> ON_ARRIVAL; today or yesterday -> ON_ARRIVAL; more than 1 day past -> ARRIVED.
    */
-  private deriveStatusFromExpectedArrival(expected_arrival_at: Date | string | null): string {
+  private deriveStatusFromExpectedArrival(
+    expected_arrival_at: Date | string | null,
+  ): string {
     if (expected_arrival_at == null) return RECRUITMENT_STATUS.UNDER_PROCEDURE;
-    const d = typeof expected_arrival_at === 'string' ? new Date(expected_arrival_at) : expected_arrival_at;
+    const d =
+      typeof expected_arrival_at === 'string'
+        ? new Date(expected_arrival_at)
+        : expected_arrival_at;
     if (isNaN(d.getTime())) return RECRUITMENT_STATUS.UNDER_PROCEDURE;
     const dateOnly = startOfDayUTC(d);
     const now = new Date();
@@ -63,7 +72,9 @@ export class HrRecruitmentService {
     full_name_en: string | null,
     created_by_user_id: string,
   ): Promise<void> {
-    const daysUntil = Math.ceil((expected_arrival_at.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    const daysUntil = Math.ceil(
+      (expected_arrival_at.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    );
     const payload = {
       candidate_id,
       expected_arrival_at: expected_arrival_at.toISOString(),
@@ -71,12 +82,13 @@ export class HrRecruitmentService {
       full_name_ar,
       full_name_en: full_name_en ?? undefined,
     };
-    const existing = await this.notifications.findRecentByTypeAndPayloadCandidate(
-      company_id,
-      this.ARRIVAL_SOON_TYPE,
-      candidate_id,
-      48,
-    );
+    const existing =
+      await this.notifications.findRecentByTypeAndPayloadCandidate(
+        company_id,
+        this.ARRIVAL_SOON_TYPE,
+        candidate_id,
+        48,
+      );
     if (existing) {
       await this.notifications.updatePayload(existing.id, company_id, payload);
     } else {
@@ -146,10 +158,17 @@ export class HrRecruitmentService {
       status_code?: string;
       page: number;
       page_size: number;
-      sort?: 'under_procedure' | 'drafts' | 'arriving_soon' | 'older_than_45_days';
+      sort?:
+        | 'under_procedure'
+        | 'drafts'
+        | 'arriving_soon'
+        | 'older_than_45_days';
     },
   ) {
-    const where: Prisma.RecruitmentCandidateWhereInput = { company_id, deleted_at: null };
+    const where: Prisma.RecruitmentCandidateWhereInput = {
+      company_id,
+      deleted_at: null,
+    };
     if (input.status_code) where.status_code = input.status_code;
     if (input.q) {
       where.OR = [
@@ -214,46 +233,50 @@ export class HrRecruitmentService {
     const fortyFiveDaysAgo = new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000);
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const [underProcedureCount, draftCount, olderThan45DaysCount, arrivingWithin7DaysCount] =
-      await this.prisma.$transaction([
-        this.prisma.recruitmentCandidate.count({
-          where: {
-            company_id,
-            deleted_at: null,
-            status_code: RECRUITMENT_STATUS.UNDER_PROCEDURE,
+    const [
+      underProcedureCount,
+      draftCount,
+      olderThan45DaysCount,
+      arrivingWithin7DaysCount,
+    ] = await this.prisma.$transaction([
+      this.prisma.recruitmentCandidate.count({
+        where: {
+          company_id,
+          deleted_at: null,
+          status_code: RECRUITMENT_STATUS.UNDER_PROCEDURE,
+        },
+      }),
+      this.prisma.recruitmentCandidate.count({
+        where: {
+          company_id,
+          deleted_at: null,
+          status_code: RECRUITMENT_STATUS.DRAFT,
+        },
+      }),
+      this.prisma.recruitmentCandidate.count({
+        where: {
+          company_id,
+          deleted_at: null,
+          status_code: {
+            in: [RECRUITMENT_STATUS.UNDER_PROCEDURE, RECRUITMENT_STATUS.DRAFT],
           },
-        }),
-        this.prisma.recruitmentCandidate.count({
-          where: {
-            company_id,
-            deleted_at: null,
-            status_code: RECRUITMENT_STATUS.DRAFT,
+          visa_sent_at: {
+            lt: fortyFiveDaysAgo,
           },
-        }),
-        this.prisma.recruitmentCandidate.count({
-          where: {
-            company_id,
-            deleted_at: null,
-            status_code: {
-              in: [RECRUITMENT_STATUS.UNDER_PROCEDURE, RECRUITMENT_STATUS.DRAFT],
-            },
-            visa_sent_at: {
-              lt: fortyFiveDaysAgo,
-            },
+        },
+      }),
+      this.prisma.recruitmentCandidate.count({
+        where: {
+          company_id,
+          deleted_at: null,
+          status_code: { not: RECRUITMENT_STATUS.DRAFT },
+          expected_arrival_at: {
+            gte: now,
+            lte: sevenDaysFromNow,
           },
-        }),
-        this.prisma.recruitmentCandidate.count({
-          where: {
-            company_id,
-            deleted_at: null,
-            status_code: { not: RECRUITMENT_STATUS.DRAFT },
-            expected_arrival_at: {
-              gte: now,
-              lte: sevenDaysFromNow,
-            },
-          },
-        }),
-      ]);
+        },
+      }),
+    ]);
 
     return {
       underProcedureCount,
@@ -290,7 +313,7 @@ export class HrRecruitmentService {
 
     return {
       ...row,
-      files: fileLinks.map(link => ({
+      files: fileLinks.map((link) => ({
         file_id: link.file.id,
         purpose_code: link.purpose_code,
         original_name: link.file.original_name,
@@ -307,16 +330,24 @@ export class HrRecruitmentService {
 
     // Validation for required fields
     if (!data.full_name_ar || data.full_name_ar.trim().length < 2) {
-      throw new BadRequestException('full_name_ar is required and must be at least 2 characters');
+      throw new BadRequestException(
+        'full_name_ar is required and must be at least 2 characters',
+      );
     }
     if (!data.full_name_en || data.full_name_en.trim().length < 2) {
-      throw new BadRequestException('full_name_en is required and must be at least 2 characters');
+      throw new BadRequestException(
+        'full_name_en is required and must be at least 2 characters',
+      );
     }
     if (!data.nationality || data.nationality.trim().length < 2) {
-      throw new BadRequestException('nationality is required and must be at least 2 characters');
+      throw new BadRequestException(
+        'nationality is required and must be at least 2 characters',
+      );
     }
     if (!data.passport_no || data.passport_no.trim().length < 3) {
-      throw new BadRequestException('passport_no is required and must be at least 3 characters');
+      throw new BadRequestException(
+        'passport_no is required and must be at least 3 characters',
+      );
     }
     if (!data.responsible_office || data.responsible_office.trim().length < 1) {
       throw new BadRequestException('responsible_office is required');
@@ -324,11 +355,21 @@ export class HrRecruitmentService {
     if (!data.passport_image_file_id) {
       throw new BadRequestException('passport_image_file_id is required');
     }
-    if (!data.passport_expiry_at || isNaN(Date.parse(data.passport_expiry_at))) {
-      throw new BadRequestException('passport_expiry_at is required and must be a valid date');
+    if (
+      !data.passport_expiry_at ||
+      isNaN(Date.parse(data.passport_expiry_at))
+    ) {
+      throw new BadRequestException(
+        'passport_expiry_at is required and must be a valid date',
+      );
     }
-    if (data.responsible_office_number && data.responsible_office_number.length > 10) {
-      throw new BadRequestException('responsible_office_number must be at most 10 characters');
+    if (
+      data.responsible_office_number &&
+      data.responsible_office_number.length > 10
+    ) {
+      throw new BadRequestException(
+        'responsible_office_number must be at most 10 characters',
+      );
     }
 
     if (data.visa_deadline_at && isNaN(Date.parse(data.visa_deadline_at))) {
@@ -337,11 +378,16 @@ export class HrRecruitmentService {
     if (data.visa_sent_at && isNaN(Date.parse(data.visa_sent_at))) {
       throw new BadRequestException('Invalid visa_sent_at');
     }
-    if (data.expected_arrival_at && isNaN(Date.parse(data.expected_arrival_at))) {
+    if (
+      data.expected_arrival_at &&
+      isNaN(Date.parse(data.expected_arrival_at))
+    ) {
       throw new BadRequestException('Invalid expected_arrival_at');
     }
 
-    const expectedArrival = data.expected_arrival_at ? new Date(data.expected_arrival_at) : null;
+    const expectedArrival = data.expected_arrival_at
+      ? new Date(data.expected_arrival_at)
+      : null;
     const statusCode = this.deriveStatusFromExpectedArrival(expectedArrival);
 
     const created = await this.prisma.recruitmentCandidate.create({
@@ -356,10 +402,14 @@ export class HrRecruitmentService {
         job_title_code: data.job_title_code ?? null,
         department_id: data.department_id ?? null,
         responsible_office: data.responsible_office,
-        responsible_office_number: data.responsible_office_number?.trim() || null,
-        avatar_file_id: data.personal_picture_file_id ?? data.avatar_file_id ?? null,
+        responsible_office_number:
+          data.responsible_office_number?.trim() || null,
+        avatar_file_id:
+          data.personal_picture_file_id ?? data.avatar_file_id ?? null,
         status_code: statusCode,
-        visa_deadline_at: data.visa_deadline_at ? new Date(data.visa_deadline_at) : null,
+        visa_deadline_at: data.visa_deadline_at
+          ? new Date(data.visa_deadline_at)
+          : null,
         visa_sent_at: data.visa_sent_at ? new Date(data.visa_sent_at) : null,
         expected_arrival_at: expectedArrival,
         notes: data.notes ?? null,
@@ -368,16 +418,29 @@ export class HrRecruitmentService {
 
     // If status is Arrived, create employment record with all carried recruitment data
     if (created.status_code === RECRUITMENT_STATUS.ARRIVED) {
-      await this.employmentSvc.create(company_id, actor_user_id, this.buildEmploymentPayloadFromRecruitment(created, data.passport_image_file_id) as Parameters<HrEmploymentService['create']>[2]);
+      await this.employmentSvc.create(
+        company_id,
+        actor_user_id,
+        this.buildEmploymentPayloadFromRecruitment(
+          created,
+          data.passport_image_file_id,
+        ) as Parameters<HrEmploymentService['create']>[2],
+      );
     }
 
     // Link files
     const filePurposes = [
       { file_id: data.passport_image_file_id, purpose_code: 'PASSPORT_IMAGE' },
       { file_id: data.visa_image_file_id, purpose_code: 'VISA_IMAGE' },
-      { file_id: data.flight_ticket_image_file_id, purpose_code: 'FLIGHT_TICKET_IMAGE' },
-      { file_id: data.personal_picture_file_id, purpose_code: 'PERSONAL_PICTURE' },
-    ].filter(f => f.file_id); // Only link files that were provided
+      {
+        file_id: data.flight_ticket_image_file_id,
+        purpose_code: 'FLIGHT_TICKET_IMAGE',
+      },
+      {
+        file_id: data.personal_picture_file_id,
+        purpose_code: 'PERSONAL_PICTURE',
+      },
+    ].filter((f) => f.file_id); // Only link files that were provided
 
     for (const { file_id, purpose_code } of filePurposes) {
       await this.files.linkToEntity({
@@ -400,7 +463,10 @@ export class HrRecruitmentService {
       new_values: created,
     });
 
-    if (created.expected_arrival_at && this.isWithinArrivalSoonWindow(created.expected_arrival_at)) {
+    if (
+      created.expected_arrival_at &&
+      this.isWithinArrivalSoonWindow(created.expected_arrival_at)
+    ) {
       await this.upsertArrivalSoonNotification(
         company_id,
         created.id,
@@ -415,41 +481,89 @@ export class HrRecruitmentService {
   }
 
   /** Validate one candidate for full create (non-draft). Throws BadRequestException with message. */
-  private validateCandidateForCreate(data: Record<string, unknown>, index: number): void {
+  private validateCandidateForCreate(
+    data: Record<string, unknown>,
+    index: number,
+  ): void {
     const prefix = (i: number) => (i >= 0 ? `Row ${i + 1}: ` : '');
     if (!data.full_name_ar || String(data.full_name_ar).trim().length < 2) {
-      throw new BadRequestException(prefix(index) + 'full_name_ar is required and must be at least 2 characters');
+      throw new BadRequestException(
+        prefix(index) +
+          'full_name_ar is required and must be at least 2 characters',
+      );
     }
     if (!data.full_name_en || String(data.full_name_en).trim().length < 2) {
-      throw new BadRequestException(prefix(index) + 'full_name_en is required and must be at least 2 characters');
+      throw new BadRequestException(
+        prefix(index) +
+          'full_name_en is required and must be at least 2 characters',
+      );
     }
     if (!data.nationality || String(data.nationality).trim().length < 2) {
-      throw new BadRequestException(prefix(index) + 'nationality is required and must be at least 2 characters');
+      throw new BadRequestException(
+        prefix(index) +
+          'nationality is required and must be at least 2 characters',
+      );
     }
     if (!data.passport_no || String(data.passport_no).trim().length < 3) {
-      throw new BadRequestException(prefix(index) + 'passport_no is required and must be at least 3 characters');
+      throw new BadRequestException(
+        prefix(index) +
+          'passport_no is required and must be at least 3 characters',
+      );
     }
-    if (!data.responsible_office || String(data.responsible_office).trim().length < 1) {
-      throw new BadRequestException(prefix(index) + 'responsible_office is required');
+    if (
+      !data.responsible_office ||
+      String(data.responsible_office).trim().length < 1
+    ) {
+      throw new BadRequestException(
+        prefix(index) + 'responsible_office is required',
+      );
     }
     if (!data.passport_image_file_id) {
-      throw new BadRequestException(prefix(index) + 'passport_image_file_id is required');
+      throw new BadRequestException(
+        prefix(index) + 'passport_image_file_id is required',
+      );
     }
-    if (!data.passport_expiry_at || isNaN(Date.parse(String(data.passport_expiry_at)))) {
-      throw new BadRequestException(prefix(index) + 'passport_expiry_at is required and must be a valid date');
+    if (
+      !data.passport_expiry_at ||
+      isNaN(Date.parse(String(data.passport_expiry_at)))
+    ) {
+      throw new BadRequestException(
+        prefix(index) +
+          'passport_expiry_at is required and must be a valid date',
+      );
     }
-    const officeNum = data.responsible_office_number != null ? String(data.responsible_office_number) : '';
+    const officeNum =
+      data.responsible_office_number != null
+        ? String(data.responsible_office_number)
+        : '';
     if (officeNum.length > 10) {
-      throw new BadRequestException(prefix(index) + 'responsible_office_number must be at most 10 characters');
+      throw new BadRequestException(
+        prefix(index) +
+          'responsible_office_number must be at most 10 characters',
+      );
     }
-    if (data.visa_deadline_at != null && data.visa_deadline_at !== '' && isNaN(Date.parse(String(data.visa_deadline_at)))) {
+    if (
+      data.visa_deadline_at != null &&
+      data.visa_deadline_at !== '' &&
+      isNaN(Date.parse(String(data.visa_deadline_at)))
+    ) {
       throw new BadRequestException(prefix(index) + 'Invalid visa_deadline_at');
     }
-    if (data.visa_sent_at != null && data.visa_sent_at !== '' && isNaN(Date.parse(String(data.visa_sent_at)))) {
+    if (
+      data.visa_sent_at != null &&
+      data.visa_sent_at !== '' &&
+      isNaN(Date.parse(String(data.visa_sent_at)))
+    ) {
       throw new BadRequestException(prefix(index) + 'Invalid visa_sent_at');
     }
-    if (data.expected_arrival_at != null && data.expected_arrival_at !== '' && isNaN(Date.parse(String(data.expected_arrival_at)))) {
-      throw new BadRequestException(prefix(index) + 'Invalid expected_arrival_at');
+    if (
+      data.expected_arrival_at != null &&
+      data.expected_arrival_at !== '' &&
+      isNaN(Date.parse(String(data.expected_arrival_at)))
+    ) {
+      throw new BadRequestException(
+        prefix(index) + 'Invalid expected_arrival_at',
+      );
     }
   }
 
@@ -458,7 +572,9 @@ export class HrRecruitmentService {
     actor_user_id: string,
     candidates: Array<Record<string, unknown>>,
   ): Promise<{ created: number; ids: string[] }> {
-    const passportNos = candidates.map(c => String(c.passport_no ?? '').trim()).filter(Boolean);
+    const passportNos = candidates
+      .map((c) => String(c.passport_no ?? '').trim())
+      .filter(Boolean);
     const seen = new Set<string>();
     for (const no of passportNos) {
       if (seen.has(no)) {
@@ -477,19 +593,24 @@ export class HrRecruitmentService {
         select: { passport_no: true },
       });
       if (existing.length > 0) {
-        const list = existing.map(e => e.passport_no).join(', ');
-        throw new BadRequestException(`Passport number already exists: ${list}`);
+        const list = existing.map((e) => e.passport_no).join(', ');
+        throw new BadRequestException(
+          `Passport number already exists: ${list}`,
+        );
       }
     }
 
-    candidates.forEach((data, index) => this.validateCandidateForCreate(data, index));
+    candidates.forEach((data, index) =>
+      this.validateCandidateForCreate(data, index),
+    );
 
     const createdList = await this.prisma.$transaction(
-      candidates.map(data => {
+      candidates.map((data) => {
         const expectedArrival = data.expected_arrival_at
           ? new Date(String(data.expected_arrival_at))
           : null;
-        const statusCode = this.deriveStatusFromExpectedArrival(expectedArrival);
+        const statusCode =
+          this.deriveStatusFromExpectedArrival(expectedArrival);
         return this.prisma.recruitmentCandidate.create({
           data: {
             company_id,
@@ -499,17 +620,21 @@ export class HrRecruitmentService {
             nationality: String(data.nationality),
             passport_no: String(data.passport_no),
             passport_expiry_at: new Date(String(data.passport_expiry_at)),
-            job_title_code: data.job_title_code != null ? String(data.job_title_code) : null,
-            department_id: data.department_id != null ? String(data.department_id) : null,
+            job_title_code:
+              data.job_title_code != null ? String(data.job_title_code) : null,
+            department_id:
+              data.department_id != null ? String(data.department_id) : null,
             responsible_office: String(data.responsible_office),
             responsible_office_number:
-              data.responsible_office_number != null && String(data.responsible_office_number).trim() !== ''
+              data.responsible_office_number != null &&
+              String(data.responsible_office_number).trim() !== ''
                 ? String(data.responsible_office_number).trim()
                 : null,
             avatar_file_id:
-              (typeof data.personal_picture_file_id === 'string' && data.personal_picture_file_id)
+              typeof data.personal_picture_file_id === 'string' &&
+              data.personal_picture_file_id
                 ? data.personal_picture_file_id
-                : (typeof data.avatar_file_id === 'string' && data.avatar_file_id)
+                : typeof data.avatar_file_id === 'string' && data.avatar_file_id
                   ? data.avatar_file_id
                   : null,
             status_code: statusCode,
@@ -535,13 +660,31 @@ export class HrRecruitmentService {
       ids.push(created.id);
 
       const filePurposes = [
-        { file_id: data.passport_image_file_id, purpose_code: 'PASSPORT_IMAGE' as const },
-        { file_id: data.visa_image_file_id, purpose_code: 'VISA_IMAGE' as const },
-        { file_id: data.flight_ticket_image_file_id, purpose_code: 'FLIGHT_TICKET_IMAGE' as const },
-        { file_id: data.personal_picture_file_id, purpose_code: 'PERSONAL_PICTURE' as const },
-      ].filter((f) => typeof f.file_id === 'string' && f.file_id.length > 0) as Array<{
+        {
+          file_id: data.passport_image_file_id,
+          purpose_code: 'PASSPORT_IMAGE' as const,
+        },
+        {
+          file_id: data.visa_image_file_id,
+          purpose_code: 'VISA_IMAGE' as const,
+        },
+        {
+          file_id: data.flight_ticket_image_file_id,
+          purpose_code: 'FLIGHT_TICKET_IMAGE' as const,
+        },
+        {
+          file_id: data.personal_picture_file_id,
+          purpose_code: 'PERSONAL_PICTURE' as const,
+        },
+      ].filter(
+        (f) => typeof f.file_id === 'string' && f.file_id.length > 0,
+      ) as Array<{
         file_id: string;
-        purpose_code: 'PASSPORT_IMAGE' | 'VISA_IMAGE' | 'FLIGHT_TICKET_IMAGE' | 'PERSONAL_PICTURE';
+        purpose_code:
+          | 'PASSPORT_IMAGE'
+          | 'VISA_IMAGE'
+          | 'FLIGHT_TICKET_IMAGE'
+          | 'PERSONAL_PICTURE';
       }>;
 
       for (const { file_id, purpose_code } of filePurposes) {
@@ -565,7 +708,10 @@ export class HrRecruitmentService {
         new_values: created,
       });
 
-      if (created.expected_arrival_at && this.isWithinArrivalSoonWindow(created.expected_arrival_at)) {
+      if (
+        created.expected_arrival_at &&
+        this.isWithinArrivalSoonWindow(created.expected_arrival_at)
+      ) {
         await this.upsertArrivalSoonNotification(
           company_id,
           created.id,
@@ -577,8 +723,19 @@ export class HrRecruitmentService {
       }
 
       if (created.status_code === RECRUITMENT_STATUS.ARRIVED) {
-        const passportFileId = data.passport_image_file_id != null && String(data.passport_image_file_id).length > 0 ? String(data.passport_image_file_id) : await this.getPassportFileIdForCandidate(company_id, created.id);
-        await this.employmentSvc.create(company_id, actor_user_id, this.buildEmploymentPayloadFromRecruitment(created, passportFileId) as Parameters<HrEmploymentService['create']>[2]);
+        const passportFileId =
+          data.passport_image_file_id != null &&
+          String(data.passport_image_file_id).length > 0
+            ? String(data.passport_image_file_id)
+            : await this.getPassportFileIdForCandidate(company_id, created.id);
+        await this.employmentSvc.create(
+          company_id,
+          actor_user_id,
+          this.buildEmploymentPayloadFromRecruitment(
+            created,
+            passportFileId,
+          ) as Parameters<HrEmploymentService['create']>[2],
+        );
       }
     }
 
@@ -595,10 +752,15 @@ export class HrRecruitmentService {
       hasValue(data?.responsible_office) ||
       hasValue(data?.responsible_office_number) ||
       hasValue(data?.notes) ||
-      !!(data?.passport_expiry_at && !isNaN(Date.parse(data.passport_expiry_at))) ||
+      !!(
+        data?.passport_expiry_at && !isNaN(Date.parse(data.passport_expiry_at))
+      ) ||
       !!(data?.visa_deadline_at && !isNaN(Date.parse(data.visa_deadline_at))) ||
       !!(data?.visa_sent_at && !isNaN(Date.parse(data.visa_sent_at))) ||
-      !!(data?.expected_arrival_at && !isNaN(Date.parse(data.expected_arrival_at))) ||
+      !!(
+        data?.expected_arrival_at &&
+        !isNaN(Date.parse(data.expected_arrival_at))
+      ) ||
       !!data?.passport_image_file_id ||
       !!data?.visa_image_file_id ||
       !!data?.flight_ticket_image_file_id ||
@@ -606,12 +768,23 @@ export class HrRecruitmentService {
     );
   }
 
-  private async createDraft(company_id: string, actor_user_id: string, data: any) {
+  private async createDraft(
+    company_id: string,
+    actor_user_id: string,
+    data: any,
+  ) {
     if (!this.hasDraftField(data)) {
-      throw new BadRequestException('At least one field is required to save as draft');
+      throw new BadRequestException(
+        'At least one field is required to save as draft',
+      );
     }
-    if (data.responsible_office_number && data.responsible_office_number.length > 10) {
-      throw new BadRequestException('responsible_office_number must be at most 10 characters');
+    if (
+      data.responsible_office_number &&
+      data.responsible_office_number.length > 10
+    ) {
+      throw new BadRequestException(
+        'responsible_office_number must be at most 10 characters',
+      );
     }
     if (data.visa_deadline_at && isNaN(Date.parse(data.visa_deadline_at))) {
       throw new BadRequestException('Invalid visa_deadline_at');
@@ -619,17 +792,29 @@ export class HrRecruitmentService {
     if (data.visa_sent_at && isNaN(Date.parse(data.visa_sent_at))) {
       throw new BadRequestException('Invalid visa_sent_at');
     }
-    if (data.expected_arrival_at && isNaN(Date.parse(data.expected_arrival_at))) {
+    if (
+      data.expected_arrival_at &&
+      isNaN(Date.parse(data.expected_arrival_at))
+    ) {
       throw new BadRequestException('Invalid expected_arrival_at');
     }
 
-    const fullNameAr = data.full_name_ar != null ? String(data.full_name_ar).trim() : '';
-    const fullNameEn = data.full_name_en != null ? String(data.full_name_en).trim() : null;
-    const nationality = data.nationality != null ? String(data.nationality).trim() : '';
-    const passportNo = data.passport_no != null ? String(data.passport_no).trim() : '';
-    const responsibleOffice = data.responsible_office != null ? String(data.responsible_office).trim() : '';
+    const fullNameAr =
+      data.full_name_ar != null ? String(data.full_name_ar).trim() : '';
+    const fullNameEn =
+      data.full_name_en != null ? String(data.full_name_en).trim() : null;
+    const nationality =
+      data.nationality != null ? String(data.nationality).trim() : '';
+    const passportNo =
+      data.passport_no != null ? String(data.passport_no).trim() : '';
+    const responsibleOffice =
+      data.responsible_office != null
+        ? String(data.responsible_office).trim()
+        : '';
     const responsibleOfficeNumber =
-      data.responsible_office_number != null ? String(data.responsible_office_number).trim() || null : null;
+      data.responsible_office_number != null
+        ? String(data.responsible_office_number).trim() || null
+        : null;
     const passportExpiryAt =
       data.passport_expiry_at && !isNaN(Date.parse(data.passport_expiry_at))
         ? new Date(data.passport_expiry_at)
@@ -639,7 +824,9 @@ export class HrRecruitmentService {
         ? new Date(data.visa_deadline_at)
         : null;
     const visaSentAt =
-      data.visa_sent_at && !isNaN(Date.parse(data.visa_sent_at)) ? new Date(data.visa_sent_at) : null;
+      data.visa_sent_at && !isNaN(Date.parse(data.visa_sent_at))
+        ? new Date(data.visa_sent_at)
+        : null;
     const expectedArrival =
       data.expected_arrival_at && !isNaN(Date.parse(data.expected_arrival_at))
         ? new Date(data.expected_arrival_at)
@@ -658,7 +845,8 @@ export class HrRecruitmentService {
         department_id: data.department_id ?? null,
         responsible_office: responsibleOffice,
         responsible_office_number: responsibleOfficeNumber,
-        avatar_file_id: data.personal_picture_file_id ?? data.avatar_file_id ?? null,
+        avatar_file_id:
+          data.personal_picture_file_id ?? data.avatar_file_id ?? null,
         status_code: RECRUITMENT_STATUS.DRAFT,
         visa_deadline_at: visaDeadlineAt,
         visa_sent_at: visaSentAt,
@@ -670,9 +858,15 @@ export class HrRecruitmentService {
     const filePurposes = [
       { file_id: data.passport_image_file_id, purpose_code: 'PASSPORT_IMAGE' },
       { file_id: data.visa_image_file_id, purpose_code: 'VISA_IMAGE' },
-      { file_id: data.flight_ticket_image_file_id, purpose_code: 'FLIGHT_TICKET_IMAGE' },
-      { file_id: data.personal_picture_file_id, purpose_code: 'PERSONAL_PICTURE' },
-    ].filter(f => f.file_id);
+      {
+        file_id: data.flight_ticket_image_file_id,
+        purpose_code: 'FLIGHT_TICKET_IMAGE',
+      },
+      {
+        file_id: data.personal_picture_file_id,
+        purpose_code: 'PERSONAL_PICTURE',
+      },
+    ].filter((f) => f.file_id);
 
     for (const { file_id, purpose_code } of filePurposes) {
       await this.files.linkToEntity({
@@ -698,7 +892,12 @@ export class HrRecruitmentService {
     return created;
   }
 
-  async update(company_id: string, actor_user_id: string, id: string, data: any) {
+  async update(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: any,
+  ) {
     const existing = await this.prisma.recruitmentCandidate.findFirst({
       where: { id, company_id, deleted_at: null },
     });
@@ -712,37 +911,65 @@ export class HrRecruitmentService {
 
     if (isPublishingDraft) {
       const merged = {
-        full_name_ar: (data.full_name_ar ?? existing.full_name_ar) ?? '',
-        full_name_en: (data.full_name_en ?? existing.full_name_en) ?? '',
-        nationality: (data.nationality ?? existing.nationality) ?? '',
-        passport_no: (data.passport_no ?? existing.passport_no) ?? '',
-        responsible_office: (data.responsible_office ?? existing.responsible_office) ?? '',
-        passport_expiry_at: data.passport_expiry_at ?? existing.passport_expiry_at,
-        responsible_office_number: data.responsible_office_number !== undefined ? data.responsible_office_number : existing.responsible_office_number,
+        full_name_ar: data.full_name_ar ?? existing.full_name_ar ?? '',
+        full_name_en: data.full_name_en ?? existing.full_name_en ?? '',
+        nationality: data.nationality ?? existing.nationality ?? '',
+        passport_no: data.passport_no ?? existing.passport_no ?? '',
+        responsible_office:
+          data.responsible_office ?? existing.responsible_office ?? '',
+        passport_expiry_at:
+          data.passport_expiry_at ?? existing.passport_expiry_at,
+        responsible_office_number:
+          data.responsible_office_number !== undefined
+            ? data.responsible_office_number
+            : existing.responsible_office_number,
       };
       if (!merged.full_name_ar || merged.full_name_ar.trim().length < 2) {
-        throw new BadRequestException('full_name_ar is required and must be at least 2 characters');
+        throw new BadRequestException(
+          'full_name_ar is required and must be at least 2 characters',
+        );
       }
       if (!merged.full_name_en || merged.full_name_en.trim().length < 2) {
-        throw new BadRequestException('full_name_en is required and must be at least 2 characters');
+        throw new BadRequestException(
+          'full_name_en is required and must be at least 2 characters',
+        );
       }
       if (!merged.nationality || merged.nationality.trim().length < 2) {
-        throw new BadRequestException('nationality is required and must be at least 2 characters');
+        throw new BadRequestException(
+          'nationality is required and must be at least 2 characters',
+        );
       }
       if (!merged.passport_no || merged.passport_no.trim().length < 3) {
-        throw new BadRequestException('passport_no is required and must be at least 3 characters');
+        throw new BadRequestException(
+          'passport_no is required and must be at least 3 characters',
+        );
       }
-      if (!merged.responsible_office || merged.responsible_office.trim().length < 1) {
+      if (
+        !merged.responsible_office ||
+        merged.responsible_office.trim().length < 1
+      ) {
         throw new BadRequestException('responsible_office is required');
       }
-      if (!merged.passport_expiry_at || isNaN(new Date(merged.passport_expiry_at).getTime())) {
-        throw new BadRequestException('passport_expiry_at is required and must be a valid date');
+      if (
+        !merged.passport_expiry_at ||
+        isNaN(new Date(merged.passport_expiry_at).getTime())
+      ) {
+        throw new BadRequestException(
+          'passport_expiry_at is required and must be a valid date',
+        );
       }
-      if (merged.responsible_office_number != null && String(merged.responsible_office_number).length > 10) {
-        throw new BadRequestException('responsible_office_number must be at most 10 characters');
+      if (
+        merged.responsible_office_number != null &&
+        String(merged.responsible_office_number).length > 10
+      ) {
+        throw new BadRequestException(
+          'responsible_office_number must be at most 10 characters',
+        );
       }
       if (!data.passport_image_file_id) {
-        throw new BadRequestException('passport_image_file_id is required when submitting a draft');
+        throw new BadRequestException(
+          'passport_image_file_id is required when submitting a draft',
+        );
       }
     }
 
@@ -756,12 +983,17 @@ export class HrRecruitmentService {
     if (explicitMarkAsArrived) {
       statusCode = RECRUITMENT_STATUS.ARRIVED;
     } else if (isPublishingDraft) {
-      const expectedArrival = data.expected_arrival_at != null
-        ? (data.expected_arrival_at ? new Date(data.expected_arrival_at) : null)
-        : existing.expected_arrival_at;
+      const expectedArrival =
+        data.expected_arrival_at != null
+          ? data.expected_arrival_at
+            ? new Date(data.expected_arrival_at)
+            : null
+          : existing.expected_arrival_at;
       statusCode = this.deriveStatusFromExpectedArrival(expectedArrival);
     } else if (data.expected_arrival_at !== undefined) {
-      const expectedArrival = data.expected_arrival_at ? new Date(data.expected_arrival_at) : null;
+      const expectedArrival = data.expected_arrival_at
+        ? new Date(data.expected_arrival_at)
+        : null;
       statusCode = this.deriveStatusFromExpectedArrival(expectedArrival);
     }
 
@@ -776,16 +1008,28 @@ export class HrRecruitmentService {
         full_name_en: data.full_name_en ?? undefined,
         nationality: data.nationality ?? undefined,
         passport_no: data.passport_no ?? undefined,
-        passport_expiry_at: data.passport_expiry_at ? new Date(data.passport_expiry_at) : undefined,
+        passport_expiry_at: data.passport_expiry_at
+          ? new Date(data.passport_expiry_at)
+          : undefined,
         job_title_code: data.job_title_code ?? undefined,
         department_id: data.department_id ?? undefined,
         responsible_office: data.responsible_office ?? undefined,
-        responsible_office_number: data.responsible_office_number !== undefined ? (data.responsible_office_number?.trim() || null) : undefined,
-        avatar_file_id: data.personal_picture_file_id ?? data.avatar_file_id ?? undefined,
+        responsible_office_number:
+          data.responsible_office_number !== undefined
+            ? data.responsible_office_number?.trim() || null
+            : undefined,
+        avatar_file_id:
+          data.personal_picture_file_id ?? data.avatar_file_id ?? undefined,
         ...(statusCode !== undefined && { status_code: statusCode }),
-        visa_deadline_at: data.visa_deadline_at ? new Date(data.visa_deadline_at) : undefined,
-        visa_sent_at: data.visa_sent_at ? new Date(data.visa_sent_at) : undefined,
-        expected_arrival_at: data.expected_arrival_at ? new Date(data.expected_arrival_at) : undefined,
+        visa_deadline_at: data.visa_deadline_at
+          ? new Date(data.visa_deadline_at)
+          : undefined,
+        visa_sent_at: data.visa_sent_at
+          ? new Date(data.visa_sent_at)
+          : undefined,
+        expected_arrival_at: data.expected_arrival_at
+          ? new Date(data.expected_arrival_at)
+          : undefined,
         notes: data.notes ?? undefined,
       },
     });
@@ -794,9 +1038,15 @@ export class HrRecruitmentService {
     const fileUpdates = [
       { file_id: data.passport_image_file_id, purpose_code: 'PASSPORT_IMAGE' },
       { file_id: data.visa_image_file_id, purpose_code: 'VISA_IMAGE' },
-      { file_id: data.flight_ticket_image_file_id, purpose_code: 'FLIGHT_TICKET_IMAGE' },
-      { file_id: data.personal_picture_file_id, purpose_code: 'PERSONAL_PICTURE' },
-    ].filter(f => f.file_id);
+      {
+        file_id: data.flight_ticket_image_file_id,
+        purpose_code: 'FLIGHT_TICKET_IMAGE',
+      },
+      {
+        file_id: data.personal_picture_file_id,
+        purpose_code: 'PERSONAL_PICTURE',
+      },
+    ].filter((f) => f.file_id);
 
     for (const { file_id, purpose_code } of fileUpdates) {
       // Delete existing link for this purpose if exists
@@ -821,8 +1071,17 @@ export class HrRecruitmentService {
 
     // If status changed to "Arrived", create employment record with all carried recruitment data
     if (isChangingToArrived) {
-      const passportFileId = data.passport_image_file_id ?? await this.getPassportFileIdForCandidate(company_id, id);
-      await this.employmentSvc.create(company_id, actor_user_id, this.buildEmploymentPayloadFromRecruitment(updated, passportFileId) as Parameters<HrEmploymentService['create']>[2]);
+      const passportFileId =
+        data.passport_image_file_id ??
+        (await this.getPassportFileIdForCandidate(company_id, id));
+      await this.employmentSvc.create(
+        company_id,
+        actor_user_id,
+        this.buildEmploymentPayloadFromRecruitment(
+          updated,
+          passportFileId,
+        ) as Parameters<HrEmploymentService['create']>[2],
+      );
     }
 
     await this.audit.log({
@@ -838,7 +1097,10 @@ export class HrRecruitmentService {
 
     // Notification for visa deadline
     if (updated.visa_deadline_at) {
-      const days = Math.ceil((updated.visa_deadline_at.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const days = Math.ceil(
+        (updated.visa_deadline_at.getTime() - Date.now()) /
+          (1000 * 60 * 60 * 24),
+      );
       if (days >= 0 && days <= 7) {
         await this.notifications.create({
           company_id,
@@ -850,7 +1112,10 @@ export class HrRecruitmentService {
       }
     }
 
-    if (updated.expected_arrival_at && this.isWithinArrivalSoonWindow(updated.expected_arrival_at)) {
+    if (
+      updated.expected_arrival_at &&
+      this.isWithinArrivalSoonWindow(updated.expected_arrival_at)
+    ) {
       await this.upsertArrivalSoonNotification(
         company_id,
         updated.id,
@@ -923,5 +1188,3 @@ export class HrRecruitmentService {
     return { updated };
   }
 }
-
-

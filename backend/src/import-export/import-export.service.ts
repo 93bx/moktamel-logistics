@@ -23,7 +23,9 @@ export class ImportExportService {
         company_id: input.company_id,
         entity_type: input.entity_type,
         status: 'PENDING',
-        summary: { filters: (input.filters ?? {}) as Prisma.InputJsonValue } as Prisma.InputJsonValue,
+        summary: {
+          filters: (input.filters ?? {}) as Prisma.InputJsonValue,
+        } as Prisma.InputJsonValue,
         created_by_user_id: input.actor_user_id,
       },
     });
@@ -86,5 +88,3 @@ export class ImportExportService {
     });
   }
 }
-
-

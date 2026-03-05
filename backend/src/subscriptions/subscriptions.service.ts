@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, SubscriptionPlan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -21,11 +25,18 @@ export class SubscriptionsService {
     const sub = await this.getCompanySubscription(company_id);
     if (!sub) throw new ForbiddenException('Subscription required');
     const features = sub.plan.features as Prisma.JsonObject;
-    if (!features || features[featureKey] !== true) throw new ForbiddenException('Feature not enabled');
+    if (!features || features[featureKey] !== true)
+      throw new ForbiddenException('Feature not enabled');
   }
 
-  async setCompanyPlan(input: { company_id: string; actor_user_id: string; plan_code: string }) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { code: input.plan_code } });
+  async setCompanyPlan(input: {
+    company_id: string;
+    actor_user_id: string;
+    plan_code: string;
+  }) {
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { code: input.plan_code },
+    });
     if (!plan) throw new NotFoundException('Plan not found');
 
     const updated = await this.prisma.companySubscription.upsert({
@@ -56,30 +67,41 @@ export class SubscriptionsService {
   }
 
   async ensureDefaultPlans() {
-    const defaults: Array<Pick<SubscriptionPlan, 'code' | 'name_code'> & { limits: Prisma.InputJsonValue; features: Prisma.InputJsonValue }> =
-      [
-        {
-          code: 'PLAN_FREE',
-          name_code: 'PLAN_FREE',
-          limits: { users: 5, storage_mb: 500 },
-          features: { HR: true, FILES: true, IMPORT_EXPORT: false },
-        },
-        {
-          code: 'PLAN_PRO',
-          name_code: 'PLAN_PRO',
-          limits: { users: 50, storage_mb: 5000 },
-          features: { HR: true, FILES: true, IMPORT_EXPORT: true },
-        },
-      ];
+    const defaults: Array<
+      Pick<SubscriptionPlan, 'code' | 'name_code'> & {
+        limits: Prisma.InputJsonValue;
+        features: Prisma.InputJsonValue;
+      }
+    > = [
+      {
+        code: 'PLAN_FREE',
+        name_code: 'PLAN_FREE',
+        limits: { users: 5, storage_mb: 500 },
+        features: { HR: true, FILES: true, IMPORT_EXPORT: false },
+      },
+      {
+        code: 'PLAN_PRO',
+        name_code: 'PLAN_PRO',
+        limits: { users: 50, storage_mb: 5000 },
+        features: { HR: true, FILES: true, IMPORT_EXPORT: true },
+      },
+    ];
 
     for (const p of defaults) {
       await this.prisma.subscriptionPlan.upsert({
         where: { code: p.code },
-        update: { name_code: p.name_code, limits: p.limits, features: p.features },
-        create: { code: p.code, name_code: p.name_code, limits: p.limits, features: p.features },
+        update: {
+          name_code: p.name_code,
+          limits: p.limits,
+          features: p.features,
+        },
+        create: {
+          code: p.code,
+          name_code: p.name_code,
+          limits: p.limits,
+          features: p.features,
+        },
       });
     }
   }
 }
-
-

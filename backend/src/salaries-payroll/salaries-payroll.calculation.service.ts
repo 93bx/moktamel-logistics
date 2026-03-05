@@ -43,7 +43,10 @@ export class SalariesPayrollCalculationService {
           rate: input.deductionPerOrder,
           amount: performanceDeduction,
         });
-      } else if (input.deductionMethod === 'ORDERS_COUNT' || input.deductionMethod === 'REVENUE') {
+      } else if (
+        input.deductionMethod === 'ORDERS_COUNT' ||
+        input.deductionMethod === 'REVENUE'
+      ) {
         // Use tiered deductions if available
         if (input.deductionTiers && input.deductionTiers.length > 0) {
           // Find the matching tier
@@ -60,7 +63,9 @@ export class SalariesPayrollCalculationService {
             });
           } else {
             // Check if it's beyond the last tier
-            const lastTier = [...input.deductionTiers].sort((a, b) => b.to - a.to)[0];
+            const lastTier = [...input.deductionTiers].sort(
+              (a, b) => b.to - a.to,
+            )[0];
             if (lastTier && missingOrders > lastTier.to) {
               performanceDeduction = lastTier.deduction;
               details.performanceDeductionBreakdown.push({
@@ -77,7 +82,10 @@ export class SalariesPayrollCalculationService {
 
     const totalDeductions = performanceDeduction;
     const salaryAfterDeductions =
-      input.baseSalary - totalDeductions - input.scheduledLoanInstallments + input.totalBonus;
+      input.baseSalary -
+      totalDeductions -
+      input.scheduledLoanInstallments +
+      input.totalBonus;
 
     const isBelowAverageCost = input.totalRevenue < input.averageCost;
 
@@ -102,4 +110,3 @@ export class SalariesPayrollCalculationService {
     };
   }
 }
-

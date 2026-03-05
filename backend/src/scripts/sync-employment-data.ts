@@ -26,11 +26,17 @@ async function bootstrap() {
 
       // Sync from Recruitment Candidate if linked
       if (record.recruitment_candidate) {
-        if (!record.full_name_ar) updateData.full_name_ar = record.recruitment_candidate.full_name_ar;
-        if (!record.full_name_en) updateData.full_name_en = record.recruitment_candidate.full_name_en;
-        if (!record.avatar_file_id) updateData.avatar_file_id = record.recruitment_candidate.avatar_file_id;
-        if (!record.nationality) updateData.nationality = record.recruitment_candidate.nationality;
-        if (!record.passport_no) updateData.passport_no = record.recruitment_candidate.passport_no;
+        if (!record.full_name_ar)
+          updateData.full_name_ar = record.recruitment_candidate.full_name_ar;
+        if (!record.full_name_en)
+          updateData.full_name_en = record.recruitment_candidate.full_name_en;
+        if (!record.avatar_file_id)
+          updateData.avatar_file_id =
+            record.recruitment_candidate.avatar_file_id;
+        if (!record.nationality)
+          updateData.nationality = record.recruitment_candidate.nationality;
+        if (!record.passport_no)
+          updateData.passport_no = record.recruitment_candidate.passport_no;
       }
 
       // Employee codes for missing records are set by migrate-employee-codes.ts; new records get code from HrEmploymentService on create.
@@ -40,7 +46,9 @@ async function bootstrap() {
           where: { id: record.id },
           data: updateData,
         });
-        console.log(`✓ Updated record ${record.id} (${record.full_name_en || 'Unnamed'})`);
+        console.log(
+          `✓ Updated record ${record.id} (${record.full_name_en || 'Unnamed'})`,
+        );
       }
     }
 
@@ -54,24 +62,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -8,5 +8,3 @@ import { PermissionsGuard } from '../rbac/permissions.guard';
   providers: [CompaniesService, PermissionsGuard],
 })
 export class CompaniesModule {}
-
-

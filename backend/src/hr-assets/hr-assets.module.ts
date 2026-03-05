@@ -7,5 +7,3 @@ import { HrAssetsService } from './hr-assets.service';
   providers: [HrAssetsService],
 })
 export class HrAssetsModule {}
-
-

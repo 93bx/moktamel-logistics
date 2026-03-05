@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -30,8 +40,14 @@ const DateRangeSchema = z.object({
 });
 
 const ListEmployeesSchema = DateRangeSchema.extend({
-  q: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional()),
-  status: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['balanced', 'unbalanced']).optional()),
+  q: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(1).optional(),
+  ),
+  status: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['balanced', 'unbalanced']).optional(),
+  ),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(200).default(25),
 });
@@ -94,50 +110,79 @@ export class CashLoansController {
 
   @Get('employees')
   @Permissions('FIN_CASH_LOANS_READ')
-  async listEmployees(@Req() req: Request & { user?: any }, @Query() query: any) {
+  async listEmployees(
+    @Req() req: Request & { user?: any },
+    @Query() query: any,
+  ) {
     const q = ListEmployeesSchema.parse(query);
     return this.svc.listEmployees(req.user.company_id, q);
   }
 
   @Get('employees/:id')
   @Permissions('FIN_CASH_LOANS_READ')
-  async employeeDetail(@Req() req: Request & { user?: any }, @Param('id') id: string, @Query() query: any) {
+  async employeeDetail(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Query() query: any,
+  ) {
     const q = DateRangeSchema.parse(query);
     return this.svc.employeeDetail(req.user.company_id, id, q);
   }
 
   @Get('employees/search')
   @Permissions('FIN_CASH_LOANS_READ')
-  async searchEmployees(@Req() req: Request & { user?: any }, @Query('q') q: string) {
+  async searchEmployees(
+    @Req() req: Request & { user?: any },
+    @Query('q') q: string,
+  ) {
     return this.svc.searchEmployees(req.user.company_id, q ?? '');
   }
 
   @Post('receipts')
   @Permissions('FIN_CASH_LOANS_MANAGE')
-  async createReceipt(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async createReceipt(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = ReceiptSchema.parse(body);
     return this.svc.createReceipt(req.user.company_id, req.user.sub, data);
   }
 
   @Post('loans')
   @Permissions('FIN_CASH_LOANS_MANAGE')
-  async createLoan(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async createLoan(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = LoanSchema.parse(body);
     return this.svc.createLoan(req.user.company_id, req.user.sub, data);
   }
 
   @Post('deductions')
   @Permissions('FIN_CASH_LOANS_MANAGE')
-  async createDeduction(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async createDeduction(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = DeductionSchema.parse(body);
     return this.svc.createDeduction(req.user.company_id, req.user.sub, data);
   }
 
   @Patch('transactions/:id/status')
   @Permissions('FIN_CASH_LOANS_MANAGE')
-  async updateStatus(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
+  async updateStatus(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
     const data = StatusUpdateSchema.parse(body);
-    return this.svc.updateTransactionStatus(req.user.company_id, req.user.sub, id, data.submit_action, data.attachment_file_id);
+    return this.svc.updateTransactionStatus(
+      req.user.company_id,
+      req.user.sub,
+      id,
+      data.submit_action,
+      data.attachment_file_id,
+    );
   }
 
   @Post('handover')
@@ -147,4 +192,3 @@ export class CashLoansController {
     return this.svc.handover(req.user.company_id, req.user.sub, data);
   }
 }
-

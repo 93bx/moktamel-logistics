@@ -78,16 +78,25 @@ async function bootstrap() {
 
       for (let seq = 1; seq <= records.length; seq++) {
         const record = records[seq - 1];
-        if (record.employee_code && NEW_CODE_PATTERN.test(record.employee_code)) {
+        if (
+          record.employee_code &&
+          NEW_CODE_PATTERN.test(record.employee_code)
+        ) {
           usedCodes.add(record.employee_code);
-          updates.push({ id: record.id, new_employee_code: record.employee_code });
+          updates.push({
+            id: record.id,
+            new_employee_code: record.employee_code,
+          });
           employeeIdToNewCode.set(record.id, record.employee_code);
           continue;
         }
 
         let code: string;
         do {
-          code = prefix + generateThreeRandomChars() + String(seq).padStart(EMPLOYEE_CODE_SEQ_DIGITS, '0');
+          code =
+            prefix +
+            generateThreeRandomChars() +
+            String(seq).padStart(EMPLOYEE_CODE_SEQ_DIGITS, '0');
         } while (usedCodes.has(code));
         usedCodes.add(code);
         updates.push({ id: record.id, new_employee_code: code });
@@ -103,12 +112,23 @@ async function bootstrap() {
 
       const maxSeq = records.length;
       await prisma.usageCounter.upsert({
-        where: { company_id_counter_code: { company_id: company.id, counter_code: 'EMPLOYEE_CODE_SEQ' } },
+        where: {
+          company_id_counter_code: {
+            company_id: company.id,
+            counter_code: 'EMPLOYEE_CODE_SEQ',
+          },
+        },
         update: { value: maxSeq },
-        create: { company_id: company.id, counter_code: 'EMPLOYEE_CODE_SEQ', value: maxSeq },
+        create: {
+          company_id: company.id,
+          counter_code: 'EMPLOYEE_CODE_SEQ',
+          value: maxSeq,
+        },
       });
 
-      console.log(`  Company ${company.name}: ${records.length} records, prefix ${prefix}`);
+      console.log(
+        `  Company ${company.name}: ${records.length} records, prefix ${prefix}`,
+      );
     }
 
     const payrollEmployees = await prisma.payrollRunEmployee.findMany({
@@ -125,10 +145,15 @@ async function bootstrap() {
       }
     }
 
-    console.log(`✓ Updated ${payrollEmployees.length} PayrollRunEmployee rows.`);
+    console.log(
+      `✓ Updated ${payrollEmployees.length} PayrollRunEmployee rows.`,
+    );
     console.log('✓ Employee Code Migration completed successfully!');
   } catch (error: unknown) {
-    console.error('✗ Migration failed:', error instanceof Error ? error.message : error);
+    console.error(
+      '✗ Migration failed:',
+      error instanceof Error ? error.message : error,
+    );
     process.exit(1);
   } finally {
     await app.close();

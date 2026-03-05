@@ -30,7 +30,10 @@ const RECURRENCE_VALUES = ['ONE_TIME', 'MONTHLY', 'YEARLY'] as const;
 
 const ListCostsQuerySchema = z.object({
   q: z
-    .preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional())
+    .preprocess(
+      (val) => (val === '' ? undefined : val),
+      z.string().min(1).optional(),
+    )
     .optional(),
   type_code: z
     .preprocess(
@@ -100,4 +103,3 @@ export class CostsController {
     return this.svc.softDelete(req.user.company_id, req.user.sub, id);
   }
 }
-

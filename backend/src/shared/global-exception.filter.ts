@@ -50,22 +50,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     // Log unhandled exceptions with full details
-    const errorMessage = exception instanceof Error ? exception.message : String(exception);
+    const errorMessage =
+      exception instanceof Error ? exception.message : String(exception);
     const errorStack = exception instanceof Error ? exception.stack : undefined;
-    
-    this.logger.error(
-      `Unhandled exception: ${errorMessage}`,
-      errorStack,
-      {
-        requestId,
-        method: req.method,
-        url: req.url,
-        body: req.body,
-        query: req.query,
-        params: req.params,
-        user: (req as any).user,
-      },
-    );
+
+    this.logger.error(`Unhandled exception: ${errorMessage}`, errorStack, {
+      requestId,
+      method: req.method,
+      url: req.url,
+      body: req.body,
+      query: req.query,
+      params: req.params,
+      user: (req as any).user,
+    });
 
     const body: ErrorEnvelope = {
       error_code: 'COMMON_UNHANDLED_001',
@@ -76,5 +73,3 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json(body);
   }
 }
-
-

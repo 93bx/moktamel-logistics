@@ -31,7 +31,10 @@ export class FilesController {
 
   @Post('upload-url')
   @Permissions('FILES_UPLOAD')
-  async createUploadUrl(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async createUploadUrl(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const input = CreateUploadSchema.parse(body);
     return this.files.createUploadUrl({
       company_id: req.user.company_id,
@@ -42,7 +45,10 @@ export class FilesController {
 
   @Post('download-url')
   @Permissions('FILES_DOWNLOAD')
-  async createDownloadUrl(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async createDownloadUrl(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const input = CreateDownloadSchema.parse(body);
     return this.files.createDownloadUrl({
       company_id: req.user.company_id,
@@ -62,5 +68,3 @@ export class FilesController {
     });
   }
 }
-
-

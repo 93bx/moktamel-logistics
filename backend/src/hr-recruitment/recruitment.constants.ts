@@ -4,4 +4,3 @@ export const RECRUITMENT_STATUS = {
   ON_ARRIVAL: 'ON_ARRIVAL',
   ARRIVED: 'ARRIVED',
 } as const;
-

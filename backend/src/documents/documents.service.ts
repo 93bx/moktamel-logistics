@@ -1,13 +1,29 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-const TAB_VALUES = ['near_expiry', 'employees', 'company', 'fleet', 'recruitment', 'other'] as const;
+const TAB_VALUES = [
+  'near_expiry',
+  'employees',
+  'company',
+  'fleet',
+  'recruitment',
+  'other',
+] as const;
 export type DocumentTab = (typeof TAB_VALUES)[number];
 
 export type DocumentStatus = 'active' | 'near_expiry' | 'expired' | 'no_expiry';
 
-export type DocumentSourceType = 'employment' | 'company' | 'fleet' | 'recruitment' | 'other';
+export type DocumentSourceType =
+  | 'employment'
+  | 'company'
+  | 'fleet'
+  | 'recruitment'
+  | 'other';
 
 export interface DocumentListItem {
   id: string;
@@ -56,13 +72,18 @@ function buildId(parts: string[]): string {
   return parts.join(':');
 }
 
-function parseId(id: string): { source_type: string; entity_id: string; document_id: string; extra?: string } {
+function parseId(id: string): {
+  source_type: string;
+  entity_id: string;
+  document_id: string;
+  extra?: string;
+} {
   const parts = id.split(':');
   if (parts.length < 3) throw new NotFoundException('DOCUMENTS_001');
   return {
-    source_type: parts[0]!,
-    entity_id: parts[1]!,
-    document_id: parts[2]!,
+    source_type: parts[0],
+    entity_id: parts[1],
+    document_id: parts[2],
     extra: parts[3],
   };
 }
@@ -74,13 +95,18 @@ export class DocumentsService {
     private readonly audit: AuditService,
   ) {}
 
-  async getUserPermissions(user_id: string, company_id: string): Promise<Set<string>> {
+  async getUserPermissions(
+    user_id: string,
+    company_id: string,
+  ): Promise<Set<string>> {
     const rows = await this.prisma.userRole.findMany({
       where: { company_id, user_id },
       select: {
         role: {
           select: {
-            role_permissions: { select: { permission: { select: { key: true } } } },
+            role_permissions: {
+              select: { permission: { select: { key: true } } },
+            },
           },
         },
       },
@@ -94,7 +120,10 @@ export class DocumentsService {
     return perms;
   }
 
-  async getStats(company_id: string, userPermissionKeys: Set<string>): Promise<DocumentsStats> {
+  async getStats(
+    company_id: string,
+    userPermissionKeys: Set<string>,
+  ): Promise<DocumentsStats> {
     const now = new Date();
     const d5 = addDays(now, 5);
     const d25 = addDays(now, 25);
@@ -153,13 +182,22 @@ export class DocumentsService {
 
     if (userPermissionKeys.has('HR_RECRUITMENT_READ')) {
       const links = await this.prisma.fileLink.findMany({
-        where: { company_id, entity_type: 'RECRUITMENT_CANDIDATE', purpose_code: 'PASSPORT_IMAGE' },
+        where: {
+          company_id,
+          entity_type: 'RECRUITMENT_CANDIDATE',
+          purpose_code: 'PASSPORT_IMAGE',
+        },
         select: { entity_id: true },
       });
       const candidateIds = [...new Set(links.map((l) => l.entity_id))];
       if (candidateIds.length > 0) {
         const candidates = await this.prisma.recruitmentCandidate.findMany({
-          where: { company_id, id: { in: candidateIds }, deleted_at: null, passport_expiry_at: { not: null } },
+          where: {
+            company_id,
+            id: { in: candidateIds },
+            deleted_at: null,
+            passport_expiry_at: { not: null },
+          },
           select: { passport_expiry_at: true },
         });
         for (const c of candidates) {
@@ -177,11 +215,16 @@ export class DocumentsService {
     return s ?? 'no_expiry';
   }
 
-  private applyQFilter<T extends { doc_name: string; source_label: string }>(items: T[], q?: string): T[] {
+  private applyQFilter<T extends { doc_name: string; source_label: string }>(
+    items: T[],
+    q?: string,
+  ): T[] {
     if (!q || !q.trim()) return items;
     const lower = q.toLowerCase();
     return items.filter(
-      (i) => i.doc_name.toLowerCase().includes(lower) || i.source_label.toLowerCase().includes(lower),
+      (i) =>
+        i.doc_name.toLowerCase().includes(lower) ||
+        i.source_label.toLowerCase().includes(lower),
     );
   }
 
@@ -189,8 +232,15 @@ export class DocumentsService {
     company_id: string,
     userPermissionKeys: Set<string>,
     input: { tab: string; page: number; page_size: number; q?: string },
-  ): Promise<{ items: DocumentListItem[]; total: number; page: number; page_size: number }> {
-    const tab = TAB_VALUES.includes(input.tab as DocumentTab) ? (input.tab as DocumentTab) : 'near_expiry';
+  ): Promise<{
+    items: DocumentListItem[];
+    total: number;
+    page: number;
+    page_size: number;
+  }> {
+    const tab = TAB_VALUES.includes(input.tab as DocumentTab)
+      ? (input.tab as DocumentTab)
+      : 'near_expiry';
     const { page, page_size, q } = input;
 
     let allItems: DocumentListItem[] = [];
@@ -211,11 +261,20 @@ export class DocumentsService {
           license_expiry_at: true,
           license_file_id: true,
           promissory_note_file_id: true,
-          extra_documents: { select: { id: true, document_name: true, expiry_at: true, file_id: true } },
+          extra_documents: {
+            select: {
+              id: true,
+              document_name: true,
+              expiry_at: true,
+              file_id: true,
+            },
+          },
         },
       });
-      const sourceLabel = (r: { full_name_ar: string | null; full_name_en: string | null }) =>
-        r.full_name_en || r.full_name_ar || '-';
+      const sourceLabel = (r: {
+        full_name_ar: string | null;
+        full_name_en: string | null;
+      }) => r.full_name_en || r.full_name_ar || '-';
       for (const r of records) {
         const label = sourceLabel(r);
         if (r.passport_expiry_at != null || r.passport_file_id) {
@@ -339,10 +398,18 @@ export class DocumentsService {
       }
     }
 
-    if (tab === 'recruitment' && userPermissionKeys.has('HR_RECRUITMENT_READ')) {
+    if (
+      tab === 'recruitment' &&
+      userPermissionKeys.has('HR_RECRUITMENT_READ')
+    ) {
       const links = await this.prisma.fileLink.findMany({
         where: { company_id, entity_type: 'RECRUITMENT_CANDIDATE' },
-        select: { id: true, entity_id: true, purpose_code: true, file_id: true },
+        select: {
+          id: true,
+          entity_id: true,
+          purpose_code: true,
+          file_id: true,
+        },
       });
       const candidateIds = [...new Set(links.map((l) => l.entity_id))];
       const candidates =
@@ -370,8 +437,10 @@ export class DocumentsService {
         if (!c) continue;
         const label = c.full_name_en || c.full_name_ar || '-';
         let expiry: Date | null = null;
-        if (link.purpose_code === 'PASSPORT_IMAGE') expiry = c.passport_expiry_at;
-        else if (link.purpose_code === 'VISA_IMAGE') expiry = c.visa_deadline_at ?? null;
+        if (link.purpose_code === 'PASSPORT_IMAGE')
+          expiry = c.passport_expiry_at;
+        else if (link.purpose_code === 'VISA_IMAGE')
+          expiry = c.visa_deadline_at ?? null;
         allItems.push({
           id: buildId(['recruitment', link.entity_id, link.id]),
           doc_name: purposeNames[link.purpose_code] ?? link.purpose_code,
@@ -392,7 +461,12 @@ export class DocumentsService {
       if (userPermissionKeys.has('PAYROLL_VIEW')) {
         const payrollDocs = await this.prisma.payrollDocument.findMany({
           where: { company_id },
-          select: { id: true, document_type: true, month: true, file_url: true },
+          select: {
+            id: true,
+            document_type: true,
+            month: true,
+            file_url: true,
+          },
         });
         for (const p of payrollDocs) {
           const name = `${p.document_type} ${p.month.toISOString().slice(0, 7)}`;
@@ -438,11 +512,19 @@ export class DocumentsService {
       if (userPermissionKeys.has('HR_ASSETS_READ')) {
         const assignments = await this.prisma.assetAssignment.findMany({
           where: { company_id, asset_image_file_id: { not: null } },
-          include: { asset: { select: { name: true } }, employment_record: { select: { full_name_ar: true, full_name_en: true } } },
+          include: {
+            asset: { select: { name: true } },
+            employment_record: {
+              select: { full_name_ar: true, full_name_en: true },
+            },
+          },
         });
         for (const a of assignments) {
           if (!a.asset_image_file_id) continue;
-          const label = a.employment_record?.full_name_en || a.employment_record?.full_name_ar || a.asset.name;
+          const label =
+            a.employment_record?.full_name_en ||
+            a.employment_record?.full_name_ar ||
+            a.asset.name;
           allItems.push({
             id: buildId(['other', 'asset', a.id]),
             doc_name: `Asset: ${a.asset.name}`,
@@ -460,11 +542,18 @@ export class DocumentsService {
       if (userPermissionKeys.has('FIN_CASH_LOANS_READ')) {
         const txns = await this.prisma.cashTransaction.findMany({
           where: { company_id, attachment_file_id: { not: null } },
-          include: { employment_record: { select: { full_name_ar: true, full_name_en: true } } },
+          include: {
+            employment_record: {
+              select: { full_name_ar: true, full_name_en: true },
+            },
+          },
         });
         for (const t of txns) {
           if (!t.attachment_file_id) continue;
-          const label = t.employment_record?.full_name_en || t.employment_record?.full_name_ar || 'Cash transaction';
+          const label =
+            t.employment_record?.full_name_en ||
+            t.employment_record?.full_name_ar ||
+            'Cash transaction';
           allItems.push({
             id: buildId(['other', 'cash', t.id]),
             doc_name: 'Cash receipt',
@@ -479,7 +568,10 @@ export class DocumentsService {
           });
         }
       }
-      if (userPermissionKeys.has('FLEET_READ') || userPermissionKeys.has('FLEET_MAINTENANCE')) {
+      if (
+        userPermissionKeys.has('FLEET_READ') ||
+        userPermissionKeys.has('FLEET_MAINTENANCE')
+      ) {
         const maintenances = await this.prisma.vehicleMaintenance.findMany({
           where: { company_id, invoice_file_id: { not: null } },
           include: { vehicle: { select: { license_plate: true } } },
@@ -526,11 +618,15 @@ export class DocumentsService {
     if (tab === 'near_expiry') {
       const now = new Date();
       const d30 = addDays(now, 30);
-      const empItems =
-        userPermissionKeys.has('HR_EMPLOYMENT_READ') ? await this.getNearExpiryEmployment(company_id) : [];
-      const fleetItems = userPermissionKeys.has('FLEET_READ') ? await this.getNearExpiryFleet(company_id) : [];
-      const recItems =
-        userPermissionKeys.has('HR_RECRUITMENT_READ') ? await this.getNearExpiryRecruitment(company_id) : [];
+      const empItems = userPermissionKeys.has('HR_EMPLOYMENT_READ')
+        ? await this.getNearExpiryEmployment(company_id)
+        : [];
+      const fleetItems = userPermissionKeys.has('FLEET_READ')
+        ? await this.getNearExpiryFleet(company_id)
+        : [];
+      const recItems = userPermissionKeys.has('HR_RECRUITMENT_READ')
+        ? await this.getNearExpiryRecruitment(company_id)
+        : [];
       allItems = [...empItems, ...fleetItems, ...recItems].filter((i) => {
         if (!i.expiry_date) return false;
         const exp = new Date(i.expiry_date);
@@ -555,7 +651,9 @@ export class DocumentsService {
     return { items, total, page, page_size };
   }
 
-  private async getNearExpiryEmployment(company_id: string): Promise<DocumentListItem[]> {
+  private async getNearExpiryEmployment(
+    company_id: string,
+  ): Promise<DocumentListItem[]> {
     const records = await this.prisma.employmentRecord.findMany({
       where: { company_id, deleted_at: null },
       select: {
@@ -570,19 +668,53 @@ export class DocumentsService {
         contract_file_id: true,
         license_expiry_at: true,
         license_file_id: true,
-        extra_documents: { select: { id: true, document_name: true, expiry_at: true, file_id: true } },
+        extra_documents: {
+          select: {
+            id: true,
+            document_name: true,
+            expiry_at: true,
+            file_id: true,
+          },
+        },
       },
     });
     const items: DocumentListItem[] = [];
-    const label = (r: { full_name_ar: string | null; full_name_en: string | null }) =>
-      r.full_name_en || r.full_name_ar || '-';
+    const label = (r: {
+      full_name_ar: string | null;
+      full_name_en: string | null;
+    }) => r.full_name_en || r.full_name_ar || '-';
     for (const r of records) {
       const sl = label(r);
-      const fields: { key: string; name: string; expiry: Date | null; file_id: string | null }[] = [
-        { key: 'passport', name: 'Passport', expiry: r.passport_expiry_at, file_id: r.passport_file_id },
-        { key: 'iqama', name: 'Iqama', expiry: r.iqama_expiry_at, file_id: r.iqama_file_id },
-        { key: 'contract', name: 'Contract', expiry: r.contract_end_at, file_id: r.contract_file_id },
-        { key: 'license', name: 'License', expiry: r.license_expiry_at, file_id: r.license_file_id },
+      const fields: {
+        key: string;
+        name: string;
+        expiry: Date | null;
+        file_id: string | null;
+      }[] = [
+        {
+          key: 'passport',
+          name: 'Passport',
+          expiry: r.passport_expiry_at,
+          file_id: r.passport_file_id,
+        },
+        {
+          key: 'iqama',
+          name: 'Iqama',
+          expiry: r.iqama_expiry_at,
+          file_id: r.iqama_file_id,
+        },
+        {
+          key: 'contract',
+          name: 'Contract',
+          expiry: r.contract_end_at,
+          file_id: r.contract_file_id,
+        },
+        {
+          key: 'license',
+          name: 'License',
+          expiry: r.license_expiry_at,
+          file_id: r.license_file_id,
+        },
       ];
       for (const f of fields) {
         if (f.expiry) {
@@ -622,7 +754,9 @@ export class DocumentsService {
     return items;
   }
 
-  private async getNearExpiryFleet(company_id: string): Promise<DocumentListItem[]> {
+  private async getNearExpiryFleet(
+    company_id: string,
+  ): Promise<DocumentListItem[]> {
     const docs = await this.prisma.vehicleDocument.findMany({
       where: { company_id },
       include: { vehicle: { select: { license_plate: true } } },
@@ -639,7 +773,7 @@ export class DocumentsService {
       source_type: 'fleet' as const,
       source_label: d.vehicle.license_plate,
       expiry_date: d.expiry_date.toISOString(),
-      status: this.statusFromExpiry(d.expiry_date) as DocumentStatus,
+      status: this.statusFromExpiry(d.expiry_date),
       entity_type: 'VEHICLE_DOCUMENT',
       entity_id: d.vehicle_id,
       document_id: d.id,
@@ -648,7 +782,9 @@ export class DocumentsService {
     }));
   }
 
-  private async getNearExpiryRecruitment(company_id: string): Promise<DocumentListItem[]> {
+  private async getNearExpiryRecruitment(
+    company_id: string,
+  ): Promise<DocumentListItem[]> {
     const links = await this.prisma.fileLink.findMany({
       where: { company_id, entity_type: 'RECRUITMENT_CANDIDATE' },
       select: { id: true, entity_id: true, purpose_code: true, file_id: true },
@@ -658,7 +794,13 @@ export class DocumentsService {
       candidateIds.length > 0
         ? await this.prisma.recruitmentCandidate.findMany({
             where: { company_id, id: { in: candidateIds }, deleted_at: null },
-            select: { id: true, full_name_ar: true, full_name_en: true, passport_expiry_at: true, visa_deadline_at: true },
+            select: {
+              id: true,
+              full_name_ar: true,
+              full_name_en: true,
+              passport_expiry_at: true,
+              visa_deadline_at: true,
+            },
           })
         : [];
     const candidateMap = new Map(candidates.map((c) => [c.id, c]));
@@ -672,7 +814,8 @@ export class DocumentsService {
       if (!c) continue;
       let expiry: Date | null = null;
       if (link.purpose_code === 'PASSPORT_IMAGE') expiry = c.passport_expiry_at;
-      else if (link.purpose_code === 'VISA_IMAGE') expiry = c.visa_deadline_at ?? null;
+      else if (link.purpose_code === 'VISA_IMAGE')
+        expiry = c.visa_deadline_at ?? null;
       if (!expiry) continue;
       items.push({
         id: buildId(['recruitment', link.entity_id, link.id]),
@@ -700,7 +843,8 @@ export class DocumentsService {
     const { source_type, entity_id, document_id, extra } = parseId(compositeId);
 
     const requirePerm = (perm: string) => {
-      if (!userPermissionKeys.has(perm)) throw new ForbiddenException('DOCUMENTS_002');
+      if (!userPermissionKeys.has(perm))
+        throw new ForbiddenException('DOCUMENTS_002');
     };
 
     if (source_type === 'employment') {
@@ -744,7 +888,14 @@ export class DocumentsService {
         return;
       }
 
-      const fieldMap: Record<string, 'passport_file_id' | 'iqama_file_id' | 'contract_file_id' | 'license_file_id' | 'promissory_note_file_id'> = {
+      const fieldMap: Record<
+        string,
+        | 'passport_file_id'
+        | 'iqama_file_id'
+        | 'contract_file_id'
+        | 'license_file_id'
+        | 'promissory_note_file_id'
+      > = {
         passport: 'passport_file_id',
         iqama: 'iqama_file_id',
         contract: 'contract_file_id',
@@ -805,7 +956,12 @@ export class DocumentsService {
     if (source_type === 'recruitment') {
       requirePerm('HR_RECRUITMENT_UPDATE');
       const link = await this.prisma.fileLink.findFirst({
-        where: { id: document_id, entity_id, entity_type: 'RECRUITMENT_CANDIDATE', company_id },
+        where: {
+          id: document_id,
+          entity_id,
+          entity_type: 'RECRUITMENT_CANDIDATE',
+          company_id,
+        },
       });
       if (!link) throw new NotFoundException('DOCUMENTS_001');
       await this.prisma.fileObject.updateMany({
@@ -850,7 +1006,8 @@ export class DocumentsService {
         const exp = await this.prisma.handoverExpense.findFirst({
           where: { id: document_id, company_id },
         });
-        if (!exp || !exp.receipt_file_id) throw new NotFoundException('DOCUMENTS_001');
+        if (!exp || !exp.receipt_file_id)
+          throw new NotFoundException('DOCUMENTS_001');
         const fid = exp.receipt_file_id;
         await this.prisma.fileObject.updateMany({
           where: { id: fid, company_id },
@@ -878,7 +1035,8 @@ export class DocumentsService {
         const a = await this.prisma.assetAssignment.findFirst({
           where: { id: document_id, company_id },
         });
-        if (!a || !a.asset_image_file_id) throw new NotFoundException('DOCUMENTS_001');
+        if (!a || !a.asset_image_file_id)
+          throw new NotFoundException('DOCUMENTS_001');
         const fid = a.asset_image_file_id;
         await this.prisma.fileObject.updateMany({
           where: { id: fid, company_id },
@@ -903,7 +1061,8 @@ export class DocumentsService {
         const t = await this.prisma.cashTransaction.findFirst({
           where: { id: document_id, company_id },
         });
-        if (!t || !t.attachment_file_id) throw new NotFoundException('DOCUMENTS_001');
+        if (!t || !t.attachment_file_id)
+          throw new NotFoundException('DOCUMENTS_001');
         const fid = t.attachment_file_id;
         await this.prisma.fileObject.updateMany({
           where: { id: fid, company_id },
@@ -928,7 +1087,8 @@ export class DocumentsService {
         const m = await this.prisma.vehicleMaintenance.findFirst({
           where: { id: document_id, company_id },
         });
-        if (!m || !m.invoice_file_id) throw new NotFoundException('DOCUMENTS_001');
+        if (!m || !m.invoice_file_id)
+          throw new NotFoundException('DOCUMENTS_001');
         const fid = m.invoice_file_id;
         await this.prisma.fileObject.updateMany({
           where: { id: fid, company_id },
@@ -953,7 +1113,8 @@ export class DocumentsService {
         const g = await this.prisma.vehicleGasRecord.findFirst({
           where: { id: document_id, company_id },
         });
-        if (!g || !g.invoice_file_id) throw new NotFoundException('DOCUMENTS_001');
+        if (!g || !g.invoice_file_id)
+          throw new NotFoundException('DOCUMENTS_001');
         const fid = g.invoice_file_id;
         await this.prisma.fileObject.updateMany({
           where: { id: fid, company_id },

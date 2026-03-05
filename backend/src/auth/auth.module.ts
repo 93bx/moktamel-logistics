@@ -8,15 +8,9 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { PlatformModule } from '../platform/platform.module';
 
 @Module({
-  imports: [
-    PassportModule,
-    JwtModule.register({}),
-    PlatformModule,
-  ],
+  imports: [PassportModule, JwtModule.register({}), PlatformModule],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard],
   exports: [AuthService, JwtAuthGuard],
 })
 export class AuthModule {}
-
-

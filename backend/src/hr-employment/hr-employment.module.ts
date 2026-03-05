@@ -10,5 +10,3 @@ import { PayrollConfigModule } from '../payroll-config/payroll-config.module';
   exports: [HrEmploymentService],
 })
 export class HrEmploymentModule {}
-
-

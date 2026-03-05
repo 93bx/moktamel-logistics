@@ -23,6 +23,7 @@ import { PayrollConfigModule } from './payroll-config/payroll-config.module';
 import { CostsModule } from './costs/costs.module';
 import { SalariesPayrollModule } from './salaries-payroll/salaries-payroll.module';
 import { DocumentsModule } from './documents/documents.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { DocumentsModule } from './documents/documents.module';
     CostsModule,
     SalariesPayrollModule,
     DocumentsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

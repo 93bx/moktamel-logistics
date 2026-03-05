@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PayrollConfigService } from '../payroll-config/payroll-config.service';
@@ -7,8 +12,18 @@ import { PrismaService } from '../prisma/prisma.service';
 /** Sequence length for employee code suffix (001, 002, …). Increase to 4+ for more than 999 employees per company. */
 const EMPLOYEE_CODE_SEQ_DIGITS = 3;
 
-const ALLOWED_STATUS_CODES_CREATE = ['EMPLOYMENT_STATUS_DRAFT', 'EMPLOYMENT_STATUS_UNDER_PROCEDURE', 'EMPLOYMENT_STATUS_ACTIVE'] as const;
-const ALLOWED_STATUS_CODES_UPDATE = ['EMPLOYMENT_STATUS_DRAFT', 'EMPLOYMENT_STATUS_UNDER_PROCEDURE', 'EMPLOYMENT_STATUS_ACTIVE', 'EMPLOYMENT_STATUS_DEACTIVATED', 'EMPLOYMENT_STATUS_DESERTED'] as const;
+const ALLOWED_STATUS_CODES_CREATE = [
+  'EMPLOYMENT_STATUS_DRAFT',
+  'EMPLOYMENT_STATUS_UNDER_PROCEDURE',
+  'EMPLOYMENT_STATUS_ACTIVE',
+] as const;
+const ALLOWED_STATUS_CODES_UPDATE = [
+  'EMPLOYMENT_STATUS_DRAFT',
+  'EMPLOYMENT_STATUS_UNDER_PROCEDURE',
+  'EMPLOYMENT_STATUS_ACTIVE',
+  'EMPLOYMENT_STATUS_DEACTIVATED',
+  'EMPLOYMENT_STATUS_DESERTED',
+] as const;
 
 @Injectable()
 export class HrEmploymentService {
@@ -19,7 +34,17 @@ export class HrEmploymentService {
     private readonly payrollConfig: PayrollConfigService,
   ) {}
 
-  async list(company_id: string, input: { q?: string; status_code?: string; platform?: string; has_assets?: string; page: number; page_size: number }) {
+  async list(
+    company_id: string,
+    input: {
+      q?: string;
+      status_code?: string;
+      platform?: string;
+      has_assets?: string;
+      page: number;
+      page_size: number;
+    },
+  ) {
     const where: any = { company_id, deleted_at: null };
     if (input.status_code) where.status_code = input.status_code;
     if (input.platform) where.assigned_platform = input.platform;
@@ -193,9 +218,16 @@ export class HrEmploymentService {
   }
 
   /** Next per-company sequence value, formatted with EMPLOYEE_CODE_SEQ_DIGITS (e.g. "001"). */
-  private async getNextEmployeeCodeSequence(company_id: string): Promise<string> {
+  private async getNextEmployeeCodeSequence(
+    company_id: string,
+  ): Promise<string> {
     const counter = await this.prisma.usageCounter.upsert({
-      where: { company_id_counter_code: { company_id, counter_code: 'EMPLOYEE_CODE_SEQ' } },
+      where: {
+        company_id_counter_code: {
+          company_id,
+          counter_code: 'EMPLOYEE_CODE_SEQ',
+        },
+      },
       update: { value: { increment: 1 } },
       create: { company_id, counter_code: 'EMPLOYEE_CODE_SEQ', value: 1 },
       select: { value: true },
@@ -207,7 +239,8 @@ export class HrEmploymentService {
   private generateThreeRandomChars(): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     const nums = '123456789';
-    const r = (set: string) => set.charAt(Math.floor(Math.random() * set.length));
+    const r = (set: string) =>
+      set.charAt(Math.floor(Math.random() * set.length));
     return `${r(chars)}${r(nums)}${r(chars)}`;
   }
 
@@ -232,53 +265,89 @@ export class HrEmploymentService {
     const now = new Date();
 
     // Step 1 (all except Avatar & Employee Code)
-    if (!(data.full_name_ar?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_FULL_NAME_AR');
-    if (!(data.full_name_en?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_FULL_NAME_EN');
-    if (!(data.nationality?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_NATIONALITY');
+    if (!(data.full_name_ar?.trim?.() ?? ''))
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_FULL_NAME_AR');
+    if (!(data.full_name_en?.trim?.() ?? ''))
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_FULL_NAME_EN');
+    if (!(data.nationality?.trim?.() ?? ''))
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_NATIONALITY');
     const phone = (data.phone ?? '').toString().replace(/\D/g, '');
-    if (phone.length !== 9) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PHONE_9_DIGITS');
-    if (!data.date_of_birth) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_DATE_OF_BIRTH');
-    const hasSource = data.recruitment_candidate_id || (data.employment_source && data.employment_source !== '');
-    if (!hasSource) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_SOURCE');
+    if (phone.length !== 9)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PHONE_9_DIGITS');
+    if (!data.date_of_birth)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_DATE_OF_BIRTH');
+    const hasSource =
+      data.recruitment_candidate_id ||
+      (data.employment_source && data.employment_source !== '');
+    if (!hasSource)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_SOURCE');
 
     // Step 2: Passport, Iqama, Contract
-    if (!(data.passport_no?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_NO');
-    if (!data.passport_expiry_at) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_EXPIRY');
-    if (new Date(data.passport_expiry_at) <= now) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_EXPIRED');
-    if (!data.passport_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_FILE');
+    if (!(data.passport_no?.trim?.() ?? ''))
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_NO');
+    if (!data.passport_expiry_at)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_EXPIRY');
+    if (new Date(data.passport_expiry_at) <= now)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_EXPIRED');
+    if (!data.passport_file_id)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PASSPORT_FILE');
 
-    if (!(data.iqama_no?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_NO');
-    if (!data.iqama_expiry_at) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_EXPIRY');
-    if (new Date(data.iqama_expiry_at) <= now) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_EXPIRED');
-    if (!data.iqama_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_FILE');
+    if (!(data.iqama_no?.trim?.() ?? ''))
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_NO');
+    if (!data.iqama_expiry_at)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_EXPIRY');
+    if (new Date(data.iqama_expiry_at) <= now)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_EXPIRED');
+    if (!data.iqama_file_id)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_IQAMA_FILE');
 
-    if (!(data.contract_no?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_NO');
-    if (!data.contract_end_at) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_END');
-    if (new Date(data.contract_end_at) <= now) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_EXPIRED');
-    if (!data.contract_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_FILE');
+    if (!(data.contract_no?.trim?.() ?? ''))
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_NO');
+    if (!data.contract_end_at)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_END');
+    if (new Date(data.contract_end_at) <= now)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_EXPIRED');
+    if (!data.contract_file_id)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_CONTRACT_FILE');
 
     // Step 3 (all except notes)
-    if (!(data.assigned_platform?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PLATFORM');
-    if (!(data.platform_user_no?.trim?.() ?? '')) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PLATFORM_USER_NO');
-    if (data.salary_amount == null || Number(data.salary_amount) < 0) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_SALARY');
+    if (!(data.assigned_platform?.trim?.() ?? ''))
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PLATFORM');
+    if (!(data.platform_user_no?.trim?.() ?? ''))
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PLATFORM_USER_NO');
+    if (data.salary_amount == null || Number(data.salary_amount) < 0)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_SALARY');
 
-    const config = await this.payrollConfig.getConfig(company_id, now.getFullYear(), now.getMonth() + 1);
+    const config = await this.payrollConfig.getConfig(
+      company_id,
+      now.getFullYear(),
+      now.getMonth() + 1,
+    );
     const minSalary = config.minimum_salary ?? 0;
     if (Number(data.salary_amount) < minSalary) {
-      throw new BadRequestException({ error_code: 'HR_EMPLOYMENT_ACTIVE_SALARY_MIN', min: minSalary });
+      throw new BadRequestException({
+        error_code: 'HR_EMPLOYMENT_ACTIVE_SALARY_MIN',
+        min: minSalary,
+      });
     }
 
     const method = config.calculation_method;
     if (method === 'ORDERS_COUNT' || method === 'FIXED_DEDUCTION') {
-      if (data.monthly_orders_target == null) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_ORDERS_TARGET');
+      if (data.monthly_orders_target == null)
+        throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_ORDERS_TARGET');
     } else if (method === 'REVENUE') {
-      if (data.monthly_target_amount == null) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_REVENUE_TARGET');
+      if (data.monthly_target_amount == null)
+        throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_REVENUE_TARGET');
     }
 
-    if (!data.license_expiry_at) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_EXPIRY');
-    if (new Date(data.license_expiry_at) <= now) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_EXPIRED');
-    if (!data.license_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_FILE');
-    if (!data.promissory_note_file_id) throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PROMISSORY_NOTE');
+    if (!data.license_expiry_at)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_EXPIRY');
+    if (new Date(data.license_expiry_at) <= now)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_EXPIRED');
+    if (!data.license_file_id)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_LICENSE_FILE');
+    if (!data.promissory_note_file_id)
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_PROMISSORY_NOTE');
   }
 
   async create(company_id: string, actor_user_id: string | null, data: any) {
@@ -297,8 +366,10 @@ export class HrEmploymentService {
 
     let statusCode: string;
     if (data.status_code != null) {
-      if (!ALLOWED_STATUS_CODES_CREATE.includes(data.status_code as any)) {
-        throw new BadRequestException('Invalid status code. Allowed: Draft, In Progress, Active.');
+      if (!ALLOWED_STATUS_CODES_CREATE.includes(data.status_code)) {
+        throw new BadRequestException(
+          'Invalid status code. Allowed: Draft, In Progress, Active.',
+        );
       }
       statusCode = data.status_code;
       if (statusCode === 'EMPLOYMENT_STATUS_ACTIVE') {
@@ -313,7 +384,8 @@ export class HrEmploymentService {
       }
     }
 
-    const employee_code = data.employee_code || (await this.getUniqueEmployeeCode(company_id));
+    const employee_code =
+      data.employee_code || (await this.getUniqueEmployeeCode(company_id));
     const jobType = data.job_type ?? 'REPRESENTATIVE';
 
     const created = await this.prisma.employmentRecord.create({
@@ -329,15 +401,23 @@ export class HrEmploymentService {
         phone: data.phone ?? null,
         date_of_birth: data.date_of_birth ? new Date(data.date_of_birth) : null,
         iqama_no: data.iqama_no ?? null,
-        iqama_expiry_at: data.iqama_expiry_at ? new Date(data.iqama_expiry_at) : null,
+        iqama_expiry_at: data.iqama_expiry_at
+          ? new Date(data.iqama_expiry_at)
+          : null,
         iqama_file_id: data.iqama_file_id ?? null,
         passport_no: data.passport_no ?? null,
-        passport_expiry_at: data.passport_expiry_at ? new Date(data.passport_expiry_at) : null,
+        passport_expiry_at: data.passport_expiry_at
+          ? new Date(data.passport_expiry_at)
+          : null,
         passport_file_id: data.passport_file_id ?? null,
         contract_no: data.contract_no ?? null,
-        contract_end_at: data.contract_end_at ? new Date(data.contract_end_at) : null,
+        contract_end_at: data.contract_end_at
+          ? new Date(data.contract_end_at)
+          : null,
         contract_file_id: data.contract_file_id ?? null,
-        license_expiry_at: data.license_expiry_at ? new Date(data.license_expiry_at) : null,
+        license_expiry_at: data.license_expiry_at
+          ? new Date(data.license_expiry_at)
+          : null,
         license_file_id: data.license_file_id ?? null,
         promissory_note_file_id: data.promissory_note_file_id ?? null,
         avatar_file_id: data.avatar_file_id ?? null,
@@ -353,7 +433,9 @@ export class HrEmploymentService {
       },
     });
 
-    const extraDocs = Array.isArray(data.extra_documents) ? data.extra_documents.slice(0, 2) : [];
+    const extraDocs = Array.isArray(data.extra_documents)
+      ? data.extra_documents.slice(0, 2)
+      : [];
     for (let i = 0; i < extraDocs.length; i++) {
       const doc = extraDocs[i];
       await this.prisma.employmentDocument.create({
@@ -380,7 +462,10 @@ export class HrEmploymentService {
 
     // Placeholder notification: expiry soon
     if (created.iqama_expiry_at) {
-      const days = Math.ceil((created.iqama_expiry_at.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const days = Math.ceil(
+        (created.iqama_expiry_at.getTime() - Date.now()) /
+          (1000 * 60 * 60 * 24),
+      );
       if (days >= 0 && days <= 30) {
         await this.notifications.create({
           company_id,
@@ -395,7 +480,12 @@ export class HrEmploymentService {
     return created;
   }
 
-  async update(company_id: string, actor_user_id: string, id: string, data: any) {
+  async update(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: any,
+  ) {
     const existing = await this.prisma.employmentRecord.findFirst({
       where: { id, company_id, deleted_at: null },
     });
@@ -404,18 +494,33 @@ export class HrEmploymentService {
     const merged = { ...existing, ...data };
     let resolvedStatus: string | undefined;
     if (data.status_code != null) {
-      if (!ALLOWED_STATUS_CODES_UPDATE.includes(data.status_code as any)) {
-        throw new BadRequestException('Invalid status code. Allowed: Draft, In Progress, Active, Deactivated, Deserted.');
+      if (!ALLOWED_STATUS_CODES_UPDATE.includes(data.status_code)) {
+        throw new BadRequestException(
+          'Invalid status code. Allowed: Draft, In Progress, Active, Deactivated, Deserted.',
+        );
       }
       resolvedStatus = data.status_code;
-      if (resolvedStatus === 'EMPLOYMENT_STATUS_DESERTED' && existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE') {
+      if (
+        resolvedStatus === 'EMPLOYMENT_STATUS_DESERTED' &&
+        existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE'
+      ) {
         throw new BadRequestException('HR_EMPLOYMENT_004');
       }
-      if (resolvedStatus === 'EMPLOYMENT_STATUS_DEACTIVATED' && existing.status_code !== 'EMPLOYMENT_STATUS_ACTIVE') {
-        throw new BadRequestException('HR_EMPLOYMENT_002: Only active employees can be deactivated.');
+      if (
+        resolvedStatus === 'EMPLOYMENT_STATUS_DEACTIVATED' &&
+        existing.status_code !== 'EMPLOYMENT_STATUS_ACTIVE'
+      ) {
+        throw new BadRequestException(
+          'HR_EMPLOYMENT_002: Only active employees can be deactivated.',
+        );
       }
-      if (existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE' && resolvedStatus !== 'EMPLOYMENT_STATUS_DEACTIVATED') {
-        throw new BadRequestException('HR_EMPLOYMENT_003: Active employees can only be deactivated.');
+      if (
+        existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE' &&
+        resolvedStatus !== 'EMPLOYMENT_STATUS_DEACTIVATED'
+      ) {
+        throw new BadRequestException(
+          'HR_EMPLOYMENT_003: Active employees can only be deactivated.',
+        );
       }
       if (resolvedStatus === 'EMPLOYMENT_STATUS_ACTIVE') {
         await this.validateActiveStatus(company_id, merged);
@@ -437,17 +542,27 @@ export class HrEmploymentService {
       full_name_en: data.full_name_en ?? undefined,
       nationality: data.nationality ?? undefined,
       phone: data.phone ?? undefined,
-      date_of_birth: data.date_of_birth ? new Date(data.date_of_birth) : undefined,
+      date_of_birth: data.date_of_birth
+        ? new Date(data.date_of_birth)
+        : undefined,
       iqama_no: data.iqama_no ?? undefined,
-      iqama_expiry_at: data.iqama_expiry_at ? new Date(data.iqama_expiry_at) : undefined,
+      iqama_expiry_at: data.iqama_expiry_at
+        ? new Date(data.iqama_expiry_at)
+        : undefined,
       iqama_file_id: data.iqama_file_id ?? undefined,
       passport_no: data.passport_no ?? undefined,
-      passport_expiry_at: data.passport_expiry_at ? new Date(data.passport_expiry_at) : undefined,
+      passport_expiry_at: data.passport_expiry_at
+        ? new Date(data.passport_expiry_at)
+        : undefined,
       passport_file_id: data.passport_file_id ?? undefined,
       contract_no: data.contract_no ?? undefined,
-      contract_end_at: data.contract_end_at ? new Date(data.contract_end_at) : undefined,
+      contract_end_at: data.contract_end_at
+        ? new Date(data.contract_end_at)
+        : undefined,
       contract_file_id: data.contract_file_id ?? undefined,
-      license_expiry_at: data.license_expiry_at ? new Date(data.license_expiry_at) : undefined,
+      license_expiry_at: data.license_expiry_at
+        ? new Date(data.license_expiry_at)
+        : undefined,
       license_file_id: data.license_file_id ?? undefined,
       promissory_note_file_id: data.promissory_note_file_id ?? undefined,
       avatar_file_id: data.avatar_file_id ?? undefined,
@@ -510,7 +625,9 @@ export class HrEmploymentService {
     });
     if (!existing) throw new NotFoundException();
     if (existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE') {
-      throw new ForbiddenException('HR_EMPLOYMENT_001: Cannot delete an active employee. Archive to Draft instead.');
+      throw new ForbiddenException(
+        'HR_EMPLOYMENT_001: Cannot delete an active employee. Archive to Draft instead.',
+      );
     }
 
     const deleted = await this.prisma.employmentRecord.update({
@@ -531,5 +648,3 @@ export class HrEmploymentService {
     return { ok: true };
   }
 }
-
-

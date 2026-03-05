@@ -11,4 +11,3 @@ import { AuditModule } from '../audit/audit.module';
   exports: [CostsService],
 })
 export class CostsModule {}
-

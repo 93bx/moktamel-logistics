@@ -8,5 +8,3 @@ import { PayrollConfigService } from './payroll-config.service';
   exports: [PayrollConfigService],
 })
 export class PayrollConfigModule {}
-
-

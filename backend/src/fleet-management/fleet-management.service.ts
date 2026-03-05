@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,7 +15,16 @@ export class FleetManagementService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async list(company_id: string, input: { q?: string; status_code?: string; type_code?: string; page: number; page_size: number }) {
+  async list(
+    company_id: string,
+    input: {
+      q?: string;
+      status_code?: string;
+      type_code?: string;
+      page: number;
+      page_size: number;
+    },
+  ) {
     const where: any = { company_id };
     if (input.status_code) where.status_code = input.status_code;
     if (input.type_code) where.type_code = input.type_code;
@@ -19,8 +32,16 @@ export class FleetManagementService {
       where.OR = [
         { license_plate: { contains: input.q, mode: 'insensitive' } },
         { model: { contains: input.q, mode: 'insensitive' } },
-        { current_driver: { full_name_ar: { contains: input.q, mode: 'insensitive' } } },
-        { current_driver: { full_name_en: { contains: input.q, mode: 'insensitive' } } },
+        {
+          current_driver: {
+            full_name_ar: { contains: input.q, mode: 'insensitive' },
+          },
+        },
+        {
+          current_driver: {
+            full_name_en: { contains: input.q, mode: 'insensitive' },
+          },
+        },
       ];
     }
 
@@ -49,22 +70,33 @@ export class FleetManagementService {
 
   async getStats(company_id: string) {
     const now = new Date();
-    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+    const startOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    const endOfMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+    );
 
-    const [totalFleet, onDuty, idle, inWorkshop, maintenanceCostAgg] = await this.prisma.$transaction([
-      this.prisma.vehicle.count({ where: { company_id } }),
-      this.prisma.vehicle.count({ where: { company_id, status_code: 'ACTIVE' } }),
-      this.prisma.vehicle.count({ where: { company_id, status_code: 'AVAILABLE' } }),
-      this.prisma.vehicle.count({ where: { company_id, status_code: 'MAINTENANCE' } }),
-      this.prisma.vehicleMaintenance.aggregate({
-        where: {
-          company_id,
-          end_date: { not: null, gte: startOfMonth, lte: endOfMonth },
-        },
-        _sum: { cost: true },
-      }),
-    ]);
+    const [totalFleet, onDuty, idle, inWorkshop, maintenanceCostAgg] =
+      await this.prisma.$transaction([
+        this.prisma.vehicle.count({ where: { company_id } }),
+        this.prisma.vehicle.count({
+          where: { company_id, status_code: 'ACTIVE' },
+        }),
+        this.prisma.vehicle.count({
+          where: { company_id, status_code: 'AVAILABLE' },
+        }),
+        this.prisma.vehicle.count({
+          where: { company_id, status_code: 'MAINTENANCE' },
+        }),
+        this.prisma.vehicleMaintenance.aggregate({
+          where: {
+            company_id,
+            end_date: { not: null, gte: startOfMonth, lte: endOfMonth },
+          },
+          _sum: { cost: true },
+        }),
+      ]);
 
     const maintenanceCostThisMonth = Number(maintenanceCostAgg._sum.cost ?? 0);
 
@@ -82,9 +114,21 @@ export class FleetManagementService {
         { license_plate: { contains: term, mode: 'insensitive' } },
         { model: { contains: term, mode: 'insensitive' } },
         { vin: { contains: term, mode: 'insensitive' } },
-        { current_driver: { full_name_ar: { contains: term, mode: 'insensitive' } } },
-        { current_driver: { full_name_en: { contains: term, mode: 'insensitive' } } },
-        { current_driver: { employee_code: { contains: term, mode: 'insensitive' } } },
+        {
+          current_driver: {
+            full_name_ar: { contains: term, mode: 'insensitive' },
+          },
+        },
+        {
+          current_driver: {
+            full_name_en: { contains: term, mode: 'insensitive' },
+          },
+        },
+        {
+          current_driver: {
+            employee_code: { contains: term, mode: 'insensitive' },
+          },
+        },
       ];
     }
     return this.prisma.vehicle.findMany({
@@ -179,7 +223,9 @@ export class FleetManagementService {
         gps_tracker_id: data.gps_tracker_id,
         current_odometer: parseFloat(data.current_odometer || '0'),
         purchase_date: data.purchase_date ? new Date(data.purchase_date) : null,
-        purchase_price: data.purchase_price ? parseFloat(data.purchase_price) : null,
+        purchase_price: data.purchase_price
+          ? parseFloat(data.purchase_price)
+          : null,
         purchase_condition: data.purchase_condition || 'NEW',
         status_code: 'AVAILABLE',
         documents: {
@@ -207,7 +253,12 @@ export class FleetManagementService {
     return created;
   }
 
-  async update(company_id: string, actor_user_id: string, id: string, data: any) {
+  async update(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: any,
+  ) {
     const existing = await this.prisma.vehicle.findFirst({
       where: { id, company_id },
       include: { documents: true },
@@ -215,7 +266,9 @@ export class FleetManagementService {
     if (!existing) throw new NotFoundException();
 
     if (data.documents) {
-        await this.prisma.vehicleDocument.deleteMany({ where: { vehicle_id: id } });
+      await this.prisma.vehicleDocument.deleteMany({
+        where: { vehicle_id: id },
+      });
     }
 
     const updated = await this.prisma.vehicle.update({
@@ -227,20 +280,28 @@ export class FleetManagementService {
         year: data.year ? parseInt(data.year) : undefined,
         vin: data.vin ?? undefined,
         gps_tracker_id: data.gps_tracker_id ?? undefined,
-        current_odometer: data.current_odometer ? parseFloat(data.current_odometer) : undefined,
-        purchase_date: data.purchase_date ? new Date(data.purchase_date) : undefined,
-        purchase_price: data.purchase_price ? parseFloat(data.purchase_price) : undefined,
+        current_odometer: data.current_odometer
+          ? parseFloat(data.current_odometer)
+          : undefined,
+        purchase_date: data.purchase_date
+          ? new Date(data.purchase_date)
+          : undefined,
+        purchase_price: data.purchase_price
+          ? parseFloat(data.purchase_price)
+          : undefined,
         purchase_condition: data.purchase_condition ?? undefined,
-        documents: data.documents ? {
-          create: data.documents.map((doc: any) => ({
-            company_id,
-            type_code: doc.type_code,
-            number: doc.number,
-            expiry_date: new Date(doc.expiry_date),
-            file_id: doc.file_id,
-            issuer: doc.issuer,
-          })),
-        } : undefined,
+        documents: data.documents
+          ? {
+              create: data.documents.map((doc: any) => ({
+                company_id,
+                type_code: doc.type_code,
+                number: doc.number,
+                expiry_date: new Date(doc.expiry_date),
+                file_id: doc.file_id,
+                issuer: doc.issuer,
+              })),
+            }
+          : undefined,
       },
     });
 
@@ -259,12 +320,14 @@ export class FleetManagementService {
 
   async remove(company_id: string, actor_user_id: string, id: string) {
     const existing = await this.prisma.vehicle.findFirst({
-        where: { id, company_id },
+      where: { id, company_id },
     });
     if (!existing) throw new NotFoundException();
 
     if (existing.status_code !== 'AVAILABLE') {
-      throw new BadRequestException('Vehicle can only be deleted when status is Idle. Unassign or exit maintenance first.');
+      throw new BadRequestException(
+        'Vehicle can only be deleted when status is Idle. Unassign or exit maintenance first.',
+      );
     }
 
     await this.prisma.vehicle.delete({ where: { id } });
@@ -281,13 +344,23 @@ export class FleetManagementService {
     return { ok: true };
   }
 
-  async assign(company_id: string, actor_user_id: string, id: string, data: { employee_id: string; odometer: number }) {
-    const vehicle = await this.prisma.vehicle.findFirst({ where: { id, company_id } });
+  async assign(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: { employee_id: string; odometer: number },
+  ) {
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id, company_id },
+    });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
-    if (vehicle.status_code !== 'AVAILABLE') throw new BadRequestException('Vehicle is not available for assignment');
+    if (vehicle.status_code !== 'AVAILABLE')
+      throw new BadRequestException('Vehicle is not available for assignment');
 
     if (data.odometer < vehicle.current_odometer) {
-        throw new BadRequestException('New odometer cannot be less than current odometer');
+      throw new BadRequestException(
+        'New odometer cannot be less than current odometer',
+      );
     }
 
     const [updatedVehicle] = await this.prisma.$transaction([
@@ -324,16 +397,24 @@ export class FleetManagementService {
     return updatedVehicle;
   }
 
-  async transfer(company_id: string, actor_user_id: string, id: string, data: { employee_id: string; odometer: number }) {
-    const vehicle = await this.prisma.vehicle.findFirst({ 
-        where: { id, company_id },
-        include: { assignment_logs: { where: { unassigned_at: null }, take: 1 } } 
+  async transfer(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: { employee_id: string; odometer: number },
+  ) {
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id, company_id },
+      include: { assignment_logs: { where: { unassigned_at: null }, take: 1 } },
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
-    if (vehicle.status_code !== 'ACTIVE') throw new BadRequestException('Vehicle is not currently assigned');
+    if (vehicle.status_code !== 'ACTIVE')
+      throw new BadRequestException('Vehicle is not currently assigned');
 
     if (data.odometer < vehicle.current_odometer) {
-        throw new BadRequestException('New odometer cannot be less than current odometer');
+      throw new BadRequestException(
+        'New odometer cannot be less than current odometer',
+      );
     }
 
     const assignment = vehicle.assignment_logs[0];
@@ -347,15 +428,17 @@ export class FleetManagementService {
           current_odometer: data.odometer,
         },
       }),
-      ...(assignment ? [
-        this.prisma.vehicleAssignment.update({
-          where: { id: assignment.id },
-          data: {
-            unassigned_at: new Date(),
-            end_odometer: data.odometer,
-          },
-        })
-      ] : []),
+      ...(assignment
+        ? [
+            this.prisma.vehicleAssignment.update({
+              where: { id: assignment.id },
+              data: {
+                unassigned_at: new Date(),
+                end_odometer: data.odometer,
+              },
+            }),
+          ]
+        : []),
       this.prisma.vehicleAssignment.create({
         data: {
           company_id,
@@ -373,22 +456,34 @@ export class FleetManagementService {
       action: 'FLEET_TRANSFER',
       entity_type: 'VEHICLE',
       entity_id: id,
-      new_values: { from_employee_id: vehicle.current_driver_id, to_employee_id: data.employee_id, odometer: data.odometer },
+      new_values: {
+        from_employee_id: vehicle.current_driver_id,
+        to_employee_id: data.employee_id,
+        odometer: data.odometer,
+      },
     });
 
     return updatedVehicle;
   }
 
-  async unassign(company_id: string, actor_user_id: string, id: string, data: { odometer: number }) {
-    const vehicle = await this.prisma.vehicle.findFirst({ 
-        where: { id, company_id },
-        include: { assignment_logs: { where: { unassigned_at: null }, take: 1 } } 
+  async unassign(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: { odometer: number },
+  ) {
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id, company_id },
+      include: { assignment_logs: { where: { unassigned_at: null }, take: 1 } },
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
-    if (vehicle.status_code !== 'ACTIVE') throw new BadRequestException('Vehicle is not currently assigned');
+    if (vehicle.status_code !== 'ACTIVE')
+      throw new BadRequestException('Vehicle is not currently assigned');
 
     if (data.odometer < vehicle.current_odometer) {
-        throw new BadRequestException('New odometer cannot be less than current odometer');
+      throw new BadRequestException(
+        'New odometer cannot be less than current odometer',
+      );
     }
 
     const assignment = vehicle.assignment_logs[0];
@@ -404,15 +499,17 @@ export class FleetManagementService {
           current_odometer: data.odometer,
         },
       }),
-      ...(assignment ? [
-        this.prisma.vehicleAssignment.update({
-          where: { id: assignment.id },
-          data: {
-            unassigned_at: new Date(),
-            end_odometer: data.odometer,
-          },
-        })
-      ] : []),
+      ...(assignment
+        ? [
+            this.prisma.vehicleAssignment.update({
+              where: { id: assignment.id },
+              data: {
+                unassigned_at: new Date(),
+                end_odometer: data.odometer,
+              },
+            }),
+          ]
+        : []),
     ]);
 
     await this.audit.log({
@@ -427,10 +524,15 @@ export class FleetManagementService {
     return updatedVehicle;
   }
 
-  async enterMaintenance(company_id: string, actor_user_id: string, id: string, data: any) {
-    const vehicle = await this.prisma.vehicle.findFirst({ 
-        where: { id, company_id },
-        include: { assignment_logs: { where: { unassigned_at: null }, take: 1 } } 
+  async enterMaintenance(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: any,
+  ) {
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id, company_id },
+      include: { assignment_logs: { where: { unassigned_at: null }, take: 1 } },
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
 
@@ -448,15 +550,17 @@ export class FleetManagementService {
           current_odometer: currentOdometer,
         },
       }),
-      ...(assignment ? [
-        this.prisma.vehicleAssignment.update({
-          where: { id: assignment.id },
-          data: {
-            unassigned_at: new Date(),
-            end_odometer: currentOdometer,
-          },
-        })
-      ] : []),
+      ...(assignment
+        ? [
+            this.prisma.vehicleAssignment.update({
+              where: { id: assignment.id },
+              data: {
+                unassigned_at: new Date(),
+                end_odometer: currentOdometer,
+              },
+            }),
+          ]
+        : []),
       this.prisma.vehicleMaintenance.create({
         data: {
           company_id,
@@ -484,16 +588,29 @@ export class FleetManagementService {
     return updatedVehicle;
   }
 
-  async exitMaintenance(company_id: string, actor_user_id: string, id: string, data: any) {
-    const vehicle = await this.prisma.vehicle.findFirst({ 
-        where: { id, company_id },
-        include: { maintenance_logs: { where: { end_date: null }, orderBy: { start_date: 'desc' }, take: 1 } }
+  async exitMaintenance(
+    company_id: string,
+    actor_user_id: string,
+    id: string,
+    data: any,
+  ) {
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id, company_id },
+      include: {
+        maintenance_logs: {
+          where: { end_date: null },
+          orderBy: { start_date: 'desc' },
+          take: 1,
+        },
+      },
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
-    if (vehicle.status_code !== 'MAINTENANCE') throw new BadRequestException('Vehicle is not in maintenance');
+    if (vehicle.status_code !== 'MAINTENANCE')
+      throw new BadRequestException('Vehicle is not in maintenance');
 
     const maintenance = vehicle.maintenance_logs[0];
-    if (!maintenance) throw new BadRequestException('Active maintenance record not found');
+    if (!maintenance)
+      throw new BadRequestException('Active maintenance record not found');
 
     const [updatedVehicle] = await this.prisma.$transaction([
       this.prisma.vehicle.update({
@@ -501,7 +618,9 @@ export class FleetManagementService {
         data: {
           status_code: 'AVAILABLE',
           idle_since: new Date(),
-          current_odometer: data.current_odometer ? parseFloat(data.current_odometer) : undefined,
+          current_odometer: data.current_odometer
+            ? parseFloat(data.current_odometer)
+            : undefined,
         },
       }),
       this.prisma.vehicleMaintenance.update({
@@ -546,12 +665,18 @@ export class FleetManagementService {
     });
     if (!vehicle) throw new NotFoundException('Vehicle not found');
     if (vehicle.status_code === 'MAINTENANCE') {
-      throw new BadRequestException('Vehicle in maintenance cannot be linked to a gas record');
+      throw new BadRequestException(
+        'Vehicle in maintenance cannot be linked to a gas record',
+      );
     }
     if (data.gas_quantity_liters <= 0 || data.gas_cost <= 0) {
-      throw new BadRequestException('Gas quantity and cost must be positive numbers');
+      throw new BadRequestException(
+        'Gas quantity and cost must be positive numbers',
+      );
     }
-    const validPayment = ['CASH', 'CARD', 'INVOICE'].includes(data.payment_method_code);
+    const validPayment = ['CASH', 'CARD', 'INVOICE'].includes(
+      data.payment_method_code,
+    );
     if (!validPayment) {
       throw new BadRequestException('Invalid payment method');
     }
@@ -582,4 +707,3 @@ export class FleetManagementService {
     return record;
   }
 }
-

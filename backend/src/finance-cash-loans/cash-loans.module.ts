@@ -10,4 +10,3 @@ import { AuditModule } from '../audit/audit.module';
   controllers: [CashLoansController],
 })
 export class CashLoansModule {}
-

@@ -1,7 +1,15 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AuditService } from '../audit/audit.service';
 
@@ -17,7 +25,8 @@ export class FilesService {
     this.s3 = new S3Client({
       region: this.config.get<string>('S3_REGION') ?? 'us-east-1',
       endpoint: this.config.get<string>('S3_ENDPOINT') || undefined,
-      forcePathStyle: (this.config.get<string>('S3_FORCE_PATH_STYLE') ?? 'true') === 'true',
+      forcePathStyle:
+        (this.config.get<string>('S3_FORCE_PATH_STYLE') ?? 'true') === 'true',
       credentials: this.config.get<string>('S3_ACCESS_KEY')
         ? {
             accessKeyId: this.config.get<string>('S3_ACCESS_KEY')!,
@@ -33,7 +42,11 @@ export class FilesService {
     return b;
   }
 
-  private key(company_id: string, fileId: string, originalName: string): string {
+  private key(
+    company_id: string,
+    fileId: string,
+    originalName: string,
+  ): string {
     const safe = originalName.replace(/[^\w.\-() ]+/g, '_');
     return `${company_id}/${fileId}/${safe}`;
   }
@@ -46,7 +59,11 @@ export class FilesService {
     size_bytes: number;
     checksum?: string;
   }) {
-    if (input.size_bytes <= 0 || input.size_bytes > Number(this.config.get<string>('FILES_MAX_BYTES') ?? 20 * 1024 * 1024)) {
+    if (
+      input.size_bytes <= 0 ||
+      input.size_bytes >
+        Number(this.config.get<string>('FILES_MAX_BYTES') ?? 20 * 1024 * 1024)
+    ) {
       throw new BadRequestException('Invalid file size');
     }
 
@@ -86,15 +103,27 @@ export class FilesService {
       action: 'FILES_UPLOAD_URL_CREATED',
       entity_type: 'FILE',
       entity_id: file.id,
-      new_values: { original_name: input.original_name, mime_type: input.mime_type, size_bytes: input.size_bytes },
+      new_values: {
+        original_name: input.original_name,
+        mime_type: input.mime_type,
+        size_bytes: input.size_bytes,
+      },
     });
 
     return { file_id: file.id, upload_url: uploadUrl };
   }
 
-  async createDownloadUrl(input: { company_id: string; actor_user_id: string; file_id: string }) {
+  async createDownloadUrl(input: {
+    company_id: string;
+    actor_user_id: string;
+    file_id: string;
+  }) {
     const file = await this.prisma.fileObject.findFirst({
-      where: { id: input.file_id, company_id: input.company_id, deleted_at: null },
+      where: {
+        id: input.file_id,
+        company_id: input.company_id,
+        deleted_at: null,
+      },
     });
     if (!file) throw new NotFoundException();
 
@@ -129,7 +158,11 @@ export class FilesService {
     purpose_code: string;
   }) {
     const file = await this.prisma.fileObject.findFirst({
-      where: { id: input.file_id, company_id: input.company_id, deleted_at: null },
+      where: {
+        id: input.file_id,
+        company_id: input.company_id,
+        deleted_at: null,
+      },
       select: { id: true },
     });
     if (!file) throw new NotFoundException('File not found');
@@ -157,5 +190,3 @@ export class FilesService {
     return link;
   }
 }
-
-

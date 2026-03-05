@@ -1,4 +1,12 @@
-import { Controller, Delete, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequireAnyOf } from '../rbac/require-any-of.decorator';
@@ -21,9 +29,14 @@ export class DocumentsController {
 
   @Get('stats')
   @RequireAnyOf(...DOCUMENTS_ANY_OF_PERMISSIONS)
-  async stats(@Req() req: Request & { user?: { sub: string; company_id: string } }) {
+  async stats(
+    @Req() req: Request & { user?: { sub: string; company_id: string } },
+  ) {
     const company_id = req.user!.company_id;
-    const userPermissionKeys = await this.documentsService.getUserPermissions(req.user!.sub, company_id);
+    const userPermissionKeys = await this.documentsService.getUserPermissions(
+      req.user!.sub,
+      company_id,
+    );
     return this.documentsService.getStats(company_id, userPermissionKeys);
   }
 
@@ -37,9 +50,15 @@ export class DocumentsController {
     @Query('q') q?: string,
   ) {
     const company_id = req.user!.company_id;
-    const userPermissionKeys = await this.documentsService.getUserPermissions(req.user!.sub, company_id);
+    const userPermissionKeys = await this.documentsService.getUserPermissions(
+      req.user!.sub,
+      company_id,
+    );
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
-    const pageSize = Math.min(200, Math.max(1, parseInt(page_size || '25', 10) || 25));
+    const pageSize = Math.min(
+      200,
+      Math.max(1, parseInt(page_size || '25', 10) || 25),
+    );
     return this.documentsService.list(company_id, userPermissionKeys, {
       tab: tab || 'near_expiry',
       page: pageNum,
@@ -55,8 +74,16 @@ export class DocumentsController {
   ) {
     const company_id = req.user!.company_id;
     const user_id = req.user!.sub;
-    const userPermissionKeys = await this.documentsService.getUserPermissions(user_id, company_id);
-    await this.documentsService.deleteDocument(company_id, user_id, userPermissionKeys, id);
+    const userPermissionKeys = await this.documentsService.getUserPermissions(
+      user_id,
+      company_id,
+    );
+    await this.documentsService.deleteDocument(
+      company_id,
+      user_id,
+      userPermissionKeys,
+      id,
+    );
     return { success: true };
   }
 }

@@ -22,7 +22,10 @@ export class CompaniesService {
     return company;
   }
 
-  async updateCurrent(company_id: string, data: { name?: string; timezone?: string; default_locale?: string }) {
+  async updateCurrent(
+    company_id: string,
+    data: { name?: string; timezone?: string; default_locale?: string },
+  ) {
     const company = await this.prisma.company.update({
       where: { id: company_id },
       data,
@@ -39,5 +42,3 @@ export class CompaniesService {
     return company;
   }
 }
-
-

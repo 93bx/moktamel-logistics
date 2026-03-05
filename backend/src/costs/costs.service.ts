@@ -89,7 +89,12 @@ export class CostsService {
 
   async list(
     company_id: string,
-    input: { q?: string; type_code?: CostTypeCode; page: number; page_size: number },
+    input: {
+      q?: string;
+      type_code?: CostTypeCode;
+      page: number;
+      page_size: number;
+    },
   ) {
     const where: Prisma.CostWhereInput = {
       company_id,
@@ -141,7 +146,11 @@ export class CostsService {
     };
   }
 
-  async create(company_id: string, actor_user_id: string, input: CostCreateInput) {
+  async create(
+    company_id: string,
+    actor_user_id: string,
+    input: CostCreateInput,
+  ) {
     if (
       input.recurrence_code === 'ONE_TIME' &&
       (!input.one_time_date || !input.one_time_date.trim())
@@ -184,7 +193,6 @@ export class CostsService {
       new_values: created,
     });
 
-
     return this.mapCost(created as unknown as CostRow);
   }
 
@@ -220,8 +228,7 @@ export class CostsService {
           : existing.one_time_date
             ? existing.one_time_date.toISOString()
             : null,
-      notes:
-        input.notes !== undefined ? input.notes : existing.notes ?? null,
+      notes: input.notes !== undefined ? input.notes : (existing.notes ?? null),
     };
 
     if (
@@ -249,9 +256,7 @@ export class CostsService {
         vat_amount,
         net_amount,
         recurrence_code: next.recurrence_code,
-        one_time_date: next.one_time_date
-          ? new Date(next.one_time_date)
-          : null,
+        one_time_date: next.one_time_date ? new Date(next.one_time_date) : null,
         notes: next.notes?.trim() || null,
         updated_at: new Date(),
       },
@@ -266,7 +271,6 @@ export class CostsService {
       old_values: existing,
       new_values: updated,
     });
-
 
     return this.mapCost(updated as unknown as CostRow);
   }
@@ -300,4 +304,3 @@ export class CostsService {
     return { ok: true };
   }
 }
-

@@ -15,11 +15,31 @@ async function bootstrap() {
     { key: 'PLATFORM_RBAC_MANAGE', module: 'PLATFORM', action: 'MANAGE' },
     { key: 'AUDIT_READ', module: 'AUDIT', action: 'READ' },
     { key: 'HR_RECRUITMENT_READ', module: 'HR_RECRUITMENT', action: 'READ' },
-    { key: 'HR_RECRUITMENT_CREATE', module: 'HR_RECRUITMENT', action: 'CREATE' },
-    { key: 'HR_RECRUITMENT_UPDATE', module: 'HR_RECRUITMENT', action: 'UPDATE' },
-    { key: 'HR_RECRUITMENT_DELETE', module: 'HR_RECRUITMENT', action: 'DELETE' },
-    { key: 'HR_RECRUITMENT_EXPORT', module: 'HR_RECRUITMENT', action: 'EXPORT' },
-    { key: 'HR_RECRUITMENT_IMPORT', module: 'HR_RECRUITMENT', action: 'IMPORT' },
+    {
+      key: 'HR_RECRUITMENT_CREATE',
+      module: 'HR_RECRUITMENT',
+      action: 'CREATE',
+    },
+    {
+      key: 'HR_RECRUITMENT_UPDATE',
+      module: 'HR_RECRUITMENT',
+      action: 'UPDATE',
+    },
+    {
+      key: 'HR_RECRUITMENT_DELETE',
+      module: 'HR_RECRUITMENT',
+      action: 'DELETE',
+    },
+    {
+      key: 'HR_RECRUITMENT_EXPORT',
+      module: 'HR_RECRUITMENT',
+      action: 'EXPORT',
+    },
+    {
+      key: 'HR_RECRUITMENT_IMPORT',
+      module: 'HR_RECRUITMENT',
+      action: 'IMPORT',
+    },
     { key: 'HR_EMPLOYMENT_READ', module: 'HR_EMPLOYMENT', action: 'READ' },
     { key: 'HR_EMPLOYMENT_CREATE', module: 'HR_EMPLOYMENT', action: 'CREATE' },
     { key: 'HR_EMPLOYMENT_UPDATE', module: 'HR_EMPLOYMENT', action: 'UPDATE' },
@@ -33,15 +53,31 @@ async function bootstrap() {
     { key: 'HR_ASSETS_APPROVE', module: 'HR_ASSETS', action: 'APPROVE' },
     { key: 'DAILY_OPS_READ', module: 'DAILY_OPERATIONS', action: 'READ' },
     { key: 'DAILY_OPS_CREATE', module: 'DAILY_OPERATIONS', action: 'CREATE' },
-    { key: 'DAILY_OPS_CREATE_BULK', module: 'DAILY_OPERATIONS', action: 'CREATE_BULK' },
+    {
+      key: 'DAILY_OPS_CREATE_BULK',
+      module: 'DAILY_OPERATIONS',
+      action: 'CREATE_BULK',
+    },
     { key: 'DAILY_OPS_UPDATE', module: 'DAILY_OPERATIONS', action: 'UPDATE' },
     { key: 'FILES_UPLOAD', module: 'FILES', action: 'UPLOAD' },
     { key: 'FILES_DOWNLOAD', module: 'FILES', action: 'DOWNLOAD' },
     { key: 'FILES_DELETE', module: 'FILES', action: 'DELETE' },
-    { key: 'FIN_CASH_LOANS_READ', module: 'FINANCE_CASH_LOANS', action: 'READ' },
-    { key: 'FIN_CASH_LOANS_MANAGE', module: 'FINANCE_CASH_LOANS', action: 'MANAGE' },
+    {
+      key: 'FIN_CASH_LOANS_READ',
+      module: 'FINANCE_CASH_LOANS',
+      action: 'READ',
+    },
+    {
+      key: 'FIN_CASH_LOANS_MANAGE',
+      module: 'FINANCE_CASH_LOANS',
+      action: 'MANAGE',
+    },
     { key: 'NOTIFICATIONS_READ', module: 'NOTIFICATIONS', action: 'READ' },
-    { key: 'NOTIFICATIONS_CONFIGURE', module: 'NOTIFICATIONS', action: 'CONFIGURE' },
+    {
+      key: 'NOTIFICATIONS_CONFIGURE',
+      module: 'NOTIFICATIONS',
+      action: 'CONFIGURE',
+    },
     { key: 'SUBSCRIPTIONS_READ', module: 'SUBSCRIPTIONS', action: 'READ' },
     { key: 'SUBSCRIPTIONS_MANAGE', module: 'SUBSCRIPTIONS', action: 'MANAGE' },
     { key: 'FLEET_READ', module: 'FLEET', action: 'READ' },
@@ -52,7 +88,11 @@ async function bootstrap() {
     { key: 'FLEET_MAINTENANCE', module: 'FLEET', action: 'MAINTENANCE' },
     { key: 'FLEET_GAS', module: 'FLEET', action: 'GAS' },
     { key: 'PAYROLL_CONFIG_READ', module: 'PAYROLL_CONFIG', action: 'READ' },
-    { key: 'PAYROLL_CONFIG_UPDATE', module: 'PAYROLL_CONFIG', action: 'UPDATE' },
+    {
+      key: 'PAYROLL_CONFIG_UPDATE',
+      module: 'PAYROLL_CONFIG',
+      action: 'UPDATE',
+    },
     { key: 'COSTS_READ', module: 'COSTS', action: 'READ' },
     { key: 'COSTS_MANAGE', module: 'COSTS', action: 'MANAGE' },
   ];
@@ -87,7 +127,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-
-
-
-

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -7,8 +17,14 @@ import { PermissionsGuard } from '../rbac/permissions.guard';
 import { HrAssetsService } from './hr-assets.service';
 
 const ListQuerySchema = z.object({
-  q: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
-  employment_record_id: z.preprocess((val) => (val === '' ? undefined : val), z.string().uuid().optional()),
+  q: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+  employment_record_id: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().uuid().optional(),
+  ),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(200).default(25),
 });
@@ -40,7 +56,11 @@ const LossReportSchema = z.object({
   asset_assignment_id: z.string().uuid(),
   type_code: z.string().min(2),
   asset_value: z.number().min(0),
-  action_code: z.enum(['DEDUCT_FROM_SALARY', 'ADMINISTRATIVE_EXEMPTION', 'DEDUCT_IN_INSTALLMENTS']),
+  action_code: z.enum([
+    'DEDUCT_FROM_SALARY',
+    'ADMINISTRATIVE_EXEMPTION',
+    'DEDUCT_IN_INSTALLMENTS',
+  ]),
   installment_count: z.number().int().min(1).max(12).optional(),
   notes: z.string().optional().nullable(),
 });
@@ -82,7 +102,11 @@ export class HrAssetsController {
 
   @Patch('assignments/:id')
   @Permissions('HR_ASSETS_UPDATE')
-  async update(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
+  async update(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
     const data = AssignmentCreateSchema.partial().parse(body);
     return this.svc.update(req.user.company_id, req.user.sub, id, data);
   }
@@ -96,27 +120,45 @@ export class HrAssetsController {
 
   @Post('loss-reports')
   @Permissions('HR_ASSETS_CREATE')
-  async lossReport(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async lossReport(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = LossReportSchema.parse(body);
     return this.svc.createLossReport(req.user.company_id, req.user.sub, data);
   }
 
   @Post('loss-reports/:id/approve')
   @Permissions('HR_ASSETS_APPROVE')
-  async approve(@Req() req: Request & { user?: any }, @Param('id') id: string, @Body() body: unknown) {
+  async approve(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
     const data = ApprovalSchema.parse(body);
-    return this.svc.approveLossReport(req.user.company_id, req.user.sub, id, data.approved);
+    return this.svc.approveLossReport(
+      req.user.company_id,
+      req.user.sub,
+      id,
+      data.approved,
+    );
   }
 
   @Get('employees/search')
   @Permissions('HR_ASSETS_READ')
-  async employeeSearch(@Req() req: Request & { user?: any }, @Query('q') q: string) {
+  async employeeSearch(
+    @Req() req: Request & { user?: any },
+    @Query('q') q: string,
+  ) {
     return this.svc.searchEmployees(req.user.company_id, q ?? '');
   }
 
   @Get('employees/:id/assets')
   @Permissions('HR_ASSETS_READ')
-  async employeeAssets(@Req() req: Request & { user?: any }, @Param('id') id: string) {
+  async employeeAssets(
+    @Req() req: Request & { user?: any },
+    @Param('id') id: string,
+  ) {
     return this.svc.getEmployeeAssets(req.user.company_id, id);
   }
 
@@ -126,5 +168,3 @@ export class HrAssetsController {
     return this.svc.fleetVehiclesStub();
   }
 }
-
-

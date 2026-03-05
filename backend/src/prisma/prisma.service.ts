@@ -15,5 +15,3 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     process.on('SIGTERM', close);
   }
 }
-
-

@@ -8,4 +8,3 @@ import { FleetManagementService } from './fleet-management.service';
   exports: [FleetManagementService],
 })
 export class FleetManagementModule {}
-

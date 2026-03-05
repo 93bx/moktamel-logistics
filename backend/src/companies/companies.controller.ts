@@ -25,10 +25,11 @@ export class CompaniesController {
 
   @Patch('current')
   @Permissions('PLATFORM_COMPANY_UPDATE')
-  async updateCurrent(@Req() req: Request & { user?: any }, @Body() body: unknown) {
+  async updateCurrent(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
     const data = UpdateCompanySchema.parse(body);
     return this.companies.updateCurrent(req.user.company_id, data);
   }
 }
-
-

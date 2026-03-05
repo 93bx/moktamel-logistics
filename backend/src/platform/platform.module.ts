@@ -8,5 +8,3 @@ import { PlatformService } from './platform.service';
   exports: [PlatformService],
 })
 export class PlatformModule {}
-
-

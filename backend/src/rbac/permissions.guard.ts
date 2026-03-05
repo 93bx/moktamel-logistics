@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
 import { PERMISSIONS_KEY } from './permissions.decorator';
@@ -11,10 +16,10 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const required = this.reflector.getAllAndOverride<string[]>(
+      PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!required || required.length === 0) return true;
 
@@ -28,15 +33,19 @@ export class PermissionsGuard implements CanActivate {
       select: { status: true, company_id: true },
     });
 
-    if (!membership || membership.status !== 'ACTIVE') throw new ForbiddenException();
-    if (membership.company_id !== user.company_id) throw new ForbiddenException('Company mismatch');
+    if (!membership || membership.status !== 'ACTIVE')
+      throw new ForbiddenException();
+    if (membership.company_id !== user.company_id)
+      throw new ForbiddenException('Company mismatch');
 
     const rows = await this.prisma.userRole.findMany({
       where: { company_id: user.company_id, user_id: user.sub },
       select: {
         role: {
           select: {
-            role_permissions: { select: { permission: { select: { key: true } } } },
+            role_permissions: {
+              select: { permission: { select: { key: true } } },
+            },
           },
         },
       },
@@ -56,5 +65,3 @@ export class PermissionsGuard implements CanActivate {
     return true;
   }
 }
-
-
