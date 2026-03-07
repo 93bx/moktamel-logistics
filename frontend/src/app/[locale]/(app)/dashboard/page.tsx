@@ -34,6 +34,9 @@ export type DashboardOverviewPayload = {
   };
   notifications: NotificationRow[];
   links: Record<string, string>;
+  active_employees_by_platform: ActiveEmployeesByPlatformRow[];
+  latest_deductions: LatestDeductionRow[];
+  gas_summary: GasSummary;
 };
 
 type KpiCard = {
@@ -82,6 +85,25 @@ type NotificationRow = {
   entity_id: string;
   document_id: string;
   file_id: string | null;
+};
+
+export type ActiveEmployeesByPlatformRow = {
+  platform: string;
+  count: number;
+};
+
+export type LatestDeductionRow = {
+  date: string;
+  amount: number;
+  reason: string | null;
+  full_name_ar: string;
+  full_name_en: string | null;
+};
+
+export type GasSummary = {
+  total_consumption: number;
+  total_orders: number;
+  avg_per_order: number;
 };
 
 export default async function DashboardPage({

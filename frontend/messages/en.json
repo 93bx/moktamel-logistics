@@ -729,6 +729,21 @@
         "Recruitment": "Recruitment"
       }
     },
+    "popovers": {
+      "activeEmployeesByPlatform": "Active employees by platform",
+      "ordersByPlatform": "Orders by platform",
+      "revenueByPlatform": "Revenue by platform",
+      "top3ToCollectFrom": "Top 3 to collect from",
+      "latestDeductions": "Latest deductions",
+      "gasVsOrders": "Gas vs orders",
+      "noDataForPeriod": "No data for this period.",
+      "viewDailyOps": "View daily ops",
+      "viewCashLoans": "View cash & loans",
+      "viewFleet": "View fleet",
+      "deductionNoReason": "—",
+      "gasConsumption": "Consumption (SAR)",
+      "ordersCount": "Orders"
+    },
     "empty": {
       "noReviewedOps": "No reviewed operations in this month.",
       "noDailyPerf": "No daily performance data.",

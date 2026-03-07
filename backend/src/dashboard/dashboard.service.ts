@@ -64,6 +64,25 @@ type NotificationRow = {
   file_id: string | null;
 };
 
+type ActiveEmployeesByPlatformRow = {
+  platform: string;
+  count: number;
+};
+
+type LatestDeductionRow = {
+  date: string;
+  amount: number;
+  reason: string | null;
+  full_name_ar: string;
+  full_name_en: string | null;
+};
+
+type GasSummary = {
+  total_consumption: number;
+  total_orders: number;
+  avg_per_order: number;
+};
+
 const REVIEWED = 'REVIEWED';
 const DASHBOARD_NOTIFICATIONS_CAP = 20;
 const EXPIRED_WINDOW_DAYS = 30;
@@ -187,6 +206,8 @@ export class DashboardService {
       top10Uncollected,
       dailyCollected,
       notifications,
+      activeEmployeesByPlatform,
+      latestDeductions,
     ] = await Promise.all([
       this.activeEmployeesAtMonthEnd(company_id, currentRange.to),
       this.activeEmployeesAtMonthEnd(company_id, previousRange.to),
@@ -216,6 +237,8 @@ export class DashboardService {
       this.top10UncollectedCash(company_id, currentRange),
       this.dailyCollectedSeries(company_id, currentRange, monthDays),
       this.documentsNearExpiry(company_id),
+      this.activeEmployeesByPlatform(company_id, currentRange.to),
+      this.latestDeductions(company_id, currentRange, 3),
     ]);
 
     const totalOrdersCurrent = opsAggCurrent._sum.orders_count ?? 0;
@@ -224,6 +247,12 @@ export class DashboardService {
       totalOrdersCurrent > 0 ? gasSumCurrent / totalOrdersCurrent : 0;
     const gasPerOrderPrevious =
       totalOrdersPrevious > 0 ? gasSumPrevious / totalOrdersPrevious : 0;
+
+    const gas_summary: GasSummary = {
+      total_consumption: gasSumCurrent,
+      total_orders: totalOrdersCurrent,
+      avg_per_order: gasPerOrderCurrent,
+    };
 
     const kpis = {
       active_employees: this.buildKpi(activeCurrent, activePrevious),
@@ -274,6 +303,9 @@ export class DashboardService {
       },
       notifications,
       links,
+      active_employees_by_platform: activeEmployeesByPlatform,
+      latest_deductions: latestDeductions,
+      gas_summary,
     };
 
     this.cache.set(cacheKey, {
@@ -304,6 +336,28 @@ export class DashboardService {
         created_at: { lte: monthEnd },
       },
     });
+  }
+
+  private async activeEmployeesByPlatform(
+    company_id: string,
+    monthEnd: Date,
+  ): Promise<ActiveEmployeesByPlatformRow[]> {
+    const groups = await this.prisma.employmentRecord.groupBy({
+      by: ['assigned_platform'],
+      where: {
+        company_id,
+        deleted_at: null,
+        status_code: 'EMPLOYMENT_STATUS_ACTIVE',
+        created_at: { lte: monthEnd },
+      },
+      _count: { id: true },
+    });
+    return groups
+      .map((g) => ({
+        platform: g.assigned_platform ?? 'NONE',
+        count: g._count.id,
+      }))
+      .sort((a, b) => b.count - a.count);
   }
 
   private async gasSumInRange(
@@ -547,6 +601,51 @@ export class DashboardService {
         full_name_ar,
         full_name_en,
         amount: t.amount,
+      };
+    });
+  }
+
+  private async latestDeductions(
+    company_id: string,
+    range: DateRange,
+    limit: number,
+  ): Promise<LatestDeductionRow[]> {
+    const rows = await this.prisma.dailyOperation.findMany({
+      where: {
+        company_id,
+        status_code: REVIEWED,
+        date: { gte: range.from, lte: range.to },
+        deduction_amount: { gt: 0 },
+      },
+      orderBy: { date: 'desc' },
+      take: limit,
+      select: {
+        date: true,
+        deduction_amount: true,
+        deduction_reason: true,
+        employment_record: {
+          select: {
+            full_name_ar: true,
+            full_name_en: true,
+            recruitment_candidate: {
+              select: { full_name_ar: true, full_name_en: true },
+            },
+          },
+        },
+      },
+    });
+    return rows.map((r) => {
+      const emp = r.employment_record;
+      const full_name_ar =
+        emp.recruitment_candidate?.full_name_ar ?? emp.full_name_ar ?? '';
+      const full_name_en =
+        emp.recruitment_candidate?.full_name_en ?? emp.full_name_en ?? null;
+      return {
+        date: r.date.toISOString().slice(0, 10),
+        amount: toNum(r.deduction_amount),
+        reason: r.deduction_reason,
+        full_name_ar,
+        full_name_en,
       };
     });
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
@@ -14,7 +14,20 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { ExternalLink, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import {
+  ExternalLink,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Users,
+  ShoppingBag,
+  Banknote,
+  Wallet,
+  BadgeMinus,
+  Fuel,
+  CalendarDays,
+  ChevronRight,
+} from "lucide-react";
 import type { DashboardOverviewPayload } from "@/app/[locale]/(app)/dashboard/page";
 
 type Props = {
@@ -99,13 +112,119 @@ function StatCard({
   );
 }
 
+type StatCardWithPopoverProps = {
+  onMouseEnter: (e: React.MouseEvent<HTMLElement>) => void;
+  onMouseLeave: () => void;
+  label: string;
+  value: string | number;
+  previousText?: string;
+  trend?: "up" | "down" | "neutral";
+  pctText?: string | null;
+  drillDownHref?: string;
+  drillDownLabel?: string;
+  accentIndex?: number;
+};
+
+function StatCardWithPopover({
+  onMouseEnter,
+  onMouseLeave,
+  ...statCardProps
+}: StatCardWithPopoverProps) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={statCardProps.label}
+      title={statCardProps.label}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onMouseLeave();
+      }}
+      className="cursor-default outline-none"
+    >
+      <StatCard {...statCardProps} />
+    </div>
+  );
+}
+
+function formatMonth(selectedMonth: string): string {
+  const [y, m] = selectedMonth.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1, 1));
+  return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
 export function DashboardPageClient({ locale, payload }: Props) {
   const t = useTranslations("dashboard");
+  const tCommon = useTranslations("common");
   const [opsRankMode, setOpsRankMode] = useState<"top" | "worst">("top");
   const [opsMetricMode, setOpsMetricMode] = useState<"orders" | "revenue">("orders");
   const [perfChartMetric, setPerfChartMetric] = useState<"orders" | "revenue">("orders");
+  const [popoverInfo, setPopoverInfo] = useState<{ rect: DOMRect; key: string } | null>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { meta, kpis, operations, platforms, cashFlow, notifications, links } = payload;
+  const cancelClose = useCallback(() => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimeoutRef.current = setTimeout(() => {
+      setPopoverInfo(null);
+      closeTimeoutRef.current = null;
+    }, 200);
+  }, [cancelClose]);
+
+  const handlePopoverEnter = useCallback((e: React.MouseEvent<HTMLElement>, cardKey: string) => {
+    cancelClose();
+    setPopoverInfo({ rect: e.currentTarget.getBoundingClientRect(), key: cardKey });
+  }, [cancelClose]);
+
+  const handlePopoverLeave = useCallback(() => {
+    scheduleClose();
+  }, [scheduleClose]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
+
+  const getPlatformLabel = useCallback(
+    (platform: string): string => {
+      switch (platform) {
+        case "JAHEZ":
+          return tCommon("platformJahez");
+        case "HUNGERSTATION":
+          return tCommon("platformHungerstation");
+        case "NINJA":
+          return tCommon("platformNinja");
+        case "KEETA":
+          return tCommon("platformKeeta");
+        case "NONE":
+          return tCommon("platformNone");
+        default:
+          return platform;
+      }
+    },
+    [tCommon]
+  );
+
+  const {
+    meta,
+    kpis,
+    operations,
+    platforms,
+    cashFlow,
+    notifications,
+    links,
+    active_employees_by_platform = [],
+    latest_deductions = [],
+    gas_summary = { total_consumption: 0, total_orders: 0, avg_per_order: 0 },
+  } = payload;
 
   const opsRows = useMemo(() => {
     if (opsMetricMode === "orders") {
@@ -168,14 +287,17 @@ export function DashboardPageClient({ locale, payload }: Props) {
     return k.pct_delta != null ? `${k.pct_delta >= 0 ? "+" : ""}${k.pct_delta.toFixed(1)}%` : null;
   };
 
-  const tooltipContentStyle = {
-    borderRadius: 12,
-    border: "1px solid var(--border, #e2e8f0)",
-    boxShadow: "0 10px 40px -10px rgba(0,0,0,0.15)",
-    padding: "12px 16px",
-    background: "var(--tooltip-bg, #fff)",
-    fontSize: 13,
-  };
+  const tooltipContentStyle = useMemo(
+    () => ({
+      borderRadius: 12,
+      border: "1px solid var(--border, #e2e8f0)",
+      boxShadow: "0 10px 40px -10px rgba(0,0,0,0.15)",
+      padding: "12px 16px",
+      background: "var(--tooltip-bg, #fff)",
+      fontSize: 13,
+    }),
+    []
+  );
 
   const [selectedYear, setSelectedYear] = useState(() => {
     const [y] = meta.selected_month.split("-").map(Number);
@@ -208,6 +330,377 @@ export function DashboardPageClient({ locale, payload }: Props) {
   const tableDir = isRtl ? "rtl" : "ltr";
   const tableHeaderClass = "bg-primary px-4 py-3 text-xs font-semibold uppercase tracking-wider text-white text-start";
   const tableHeaderClassRight = "bg-primary px-4 py-3 text-xs font-semibold uppercase tracking-wider text-white text-end";
+
+  const monthFormatted = formatMonth(meta.selected_month);
+
+  const popoverContents = useMemo(() => {
+    const PLATFORM_COLORS: Record<string, string> = {
+      JAHEZ: "bg-red-500",
+      HUNGERSTATION: "bg-amber-400",
+      NINJA: "bg-zinc-600 dark:bg-zinc-400",
+      KEETA: "bg-emerald-500",
+      NONE: "bg-slate-400",
+    };
+
+    const platformDot = (platform: string) => (
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${PLATFORM_COLORS[platform] ?? "bg-primary"}`} />
+    );
+
+    const noData = (
+      <div className="flex flex-col items-center gap-1.5 py-4">
+        <Minus className="h-5 w-5 text-slate-300 dark:text-zinc-600" />
+        <p className="text-xs text-slate-400 dark:text-slate-500">{t("popovers.noDataForPeriod")}</p>
+      </div>
+    );
+
+    const popoverHeader = (
+      icon: React.ReactNode,
+      title: string,
+      gradient: string,
+      caretColor: string,
+    ) => (
+      <div className="relative">
+        {/* Caret arrow pointing up */}
+        <div
+          className={`absolute -top-[7px] left-1/2 -translate-x-1/2 h-0 w-0 border-l-[7px] border-r-[7px] border-b-[7px] border-l-transparent border-r-transparent ${caretColor}`}
+        />
+        <div className={`flex items-center gap-3 rounded-t-2xl bg-gradient-to-r p-3.5 ${gradient}`}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/25 shadow-inner">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-white leading-tight">{title}</p>
+            <p className="flex items-center gap-1 text-xs text-white/75 mt-0.5">
+              <CalendarDays className="h-3 w-3" />
+              {monthFormatted}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+
+    const footerLink = (href: string, label: string) => (
+      <Link
+        href={href}
+        className="flex items-center justify-between rounded-b-2xl border-t border-slate-100 px-4 py-2.5 text-xs font-semibold text-primary transition-colors hover:bg-slate-50 dark:border-zinc-700/60 dark:text-teal-400 dark:hover:bg-zinc-800/50"
+      >
+        {label}
+        <ChevronRight className="h-3.5 w-3.5" />
+      </Link>
+    );
+
+    // ── 1. Active Employees ──────────────────────────────────────────────
+    const maxEmp = Math.max(1, ...active_employees_by_platform.map((r) => r.count));
+    const activeEmployeesContent = (
+      <div>
+        {popoverHeader(
+          <Users className="h-5 w-5 text-white" />,
+          t("popovers.activeEmployeesByPlatform"),
+          "from-primary-500 to-primary-600",
+          "border-b-primary-500",
+        )}
+        <div className="p-4">
+          {active_employees_by_platform.length === 0 ? (
+            noData
+          ) : (
+            <ul className="space-y-3">
+              {active_employees_by_platform.map((row) => (
+                <li key={row.platform}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                      {platformDot(row.platform)}
+                      {getPlatformLabel(row.platform)}
+                    </span>
+                    <span className="tabular-nums text-sm font-bold text-slate-900 dark:text-slate-100">
+                      {row.count}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-700">
+                    <div
+                      className="h-full rounded-full bg-primary-500 transition-all duration-500"
+                      style={{ width: `${(row.count / maxEmp) * 100}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    );
+
+    // ── 2. Total Orders ──────────────────────────────────────────────────
+    const maxOrders = Math.max(1, ...platforms.map((p) => p.orders));
+    const totalOrdersContent = (
+      <div>
+        {popoverHeader(
+          <ShoppingBag className="h-5 w-5 text-white" />,
+          t("popovers.ordersByPlatform"),
+          "from-indigo-500 to-indigo-600",
+          "border-b-indigo-500",
+        )}
+        <div className="p-4">
+          {platforms.length === 0 ? (
+            noData
+          ) : (
+            <ul className="space-y-3">
+              {platforms.map((p) => (
+                <li key={p.platform}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                      {platformDot(p.platform)}
+                      {getPlatformLabel(p.platform)}
+                    </span>
+                    <span className="tabular-nums text-sm font-bold text-slate-900 dark:text-slate-100">
+                      {p.orders.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-700">
+                    <div
+                      className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+                      style={{ width: `${(p.orders / maxOrders) * 100}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {platforms.length > 0 && footerLink(dailyOpsUrl, t("popovers.viewDailyOps"))}
+      </div>
+    );
+
+    // ── 3. Total Revenue ─────────────────────────────────────────────────
+    const maxRevenue = Math.max(1, ...platforms.map((p) => p.revenue));
+    const totalRevenueContent = (
+      <div>
+        {popoverHeader(
+          <Banknote className="h-5 w-5 text-white" />,
+          t("popovers.revenueByPlatform"),
+          "from-emerald-500 to-emerald-600",
+          "border-b-emerald-500",
+        )}
+        <div className="p-4">
+          {platforms.length === 0 ? (
+            noData
+          ) : (
+            <ul className="space-y-3">
+              {platforms.map((p) => (
+                <li key={p.platform}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                      {platformDot(p.platform)}
+                      {getPlatformLabel(p.platform)}
+                    </span>
+                    <span className="tabular-nums text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                      {formatAmount(p.revenue)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-700">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                      style={{ width: `${(p.revenue / maxRevenue) * 100}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {platforms.length > 0 && footerLink(dailyOpsUrl, t("popovers.viewDailyOps"))}
+      </div>
+    );
+
+    // ── 4. Total Cash Collected ──────────────────────────────────────────
+    const RANK_STYLES = [
+      "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300",
+      "bg-slate-100 text-slate-600 dark:bg-zinc-700 dark:text-zinc-300",
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    ];
+    const RANK_LABELS = ["1st", "2nd", "3rd"];
+    const top3 = cashFlow.top10_uncollected.slice(0, 3);
+    const totalCashContent = (
+      <div>
+        {popoverHeader(
+          <Wallet className="h-5 w-5 text-white" />,
+          t("popovers.top3ToCollectFrom"),
+          "from-amber-500 to-amber-600",
+          "border-b-amber-500",
+        )}
+        <div className="p-4">
+          {top3.length === 0 ? (
+            noData
+          ) : (
+            <ul className="space-y-2.5">
+              {top3.map((row, i) => (
+                <li
+                  key={row.employment_record_id}
+                  className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 dark:border-zinc-700/50 dark:bg-zinc-800/40"
+                >
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${RANK_STYLES[i]}`}
+                  >
+                    {RANK_LABELS[i]}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                    {locale === "ar" ? row.full_name_ar : row.full_name_en ?? row.full_name_ar}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-sm font-bold text-amber-700 dark:text-amber-400">
+                    {formatAmount(row.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {top3.length > 0 && footerLink(cashLoansUrl, t("popovers.viewCashLoans"))}
+      </div>
+    );
+
+    // ── 5. Total Deductions ──────────────────────────────────────────────
+    const totalDeductionsContent = (
+      <div>
+        {popoverHeader(
+          <BadgeMinus className="h-5 w-5 text-white" />,
+          t("popovers.latestDeductions"),
+          "from-rose-500 to-rose-600",
+          "border-b-rose-500",
+        )}
+        <div className="p-4">
+          {latest_deductions.length === 0 ? (
+            noData
+          ) : (
+            <ul className="space-y-2.5">
+              {latest_deductions.map((row, i) => (
+                <li
+                  key={`${row.date}-${i}`}
+                  className="rounded-xl border border-rose-100 bg-rose-50/60 p-3 dark:border-rose-900/30 dark:bg-rose-950/20"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        <CalendarDays className="h-3 w-3 shrink-0" />
+                        {row.date}
+                      </p>
+                      <p className="mt-0.5 truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                        {locale === "ar" ? row.full_name_ar : row.full_name_en ?? row.full_name_ar}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-lg bg-rose-100 px-2 py-1 text-xs font-bold tabular-nums text-rose-700 dark:bg-rose-900/40 dark:text-rose-400">
+                      −{formatAmount(row.amount)}
+                    </span>
+                  </div>
+                  {row.reason && (
+                    <p className="mt-1.5 rounded-md bg-white/70 px-2 py-1 text-xs text-slate-500 dark:bg-zinc-800/50 dark:text-slate-400">
+                      {row.reason}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {latest_deductions.length > 0 && footerLink(dailyOpsUrl, t("popovers.viewDailyOps"))}
+      </div>
+    );
+
+    // ── 6. Gas vs Orders ─────────────────────────────────────────────────
+    const gasPerOrderContent = (
+      <div>
+        {popoverHeader(
+          <Fuel className="h-5 w-5 text-white" />,
+          t("popovers.gasVsOrders"),
+          "from-sky-500 to-sky-600",
+          "border-b-sky-500",
+        )}
+        <div className="p-4">
+          {gas_summary.total_orders === 0 && gas_summary.total_consumption === 0 ? (
+            noData
+          ) : (
+            <>
+              {/* Stat pills */}
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                <div className="flex flex-col items-center rounded-xl bg-sky-50 p-2 dark:bg-sky-950/30">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-400">
+                    {t("popovers.gasConsumption")}
+                  </span>
+                  <span className="mt-0.5 text-sm font-bold tabular-nums text-sky-800 dark:text-sky-200">
+                    {formatAmount(gas_summary.total_consumption)}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center rounded-xl bg-indigo-50 p-2 dark:bg-indigo-950/30">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                    {t("popovers.ordersCount")}
+                  </span>
+                  <span className="mt-0.5 text-sm font-bold tabular-nums text-indigo-800 dark:text-indigo-200">
+                    {gas_summary.total_orders.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center rounded-xl bg-teal-50 p-2 dark:bg-teal-950/30">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-400">
+                    avg
+                  </span>
+                  <span className="mt-0.5 text-sm font-bold tabular-nums text-teal-800 dark:text-teal-200">
+                    {formatAmount(gas_summary.avg_per_order)}
+                  </span>
+                </div>
+              </div>
+              {/* Mini bar chart */}
+              <div className="w-full">
+                <ResponsiveContainer width="100%" height={130}>
+                  <BarChart
+                    data={[
+                      { name: t("popovers.gasConsumption"), consumption: gas_summary.total_consumption, orders: 0 },
+                      { name: t("popovers.ordersCount"), consumption: 0, orders: gas_summary.total_orders },
+                    ]}
+                    margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+                  >
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 9 }} tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v))} axisLine={false} tickLine={false} width={32} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v))} axisLine={false} tickLine={false} width={32} />
+                    <Tooltip
+                      contentStyle={tooltipContentStyle}
+                      formatter={(value: number | undefined, _name: string | undefined, item: { dataKey?: unknown }) => [
+                        item?.dataKey === "consumption" ? formatAmount(value ?? 0) : (value ?? 0).toLocaleString(),
+                        item?.dataKey === "consumption" ? t("popovers.gasConsumption") : t("popovers.ordersCount"),
+                      ]}
+                    />
+                    <Bar yAxisId="left" dataKey="consumption" fill="#0ea5e9" radius={[6, 6, 0, 0]} name={t("popovers.gasConsumption")} />
+                    <Bar yAxisId="right" dataKey="orders" fill="#6366f1" radius={[6, 6, 0, 0]} name={t("popovers.ordersCount")} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          )}
+        </div>
+        {(gas_summary.total_orders > 0 || gas_summary.total_consumption > 0) &&
+          footerLink(fleetUrl, t("popovers.viewFleet"))}
+      </div>
+    );
+
+    return {
+      active_employees: activeEmployeesContent,
+      total_orders: totalOrdersContent,
+      total_revenue: totalRevenueContent,
+      total_cash_collected: totalCashContent,
+      total_deductions: totalDeductionsContent,
+      gas_per_order: gasPerOrderContent,
+    };
+  }, [
+    t,
+    monthFormatted,
+    getPlatformLabel,
+    active_employees_by_platform,
+    platforms,
+    cashFlow.top10_uncollected,
+    latest_deductions,
+    gas_summary,
+    locale,
+    dailyOpsUrl,
+    cashLoansUrl,
+    fleetUrl,
+    tooltipContentStyle,
+  ]);
 
   return (
     <div className="space-y-3">
@@ -255,7 +748,9 @@ export function DashboardPageClient({ locale, payload }: Props) {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard
+        <StatCardWithPopover
+          onMouseEnter={(e) => handlePopoverEnter(e, "active_employees")}
+          onMouseLeave={handlePopoverLeave}
           accentIndex={0}
           label={t("cards.activeEmployees")}
           value={kpis.active_employees.current.toLocaleString()}
@@ -265,7 +760,9 @@ export function DashboardPageClient({ locale, payload }: Props) {
           drillDownHref={employmentUrl}
           drillDownLabel={t("links.viewEmployment")}
         />
-        <StatCard
+        <StatCardWithPopover
+          onMouseEnter={(e) => handlePopoverEnter(e, "total_orders")}
+          onMouseLeave={handlePopoverLeave}
           accentIndex={1}
           label={t("cards.totalOrders")}
           value={kpis.total_orders.current.toLocaleString()}
@@ -275,7 +772,9 @@ export function DashboardPageClient({ locale, payload }: Props) {
           drillDownHref={dailyOpsUrl}
           drillDownLabel={t("links.viewDailyOps")}
         />
-        <StatCard
+        <StatCardWithPopover
+          onMouseEnter={(e) => handlePopoverEnter(e, "total_revenue")}
+          onMouseLeave={handlePopoverLeave}
           accentIndex={2}
           label={t("cards.totalRevenue")}
           value={formatAmount(kpis.total_revenue.current)}
@@ -285,7 +784,9 @@ export function DashboardPageClient({ locale, payload }: Props) {
           drillDownHref={dailyOpsUrl}
           drillDownLabel={t("links.viewDailyOps")}
         />
-        <StatCard
+        <StatCardWithPopover
+          onMouseEnter={(e) => handlePopoverEnter(e, "total_cash_collected")}
+          onMouseLeave={handlePopoverLeave}
           accentIndex={3}
           label={t("cards.totalCashCollected")}
           value={formatAmount(kpis.total_cash_collected.current)}
@@ -295,7 +796,9 @@ export function DashboardPageClient({ locale, payload }: Props) {
           drillDownHref={cashLoansUrl}
           drillDownLabel={t("links.viewCashLoans")}
         />
-        <StatCard
+        <StatCardWithPopover
+          onMouseEnter={(e) => handlePopoverEnter(e, "total_deductions")}
+          onMouseLeave={handlePopoverLeave}
           accentIndex={4}
           label={t("cards.totalDeductions")}
           value={formatAmount(kpis.total_deductions.current)}
@@ -305,7 +808,9 @@ export function DashboardPageClient({ locale, payload }: Props) {
           drillDownHref={dailyOpsUrl}
           drillDownLabel={t("links.viewDailyOps")}
         />
-        <StatCard
+        <StatCardWithPopover
+          onMouseEnter={(e) => handlePopoverEnter(e, "gas_per_order")}
+          onMouseLeave={handlePopoverLeave}
           accentIndex={5}
           label={t("cards.gasPerOrder")}
           value={formatAmount(kpis.gas_per_order.current)}
@@ -316,6 +821,30 @@ export function DashboardPageClient({ locale, payload }: Props) {
           drillDownLabel={t("links.viewFleet")}
         />
       </div>
+
+      {popoverInfo && (() => {
+        const POPOVER_WIDTH = 340;
+        const POPOVER_GAP = 10;
+        const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1200;
+        const rawLeft = popoverInfo.rect.left + popoverInfo.rect.width / 2 - POPOVER_WIDTH / 2;
+        const clampedLeft = Math.max(8, Math.min(rawLeft, viewportWidth - POPOVER_WIDTH - 8));
+        return (
+          <div
+            style={{
+              position: "fixed",
+              top: popoverInfo.rect.bottom + POPOVER_GAP,
+              left: clampedLeft,
+              width: POPOVER_WIDTH,
+              zIndex: 1300,
+            }}
+            className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl dark:border-zinc-700/80 dark:bg-zinc-900"
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
+          >
+            {popoverContents[popoverInfo.key as keyof typeof popoverContents]}
+          </div>
+        );
+      })()}
 
       {/* Operations: table + charts */}
       <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-md dark:border-zinc-700/80 dark:bg-zinc-900/80">

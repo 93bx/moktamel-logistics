@@ -727,6 +727,21 @@
         "Recruitment": "استقدام"
       }
     },
+    "popovers": {
+      "activeEmployeesByPlatform": "الموظفون النشطون حسب المنصة",
+      "ordersByPlatform": "الطلبات حسب المنصة",
+      "revenueByPlatform": "الإيرادات حسب المنصة",
+      "top3ToCollectFrom": "أعلى 3 للتحصيل منهم",
+      "latestDeductions": "أحدث الخصومات",
+      "gasVsOrders": "الوقود مقابل الطلبات",
+      "noDataForPeriod": "لا توجد بيانات لهذه الفترة.",
+      "viewDailyOps": "عرض التشغيل اليومي",
+      "viewCashLoans": "عرض النقد والسلف",
+      "viewFleet": "عرض الأسطول",
+      "deductionNoReason": "—",
+      "gasConsumption": "الاستهلاك (ر.س)",
+      "ordersCount": "الطلبات"
+    },
     "empty": {
       "noReviewedOps": "لا توجد عمليات مراجعة في هذا الشهر.",
       "noDailyPerf": "لا توجد بيانات أداء يومية.",
