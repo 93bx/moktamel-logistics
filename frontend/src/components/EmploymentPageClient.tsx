@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Eye, Pencil, CheckCircle, Slash, Trash2, UserX, RotateCcw } from "lucide-react";
+import { Zap, Eye, Pencil, CheckCircle, Slash, Trash2, User, Hash, Phone, Calendar, Globe, FileText, Monitor, Briefcase, Activity } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 import { PlatformIcon } from "./PlatformIcon";
+import { NationalityDisplay } from "./NationalityDisplay";
+import { CandidateImageCard } from "./CandidateImageCard";
+import { ImageViewerModal } from "./ImageViewerModal";
 import { EmploymentModal } from "./EmploymentModal";
-import { EmploymentViewModal } from "./EmploymentViewModal";
 import { Modal } from "./Modal";
 
 type EmploymentListItem = {
@@ -18,13 +20,17 @@ type EmploymentListItem = {
   full_name_ar: string | null;
   full_name_en: string | null;
   iqama_no: string | null;
+  custody_status: string | null;
+  start_date_at: string | null;
   contract_end_at: string | null;
   iqama_expiry_at: string | null;
   passport_expiry_at: string | null;
+  medical_expiry_at: string | null;
   license_expiry_at: string | null;
   status_code: string;
   salary_amount: string | null;
   salary_currency_code: string | null;
+  cost_center_code: string | null;
   assigned_platform: string | null;
   platform_user_no: string | null;
   avatar_file_id: string | null;
@@ -35,6 +41,28 @@ type EmploymentListItem = {
     full_name_ar: string;
     full_name_en: string | null;
   } | null;
+};
+
+/** Full employment record from GET /api/employment/:id (for View modal) */
+type EmploymentFull = EmploymentListItem & {
+  nationality: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  passport_no: string | null;
+  passport_expiry_at: string | null;
+  passport_file_id: string | null;
+  iqama_no: string | null;
+  iqama_expiry_at: string | null;
+  iqama_file_id: string | null;
+  contract_no: string | null;
+  contract_end_at: string | null;
+  contract_file_id: string | null;
+  license_expiry_at: string | null;
+  license_file_id: string | null;
+  promissory_note_file_id: string | null;
+  job_type: string | null;
+  platform_user_no: string | null;
+  notes: string | null;
 };
 
 interface EmploymentPageClientProps {
@@ -55,10 +83,8 @@ export function EmploymentPageClient({
   const t = useTranslations();
   const [editId, setEditId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [viewEmploymentId, setViewEmploymentId] = useState<string | null>(null);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
-  const [actionType, setActionType] = useState<"ACTIVATE" | "DEACTIVATE" | "VIEW" | "DELETE" | "DESERT" | "RESTORE">("VIEW");
+  const [actionType, setActionType] = useState<"ACTIVATE" | "DEACTIVATE" | "VIEW" | "DELETE">("VIEW");
   const [selectedRecord, setSelectedRecord] = useState<EmploymentListItem | null>(null);
 
   const handleEdit = (id: string) => {
@@ -66,12 +92,7 @@ export function EmploymentPageClient({
     setIsModalOpen(true);
   };
 
-  const handleAction = (record: EmploymentListItem, type: "ACTIVATE" | "DEACTIVATE" | "VIEW" | "DELETE" | "DESERT" | "RESTORE") => {
-    if (type === "VIEW") {
-      setViewEmploymentId(record.id);
-      setViewModalOpen(true);
-      return;
-    }
+  const handleAction = (record: EmploymentListItem, type: "ACTIVATE" | "DEACTIVATE" | "VIEW" | "DELETE") => {
     setSelectedRecord(record);
     setActionType(type);
     setIsActionModalOpen(true);
@@ -79,6 +100,14 @@ export function EmploymentPageClient({
 
   return (
     <>
+      {/* Warning Row */}
+      <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/10 dark:text-amber-400">
+        <div className="flex items-center gap-2">
+          <Zap className="h-4 w-4" />
+          <p>{t("common.employmentWarning") || "Note: Employee status cannot be set to Active unless all mandatory documents are uploaded and valid."}</p>
+        </div>
+      </div>
+
       <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-primary">
@@ -169,24 +198,6 @@ export function EmploymentPageClient({
                             <Slash className="h-4 w-4" />
                           </button>
                         )}
-                        {r.status_code !== "EMPLOYMENT_STATUS_ACTIVE" && r.status_code !== "EMPLOYMENT_STATUS_DESERTED" && (
-                          <button
-                            onClick={() => handleAction(r, "DESERT")}
-                            className="rounded-md p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                            title={t("common.markAsDeserted")}
-                          >
-                            <UserX className="h-4 w-4" />
-                          </button>
-                        )}
-                        {r.status_code === "EMPLOYMENT_STATUS_DESERTED" && (
-                          <button
-                            onClick={() => handleAction(r, "RESTORE")}
-                            className="rounded-md p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                            title={t("common.restoreToInProgress")}
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </button>
-                        )}
                         {r.status_code !== "EMPLOYMENT_STATUS_ACTIVE" && (
                           <button
                             onClick={() => handleAction(r, "DELETE")}
@@ -222,57 +233,6 @@ export function EmploymentPageClient({
         employmentId={editId || undefined}
       />
 
-      <EmploymentViewModal
-        isOpen={viewModalOpen}
-        onClose={() => {
-          setViewModalOpen(false);
-          setViewEmploymentId(null);
-        }}
-        employmentId={viewEmploymentId}
-        locale={locale}
-        onEdit={(id) => {
-          setViewModalOpen(false);
-          setViewEmploymentId(null);
-          setEditId(id);
-          setIsModalOpen(true);
-        }}
-        onActivate={(r) => {
-          setViewModalOpen(false);
-          setViewEmploymentId(null);
-          setSelectedRecord(r as EmploymentListItem);
-          setActionType("ACTIVATE");
-          setIsActionModalOpen(true);
-        }}
-        onDeactivate={(r) => {
-          setViewModalOpen(false);
-          setViewEmploymentId(null);
-          setSelectedRecord(r as EmploymentListItem);
-          setActionType("DEACTIVATE");
-          setIsActionModalOpen(true);
-        }}
-        onDesert={(r) => {
-          setViewModalOpen(false);
-          setViewEmploymentId(null);
-          setSelectedRecord(r as EmploymentListItem);
-          setActionType("DESERT");
-          setIsActionModalOpen(true);
-        }}
-        onRestore={(r) => {
-          setViewModalOpen(false);
-          setViewEmploymentId(null);
-          setSelectedRecord(r as EmploymentListItem);
-          setActionType("RESTORE");
-          setIsActionModalOpen(true);
-        }}
-        onDelete={(r) => {
-          setViewModalOpen(false);
-          setViewEmploymentId(null);
-          setSelectedRecord(r as EmploymentListItem);
-          setActionType("DELETE");
-          setIsActionModalOpen(true);
-        }}
-      />
-
       <ActionModal
         isOpen={isActionModalOpen}
         onClose={() => setIsActionModalOpen(false)}
@@ -293,7 +253,7 @@ function ActionModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  type: "ACTIVATE" | "DEACTIVATE" | "VIEW" | "DELETE" | "DESERT" | "RESTORE";
+  type: "ACTIVATE" | "DEACTIVATE" | "VIEW" | "DELETE";
   record: EmploymentListItem | null;
   locale: string;
 }) {
@@ -303,30 +263,64 @@ function ActionModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const resolveError = (data: { message?: unknown } | null, fallbackMessage: string): string => {
-    const msg = data?.message;
-    if (msg == null) return t("common.actionFailed");
-    if (typeof msg === "object" && msg !== null && "error_code" in msg) {
-      const obj = msg as { error_code: string; min?: number };
-      const code = obj.error_code;
+  const [viewRecord, setViewRecord] = useState<EmploymentFull | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({});
+  const [viewerState, setViewerState] = useState<{ url: string; title: string; filename: string } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !record || type !== "VIEW") {
+      setViewRecord(null);
+      setDocumentUrls({});
+      return;
+    }
+    const employmentId = record.id;
+    let cancelled = false;
+    async function load() {
+      setViewLoading(true);
+      setViewRecord(null);
+      setDocumentUrls({});
       try {
-        if (code === "HR_EMPLOYMENT_ACTIVE_SALARY_MIN" && typeof obj.min === "number") {
-          return t("common.employmentErrors.HR_EMPLOYMENT_ACTIVE_SALARY_MIN", { min: obj.min });
-        }
-        return t(`common.employmentErrors.${code}` as any);
-      } catch {
-        return fallbackMessage;
+        const res = await fetch(`/api/employment/${employmentId}`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok || cancelled) return;
+        setViewRecord(data as EmploymentFull);
+
+        const fileIds: { key: string; fileId: string }[] = [];
+        if (data.passport_file_id) fileIds.push({ key: "passport", fileId: data.passport_file_id });
+        if (data.iqama_file_id) fileIds.push({ key: "iqama", fileId: data.iqama_file_id });
+        if (data.contract_file_id) fileIds.push({ key: "contract", fileId: data.contract_file_id });
+        if (data.license_file_id) fileIds.push({ key: "license", fileId: data.license_file_id });
+        if (data.promissory_note_file_id) fileIds.push({ key: "promissory_note", fileId: data.promissory_note_file_id });
+
+        const urlMap: Record<string, string> = {};
+        await Promise.all(
+          fileIds.map(async ({ key, fileId }) => {
+            try {
+              const urlRes = await fetch("/api/files/download-url", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ file_id: fileId }),
+              });
+              if (urlRes.ok && !cancelled) {
+                const urlData = await urlRes.json();
+                if (urlData.download_url) urlMap[key] = urlData.download_url;
+              }
+            } catch {
+              // ignore per-file errors
+            }
+          })
+        );
+        if (!cancelled) setDocumentUrls(urlMap);
+      } finally {
+        if (!cancelled) setViewLoading(false);
       }
     }
-    if (typeof msg === "string" && msg.startsWith("HR_EMPLOYMENT_")) {
-      try {
-        return t(`common.employmentErrors.${msg}` as any);
-      } catch {
-        return msg;
-      }
-    }
-    return typeof msg === "string" ? msg : t("common.actionFailed");
-  };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, record?.id, type]);
 
   const handleSubmit = async () => {
     if (!record) return;
@@ -340,14 +334,7 @@ function ActionModal({
           method: "DELETE",
         });
       } else {
-        const newStatus =
-          type === "ACTIVATE"
-            ? "EMPLOYMENT_STATUS_ACTIVE"
-            : type === "DESERT"
-              ? "EMPLOYMENT_STATUS_DESERTED"
-              : type === "RESTORE"
-                ? "EMPLOYMENT_STATUS_UNDER_PROCEDURE"
-                : "EMPLOYMENT_STATUS_DEACTIVATED";
+        const newStatus = type === "ACTIVATE" ? "EMPLOYMENT_STATUS_ACTIVE" : "EMPLOYMENT_STATUS_DEACTIVATED";
         res = await fetch(`/api/employment/${record.id}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
@@ -359,17 +346,16 @@ function ActionModal({
       }
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(resolveError(data, t("common.actionFailed")));
+        const data = await res.json();
+        setError(data?.message ?? "Action failed");
         setSaving(false);
         return;
       }
 
       onClose();
       router.refresh();
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      setError(resolveError({ message }, t("common.actionFailed")));
+    } catch (e: any) {
+      setError(e?.message ?? "Action failed");
       setSaving(false);
     }
   };
@@ -385,16 +371,15 @@ function ActionModal({
         body: JSON.stringify({ status_code: "EMPLOYMENT_STATUS_DRAFT", notes: notes || undefined }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(resolveError(data, t("common.actionFailed")));
+        const data = await res.json();
+        setError(data?.message ?? "Action failed");
         setSaving(false);
         return;
       }
       onClose();
       router.refresh();
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      setError(resolveError({ message }, t("common.actionFailed")));
+    } catch (e: any) {
+      setError(e?.message ?? "Action failed");
       setSaving(false);
     }
   };
@@ -402,15 +387,37 @@ function ActionModal({
   if (!record) return null;
 
   const getTitle = () => {
+    if (type === "VIEW") return t("common.view");
     if (type === "ACTIVATE") return record?.status_code === "EMPLOYMENT_STATUS_DEACTIVATED" ? t("common.reactivate") : t("common.activate");
     if (type === "DEACTIVATE") return t("common.deactivate");
     if (type === "DELETE") return t("common.delete");
-    if (type === "DESERT") return t("common.markAsDeserted");
-    if (type === "RESTORE") return t("common.restoreToInProgress");
     return "";
   };
 
-  const displayName = record.full_name_ar || record.full_name_en || "-";
+  const formatDate = (dateString: string | null): string => {
+    if (!dateString) return "-";
+    try {
+      return new Date(dateString).toLocaleDateString(locale === "ar" ? "ar-SA" : "en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getJobTypeLabel = (jobType: string | null): string => {
+    if (!jobType) return "-";
+    const map: Record<string, string> = {
+      REPRESENTATIVE: t("common.jobRepresentative"),
+      DRIVER: t("common.jobDriver"),
+      ADMINISTRATOR: t("common.jobAdministrator"),
+    };
+    return map[jobType] ?? jobType;
+  };
+
+  const displayName = viewRecord?.full_name_ar || record.full_name_ar || "-";
 
   return (
     <>
@@ -418,9 +425,235 @@ function ActionModal({
         isOpen={isOpen}
         onClose={onClose}
         title={getTitle()}
+        maxWidth={type === "VIEW" ? "4xl" : undefined}
       >
         <div className="space-y-4">
-          {type === "DELETE" ? (
+          {type === "VIEW" ? (
+            <div className="space-y-6">
+              {viewLoading ? (
+                <div className="py-12 text-center text-sm text-primary/70">{t("common.loading")}</div>
+              ) : viewRecord ? (
+                <>
+                  {/* A – Personal Info */}
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary/80">
+                      <User className="h-4 w-4" />
+                      {t("common.personalInfo")}
+                    </h3>
+                    <div className="flex flex-wrap items-start gap-6">
+                      <div className="flex shrink-0 flex-col items-center gap-2">
+                        <div className="h-24 w-24 overflow-hidden rounded-full border-2 border-zinc-200 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-700">
+                          {viewRecord.avatar_file_id ? (
+                            <img
+                              src={`/api/files/${viewRecord.avatar_file_id}/view`}
+                              className="h-full w-full object-cover"
+                              alt=""
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-zinc-400">
+                              {(viewRecord.full_name_ar || viewRecord.full_name_en || "?")[0]}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid min-w-0 flex-1 grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Hash className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("common.employeeCode")}:</span>
+                          <span className="font-medium text-primary">{viewRecord.employee_code || "-"}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <User className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("common.fullNameAr")}:</span>
+                          <span className="font-medium text-primary">{viewRecord.full_name_ar || "-"}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <User className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("common.fullNameEn")}:</span>
+                          <span className="font-medium text-primary">{viewRecord.full_name_en || "-"}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Globe className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("common.nationality")}:</span>
+                          <NationalityDisplay value={viewRecord.nationality} locale={locale as "ar" | "en"} />
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("common.phoneNumber")}:</span>
+                          <span className="font-medium text-primary">{viewRecord.phone || "-"}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("common.dateOfBirth")}:</span>
+                          <span className="font-medium text-primary">{formatDate(viewRecord.date_of_birth)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* B – Official Documents */}
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary/80">
+                      <FileText className="h-4 w-4" />
+                      {t("common.officialDocuments")}
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {documentUrls["passport"] && (
+                        <CandidateImageCard
+                          src={documentUrls["passport"]}
+                          alt={t("common.passportImage")}
+                          label={`${t("common.passport")} (${viewRecord.passport_no || "-"} / ${formatDate(viewRecord.passport_expiry_at)})`}
+                          downloadFilename={`${displayName}_passport`}
+                          onView={() =>
+                            setViewerState({
+                              url: documentUrls["passport"],
+                              title: t("common.passportImage"),
+                              filename: `${displayName}_passport`,
+                            })
+                          }
+                        />
+                      )}
+                      {!documentUrls["passport"] && (
+                        <DocumentPlaceholder
+                          label={t("common.passport")}
+                          detail={`${viewRecord.passport_no || "-"} · ${formatDate(viewRecord.passport_expiry_at)}`}
+                        />
+                      )}
+                      {documentUrls["iqama"] && (
+                        <CandidateImageCard
+                          src={documentUrls["iqama"]}
+                          alt={t("common.iqamaImage")}
+                          label={`${t("common.iqama")} (${viewRecord.iqama_no || "-"} / ${formatDate(viewRecord.iqama_expiry_at)})`}
+                          downloadFilename={`${displayName}_iqama`}
+                          onView={() =>
+                            setViewerState({
+                              url: documentUrls["iqama"],
+                              title: t("common.iqamaImage"),
+                              filename: `${displayName}_iqama`,
+                            })
+                          }
+                        />
+                      )}
+                      {!documentUrls["iqama"] && (
+                        <DocumentPlaceholder
+                          label={t("common.iqama")}
+                          detail={`${viewRecord.iqama_no || "-"} · ${formatDate(viewRecord.iqama_expiry_at)}`}
+                        />
+                      )}
+                      {documentUrls["contract"] && (
+                        <CandidateImageCard
+                          src={documentUrls["contract"]}
+                          alt={t("common.contractImage")}
+                          label={`${t("common.contract")} (${viewRecord.contract_no || "-"} / ${formatDate(viewRecord.contract_end_at)})`}
+                          downloadFilename={`${displayName}_contract`}
+                          onView={() =>
+                            setViewerState({
+                              url: documentUrls["contract"],
+                              title: t("common.contractImage"),
+                              filename: `${displayName}_contract`,
+                            })
+                          }
+                        />
+                      )}
+                      {!documentUrls["contract"] && (
+                        <DocumentPlaceholder
+                          label={t("common.contract")}
+                          detail={`${viewRecord.contract_no || "-"} · ${formatDate(viewRecord.contract_end_at)}`}
+                        />
+                      )}
+                      {documentUrls["license"] && (
+                        <CandidateImageCard
+                          src={documentUrls["license"]}
+                          alt={t("common.licenseImage")}
+                          label={`${t("common.license")} · ${formatDate(viewRecord.license_expiry_at)}`}
+                          downloadFilename={`${displayName}_license`}
+                          onView={() =>
+                            setViewerState({
+                              url: documentUrls["license"],
+                              title: t("common.licenseImage"),
+                              filename: `${displayName}_license`,
+                            })
+                          }
+                        />
+                      )}
+                      {!documentUrls["license"] && (
+                        <DocumentPlaceholder
+                          label={t("common.license")}
+                          detail={formatDate(viewRecord.license_expiry_at)}
+                        />
+                      )}
+                      {documentUrls["promissory_note"] && (
+                        <CandidateImageCard
+                          src={documentUrls["promissory_note"]}
+                          alt={t("common.promissoryNoteImage")}
+                          label={t("common.promissoryNote")}
+                          downloadFilename={`${displayName}_promissory_note`}
+                          onView={() =>
+                            setViewerState({
+                              url: documentUrls["promissory_note"],
+                              title: t("common.promissoryNoteImage"),
+                              filename: `${displayName}_promissory_note`,
+                            })
+                          }
+                        />
+                      )}
+                      {!documentUrls["promissory_note"] && (
+                        <DocumentPlaceholder
+                          label={t("common.promissoryNote")}
+                          detail="-"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* C – Operating Data */}
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-primary/80">
+                      <Activity className="h-4 w-4" />
+                      {t("common.operatingData")}
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Monitor className="h-4 w-4 shrink-0 text-primary/50" />
+                        <span className="text-primary/60">{t("common.operatingPlatform")}:</span>
+                        {viewRecord.assigned_platform ? (
+                          <PlatformIcon platform={viewRecord.assigned_platform} />
+                        ) : (
+                          <span className="font-medium text-primary">-</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Hash className="h-4 w-4 shrink-0 text-primary/50" />
+                        <span className="text-primary/60">{t("common.platformUserNo")}:</span>
+                        <span className="font-medium text-primary">{viewRecord.platform_user_no || "-"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Briefcase className="h-4 w-4 shrink-0 text-primary/50" />
+                        <span className="text-primary/60">{t("common.jobType")}:</span>
+                        <span className="font-medium text-primary">{getJobTypeLabel(viewRecord.job_type)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Activity className="h-4 w-4 shrink-0 text-primary/50" />
+                        <span className="text-primary/60">{t("common.status")}:</span>
+                        <StatusBadge status={viewRecord.status_code} />
+                      </div>
+                    </div>
+                    {(viewRecord.notes != null && viewRecord.notes !== "") && (
+                      <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                        <div className="flex items-start gap-2 text-sm">
+                          <FileText className="h-4 w-4 shrink-0 text-primary/50 mt-0.5" />
+                          <div>
+                            <span className="text-primary/60">{t("common.notes")}:</span>
+                            <p className="mt-1 whitespace-pre-wrap font-medium text-primary">{viewRecord.notes}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : type === "DELETE" ? (
           <div className="space-y-4">
             {record.status_code === "EMPLOYMENT_STATUS_ACTIVE" ? (
               <p className="text-sm text-primary font-medium">
@@ -457,29 +690,20 @@ function ActionModal({
         ) : (
           <div className="space-y-4">
             <p className="text-sm">
-              {type === "DESERT"
-                ? t("common.confirmMarkAsDeserted", { name: displayName })
-                : type === "RESTORE"
-                  ? t("common.confirmRestoreToInProgress", { name: displayName })
-                  : type === "ACTIVATE"
-                    ? record?.status_code === "EMPLOYMENT_STATUS_DEACTIVATED"
-                      ? t("common.confirmReactivate")
-                      : t("common.confirmActivate") || "Are you sure you want to activate this employee? This will change status to Active."
-                    : t("common.confirmDeactivate") || "Are you sure you want to deactivate this employee?"}
+              {type === "ACTIVATE"
+                ? record?.status_code === "EMPLOYMENT_STATUS_DEACTIVATED"
+                  ? t("common.confirmReactivate")
+                  : t("common.confirmActivate") || "Are you sure you want to activate this employee? This will change status to Active."
+                : t("common.confirmDeactivate") || "Are you sure you want to deactivate this employee?"}
             </p>
-            {type === "ACTIVATE" && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/10 dark:text-amber-400">
-                <p>{t("common.employmentWarning") || "Note: Employee status cannot be set to Active unless all mandatory documents are uploaded and valid."}</p>
-              </div>
-            )}
             <div>
               <label className="text-sm font-medium">{t("common.notes")}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-primary"
+                className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
                 rows={3}
-                required={type !== "DESERT" && type !== "RESTORE"}
+                required
               />
             </div>
             {error && <div className="text-xs text-red-600">{error}</div>}
@@ -490,24 +714,35 @@ function ActionModal({
               <button
                 onClick={handleSubmit}
                 disabled={saving}
-                className={`px-4 py-2 text-sm text-white rounded-md ${type === "ACTIVATE" ? "bg-emerald-600 hover:bg-emerald-700" : type === "DESERT" ? "bg-amber-600 hover:bg-amber-700" : type === "RESTORE" ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700"}`}
+                className={`px-4 py-2 text-sm text-white rounded-md ${type === "ACTIVATE" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"}`}
               >
-                {saving
-                  ? t("common.saving")
-                  : type === "DESERT"
-                    ? t("common.markAsDeserted")
-                    : type === "RESTORE"
-                      ? t("common.restoreToInProgress")
-                      : type === "ACTIVATE" && record?.status_code === "EMPLOYMENT_STATUS_DEACTIVATED"
-                        ? t("common.reactivate")
-                        : t("common.save")}
+                {saving ? t("common.saving") : type === "ACTIVATE" && record?.status_code === "EMPLOYMENT_STATUS_DEACTIVATED" ? t("common.reactivate") : t("common.save")}
               </button>
             </div>
           </div>
         )}
       </div>
     </Modal>
+      {type === "VIEW" && viewerState && (
+        <ImageViewerModal
+          isOpen={!!viewerState}
+          onClose={() => setViewerState(null)}
+          imageUrl={viewerState.url}
+          imageTitle={viewerState.title}
+          downloadFilename={viewerState.filename}
+        />
+      )}
     </>
+  );
+}
+
+function DocumentPlaceholder({ label, detail }: { label: string; detail: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-zinc-300 bg-white p-4 dark:border-zinc-600 dark:bg-zinc-800/50">
+      <p className="text-sm font-medium text-primary/80">{label}</p>
+      <p className="mt-1 text-xs text-primary/60">{detail}</p>
+      <p className="mt-2 text-xs italic text-primary/50">—</p>
+    </div>
   );
 }
 

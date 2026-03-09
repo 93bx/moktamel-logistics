@@ -31,7 +31,11 @@ export class SalariesPayrollController {
     @Req() req: Request & { user?: any },
     @Query() query: ListSalariesQueryDto,
   ) {
-    return this.salariesPayrollService.getList(req.user.company_id, query);
+    return this.salariesPayrollService.getList(
+      req.user.company_id,
+      query,
+      req.user.sub,
+    );
   }
 
   @Get(':id')

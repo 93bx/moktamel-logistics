@@ -33,10 +33,14 @@ export class SalariesPayrollService {
     return { start, end };
   }
 
-  async getList(company_id: string, query: ListSalariesQueryDto) {
+  async getList(
+    company_id: string,
+    query: ListSalariesQueryDto,
+    actor_user_id: string,
+  ) {
     const { start, end } = this.getMonthBounds(query.month);
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
+    const page = Number(query.page) || 1;
+    const pageSize = Math.min(Math.max(Number(query.pageSize) || 20, 1), 500);
 
     // 1. Ensure a PayrollRun exists for this month
     let run = await this.prisma.payrollRun.findUnique({
@@ -44,7 +48,7 @@ export class SalariesPayrollService {
     });
 
     if (!run) {
-      run = await this.generateRun(company_id, start, end);
+      run = await this.generateRun(company_id, start, end, actor_user_id);
     } else if (run.status === PayrollRunStatus.DRAFT) {
       // For draft runs, we might want to refresh data from sources
       // but for now let's just return what's there.
@@ -205,7 +209,12 @@ export class SalariesPayrollService {
     });
   }
 
-  private async generateRun(company_id: string, start: Date, end: Date) {
+  private async generateRun(
+    company_id: string,
+    start: Date,
+    end: Date,
+    actor_user_id: string,
+  ) {
     // This should be done in a transaction or with care
     return this.prisma.$transaction(async (tx) => {
       // 1. Fetch active employees
@@ -237,8 +246,8 @@ export class SalariesPayrollService {
           company_id,
           month: start,
           status: 'DRAFT',
-          generated_by_user_id: 'SYSTEM', // Replace with actual user ID if triggered manually
-          created_by_user_id: 'SYSTEM',
+          generated_by_user_id: actor_user_id,
+          created_by_user_id: actor_user_id,
         },
       });
 
@@ -334,7 +343,7 @@ export class SalariesPayrollService {
             total_revenue: Number(opsAgg._sum.total_revenue ?? 0),
             average_cost: 0,
             calculation_details: calculation.calculationDetails,
-            created_by_user_id: 'SYSTEM',
+            created_by_user_id: actor_user_id,
           },
         });
       }
