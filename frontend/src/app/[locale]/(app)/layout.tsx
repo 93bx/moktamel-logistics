@@ -44,14 +44,14 @@ export default async function AppLayout({
   return (
     <div className="min-h-screen bg-white text-primary dark:bg-black dark:text-primary">
       <div className="flex">
-        <aside className="hidden min-h-screen w-64 flex-col border-r border-primary-700 bg-primary p-4 dark:border-primary-800 dark:bg-primary-900 md:flex">
+        <aside className="sticky top-0 self-start hidden h-screen w-64 flex-col overflow-y-auto border-r border-primary-700 bg-primary p-4 dark:border-primary-800 dark:bg-primary-900 md:flex">
           <div className="flex flex-1 flex-col min-h-0">
-            <div className="text-lg font-semibold text-white truncate" title={companyName ?? t("app.title")}>
+            <div className="flex-shrink-0 pb-3 text-lg font-semibold text-white truncate" title={companyName ?? t("app.title")}>
               {companyName ?? t("app.title")}
             </div>
             <SideNav />
           </div>
-          <div className="mt-auto pt-4 flex justify-center">
+          <div className="mt-auto flex-shrink-0 pt-4 flex justify-center">
             <Image
               src="/logo.png"
               alt="Moktamel Logistics"
