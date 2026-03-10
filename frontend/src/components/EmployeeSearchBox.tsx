@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { forwardRef, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 type EmployeeOption = {
@@ -14,21 +14,26 @@ type EmployeeOption = {
   recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
 };
 
-export function EmployeeSearchBox({
-  value,
-  onChange,
-  searchPath = "/api/assets/employees/search",
-  placeholder,
-  onSelectOption,
-  disabled = false,
-}: {
+type EmployeeSearchBoxProps = {
   value: string | null;
   onChange: (id: string | null) => void;
   searchPath?: string;
   placeholder?: string;
   onSelectOption?: (option: EmployeeOption) => void;
   disabled?: boolean;
-}) {
+};
+
+export const EmployeeSearchBox = forwardRef<HTMLInputElement, EmployeeSearchBoxProps>(function EmployeeSearchBox(
+  {
+    value,
+    onChange,
+    searchPath = "/api/assets/employees/search",
+    placeholder,
+    onSelectOption,
+    disabled = false,
+  },
+  ref,
+) {
   const t = useTranslations();
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<EmployeeOption[]>([]);
@@ -66,6 +71,7 @@ export function EmployeeSearchBox({
   return (
     <div className="space-y-1">
       <input
+        ref={ref}
         disabled={disabled}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -105,6 +111,6 @@ export function EmployeeSearchBox({
       </div>
     </div>
   );
-}
+});
 
 

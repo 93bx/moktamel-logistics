@@ -9,6 +9,8 @@ type AssetListItem = {
   employee_no: string | null;
   employee_code?: string | null;
   avatar_file_id: string | null;
+  full_name_en?: string | null;
+  full_name_ar?: string | null;
   recruitment_candidate: { full_name_ar: string; full_name_en: string | null; passport_no: string; nationality: string } | null;
   assets: Array<{
     id: string;

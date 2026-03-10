@@ -358,8 +358,6 @@ export function DailyOperationsPageClient({
     return item.employment_record?.employee_no ?? "-";
   };
 
-  console.log('data: ', data);
-
   return (
     <>
       {/* Quick Stats */}
@@ -1341,6 +1339,7 @@ function DailyOperationBulkModal({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const orderRefs = useRef<HTMLInputElement[]>([]);
+  const employeeColumnRefs = useRef<(HTMLInputElement | HTMLButtonElement | null)[]>([]);
   const [supervisorName, setSupervisorName] = useState("");
 
   const addRow = () =>
@@ -1408,11 +1407,11 @@ function DailyOperationBulkModal({
   };
 
   const focusNextRow = (idx: number) => {
-    if (orderRefs.current[idx + 1]) {
-      orderRefs.current[idx + 1]?.focus();
+    if (employeeColumnRefs.current[idx + 1]) {
+      employeeColumnRefs.current[idx + 1]?.focus();
     } else {
       addRow();
-      setTimeout(() => orderRefs.current[idx + 1]?.focus(), 80);
+      setTimeout(() => employeeColumnRefs.current[idx + 1]?.focus(), 80);
     }
   };
 
@@ -1607,6 +1606,9 @@ function DailyOperationBulkModal({
                           <div className="flex flex-col gap-1">
                             <span className="text-sm font-medium text-primary">{nameCodeDisplay}</span>
                             <button
+                              ref={(el) => {
+                                if (el) employeeColumnRefs.current[idx] = el;
+                              }}
                               type="button"
                               onClick={() => updateRow(idx, { employment_record_id: null, selected: null })}
                               className="w-fit text-xs text-primary/70 hover:underline"
@@ -1616,6 +1618,9 @@ function DailyOperationBulkModal({
                           </div>
                         ) : (
                           <EmployeeSearchBox
+                            ref={(el) => {
+                              if (el) employeeColumnRefs.current[idx] = el;
+                            }}
                             value={row.employment_record_id}
                             onChange={(id) => updateRow(idx, { employment_record_id: id })}
                             onSelectOption={(opt) => handleSelectEmployee(idx, opt)}

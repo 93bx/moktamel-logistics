@@ -49,6 +49,8 @@ type EmployeeDetail = {
 type EmployeeOption = {
   id: string;
   employee_no: string | null;
+  full_name_en?: string | null;
+  full_name_ar?: string | null;
   recruitment_candidate?: { full_name_ar: string; full_name_en: string | null } | null;
 };
 

@@ -18,6 +18,8 @@ import { Modal } from "./Modal";
 
 type EmployeeAssetsResponse = {
   id: string;
+  full_name_en?: string | null;
+  full_name_ar?: string | null;
   recruitment_candidate: {
     full_name_ar: string;
     full_name_en: string | null;
