@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
+import { parseMonthFromSearchParams } from "@/lib/dashboard";
+import { monthToDateRange } from "@/lib/dailyOps";
 import { DailyOperationsPageClient } from "@/components/DailyOperationsPageClient";
-import { buildDateRange } from "@/lib/dailyOps";
 
 type OperatingPlatform = "NONE" | "JAHEZ" | "HUNGERSTATION" | "NINJA" | "KEETA";
 
@@ -56,7 +57,7 @@ export default async function DailyOperationsPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ q?: string; date?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; month?: string; page?: string }>;
 }) {
   const { locale } = await params;
   const sp = await searchParams;
@@ -67,8 +68,9 @@ export default async function DailyOperationsPage({
     redirect(`/${locale}/login`);
   }
 
+  const month = parseMonthFromSearchParams(sp.month);
+  const { from: dateFrom, to: dateTo } = monthToDateRange(month);
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
-  const { from: dateFrom, to: dateTo } = buildDateRange(sp.date ?? null);
 
   let data: { items: DailyOperationListItem[]; total: number; page: number; page_size: number };
   let stats: StatsData;
@@ -87,9 +89,11 @@ export default async function DailyOperationsPage({
         )}&date_to=${encodeURIComponent(dateTo)}&page=${page}&page_size=25`,
       }),
       backendApi<StatsData>({
-        path: `/operations/daily/stats${sp.date ? `?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}` : ""}`,
+        path: `/operations/daily/stats?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`,
       }),
-      backendApi<MonthlyChartsData>({ path: `/operations/daily/monthly-charts` }).catch(() => null),
+      backendApi<MonthlyChartsData>({
+        path: `/operations/daily/monthly-charts?month=${encodeURIComponent(month)}`,
+      }).catch(() => null),
     ]);
   } catch (error) {
     if (error instanceof AuthError) {
@@ -127,7 +131,7 @@ export default async function DailyOperationsPage({
         data={data}
         stats={stats}
         chartsData={chartsData}
-        searchParams={sp}
+        searchParams={{ q: sp.q, month }}
         page={page}
       />
     </div>

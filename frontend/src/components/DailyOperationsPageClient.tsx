@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useEffect, type KeyboardEvent } from "react";
+import { getCurrentMonthYYYYMM } from "@/lib/dashboard";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -38,6 +39,7 @@ type MonthlyChartsData = {
     full_name_en: string | null;
     orders_count: number;
     monthly_orders_target: number | null;
+    avatar_file_id?: string | null;
   }>;
 };
 
@@ -80,7 +82,7 @@ type DailyOpsPageProps = {
   data: { items: DailyOperationListItem[]; total: number; page: number; page_size: number };
   stats: StatsData;
   chartsData: MonthlyChartsData | null;
-  searchParams: { q?: string; date?: string };
+  searchParams: { q?: string; month?: string };
   page: number;
 };
 
@@ -88,15 +90,67 @@ const formatAmount = (v: number | string | null | undefined) =>
   Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CHART_COLORS = [
-  "#0F1E33", 
-  "#1E3961", 
-  "#244473", 
+  "#0F1E33",
+  "#1E3961",
+  "#244473",
   "#3C5F91",
-  "#5B7EAD", 
-  "#7C9CC7", 
-  "#A4B8D9", 
-  "#CBD6EB", 
+  "#5B7EAD",
+  "#7C9CC7",
+  "#A4B8D9",
+  "#CBD6EB",
 ];
+
+const AVATAR_SIZE = 28;
+const AVATAR_GAP = 8;
+
+/** Custom bar shape: draws the bar and optionally the employee avatar at the end. */
+function BarWithAvatar(props: {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+  radius?: number | number[];
+  payload?: { avatar_file_id?: string | null };
+}) {
+  const { x = 0, y = 0, width = 0, height = 0, fill, payload } = props;
+  const avatarFileId = payload?.avatar_file_id;
+  const clipId = `bar-avatar-clip-${avatarFileId ?? "none"}-${x}-${y}`;
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={fill}
+        rx={6}
+        ry={6}
+      />
+      {avatarFileId ? (
+        <g clipPath={`url(#${clipId})`}>
+          <defs>
+            <clipPath id={clipId}>
+              <circle
+                cx={x + width + AVATAR_GAP + AVATAR_SIZE / 2}
+                cy={y + height / 2}
+                r={AVATAR_SIZE / 2}
+              />
+            </clipPath>
+          </defs>
+          <image
+            href={`/api/files/${avatarFileId}/view`}
+            x={x + width + AVATAR_GAP}
+            y={y + height / 2 - AVATAR_SIZE / 2}
+            width={AVATAR_SIZE}
+            height={AVATAR_SIZE}
+            preserveAspectRatio="xMidYMid slice"
+          />
+        </g>
+      ) : null}
+    </g>
+  );
+}
 
 /** Split name into two lines for Y-axis (break near middle, preferably at space). */
 function splitNameTwoLines(name: string, maxPerLine = 12): [string, string] {
@@ -145,6 +199,7 @@ export function DailyOperationsPageClient({
   page,
 }: DailyOpsPageProps) {
   const t = useTranslations();
+  const tDashboard = useTranslations("dashboard");
   const [showSingle, setShowSingle] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -153,6 +208,49 @@ export function DailyOperationsPageClient({
   const [editItem, setEditItem] = useState<DailyOperationListItem | null>(null);
   const [barMode, setBarMode] = useState<"top5" | "worst5">("top5");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const selectedMonthParam = searchParams.month ?? getCurrentMonthYYYYMM();
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const [y] = selectedMonthParam.split("-").map(Number);
+    return y;
+  });
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const [, m] = selectedMonthParam.split("-").map(Number);
+    return m;
+  });
+  const monthFilterFormRef = useRef<HTMLFormElement>(null);
+
+  const currentDate = useMemo(() => new Date(), []);
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+
+  const years = useMemo(() => {
+    return Array.from({ length: 3 }, (_, i) => currentYear - 2 + i);
+  }, [currentYear]);
+
+  const visibleMonths = useMemo(() => {
+    if (selectedYear < currentYear) return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    return Array.from({ length: currentMonth }, (_, i) => i + 1);
+  }, [selectedYear, currentYear, currentMonth]);
+
+  useEffect(() => {
+    const param = searchParams.month ?? getCurrentMonthYYYYMM();
+    const [y, m] = param.split("-").map(Number);
+    setSelectedYear(y);
+    setSelectedMonth(m);
+  }, [searchParams.month]);
+
+  const handleMonthFilterClick = (month: number) => {
+    setSelectedMonth(month);
+    const yearSelect = monthFilterFormRef.current?.querySelector<HTMLSelectElement>("select");
+    const year = yearSelect ? Number(yearSelect.value) : selectedYear;
+    const value = `${year}-${String(month).padStart(2, "0")}`;
+    const input = monthFilterFormRef.current?.querySelector<HTMLInputElement>('input[name="month"]');
+    if (input) {
+      input.value = value;
+      monthFilterFormRef.current?.submit();
+    }
+  };
 
   const pieData = useMemo(() => {
     if (!chartsData) return null;
@@ -175,6 +273,7 @@ export function DailyOperationsPageClient({
     return sorted.map((e) => ({
       name: locale === "ar" ? e.full_name_ar : (e.full_name_en || e.full_name_ar),
       orders: e.orders_count,
+      avatar_file_id: e.avatar_file_id ?? null,
     }));
   }, [chartsData, barMode, locale]);
 
@@ -256,8 +355,8 @@ export function DailyOperationsPageClient({
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number | undefined) => [value ?? 0, t("dailyOps.charts.orders")]}
-                      contentStyle={{ borderRadius: 8 }}
+                      formatter={(value: number | undefined, name: string | undefined) => [value ?? 0, name ? t("dailyOps.charts.orders") + " " + name : ""]}
+                      contentStyle={{ borderRadius: 8, borderColor: "#244473", borderWidth: 1 }}
                     />
                     <Legend layout="horizontal" verticalAlign="top" align="center" style={{ padding: 0, margin: 0 }} />
                   </PieChart>
@@ -296,7 +395,7 @@ export function DailyOperationsPageClient({
                   layout="vertical"
                   data={barData}
                   width="100%"
-                  margin={{ top: 8, right: 0, bottom: 0, left: 0 }}
+                  margin={{ top: 8, right: AVATAR_SIZE + AVATAR_GAP + 16, bottom: 0, left: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.15)" vertical={true} />
                   <XAxis type="number" dataKey="orders" tick={{ fontSize: 12, fontWeight: 700 }} />
@@ -337,6 +436,7 @@ export function DailyOperationsPageClient({
                     isAnimationActive
                     animationDuration={600}
                     animationBegin={0}
+                    shape={<BarWithAvatar />}
                   >
                     {barData.map((_, i) => (
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
@@ -351,68 +451,96 @@ export function DailyOperationsPageClient({
         </div>
       )}
 
-      {/* Controls */}
+      {/* Controls: search + month filter (same as Dashboard; future months hidden) */}
       <form
-        className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+        ref={monthFilterFormRef}
         action={`/${locale}/daily-operations`}
         method="get"
+        className="flex w-full flex-col gap-2 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-zinc-700/80 dark:bg-zinc-900/80"
       >
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-semibold text-primary">{tDashboard("controls.year")}</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="rounded-xl border border-primary bg-slate-50/80 px-3 py-2 text-sm font-semibold text-primary outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-zinc-600 dark:bg-zinc-800 dark:text-slate-200"
+              aria-label={tDashboard("controls.year")}
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            {visibleMonths.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => handleMonthFilterClick(m)}
+                className={`min-w-[3.5rem] rounded-xl px-3 py-2 text-sm font-semibold transition-all ${selectedMonth === m
+                  ? "bg-primary-600 text-white shadow-md"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-zinc-700 dark:text-slate-300 dark:hover:bg-zinc-600"
+                  }`}
+              >
+                {tDashboard(`controls.month${m}` as "controls.month1")}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+
+          <input type="hidden" name="month" value={`${selectedYear}-${String(selectedMonth).padStart(2, "0")}`} readOnly />
           <input
             name="q"
             defaultValue={searchParams.q ?? ""}
             placeholder={t("dailyOps.searchPlaceholder")}
-            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-800"
+            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-800 sm:max-w-xs"
           />
-          <input
-            type="date"
-            name="date"
-            max={today}
-            defaultValue={searchParams.date ?? ""}
-            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800 sm:w-48"
-            aria-label={t("dailyOps.dateLabel")}
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="submit"
-            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
-          >
-            {t("common.filter")}
-          </button>
-          <div className="relative">
+
+          <div className="flex flex-1 flex-wrap justify-between gap-2">
             <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              className="flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-white shadow hover:bg-primary/90"
+              type="submit"
+              className="rounded-md border border-primary-200 hover:border-primary-500 bg-white px-3 py-2 text-sm text-primary hover:bg-primary-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
             >
-              +
-              <span>{t("dailyOps.addOperation")}</span>
+              {t("common.filter")}
             </button>
-            {menuOpen && (
-              <div className="absolute end-0 z-10 mt-2 w-72 rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setShowSingle(true);
-                  }}
-                  className="block w-full px-4 py-3 text-start text-sm hover:bg-primary/5"
-                >
-                  {t("dailyOps.singleInput")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setShowBulk(true);
-                  }}
-                  className="block w-full px-4 py-3 text-start text-sm hover:bg-primary/5"
-                >
-                  {t("dailyOps.bulkInput")}
-                </button>
-              </div>
-            )}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-white shadow hover:bg-primary/90"
+              >
+                +
+                <span>{t("dailyOps.addOperation")}</span>
+              </button>
+              {menuOpen && (
+                <div className="absolute end-0 z-10 mt-2 w-72 rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowSingle(true);
+                    }}
+                    className="block w-full px-4 py-3 text-start text-sm hover:bg-primary/5"
+                  >
+                    {t("dailyOps.singleInput")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowBulk(true);
+                    }}
+                    className="block w-full px-4 py-3 text-start text-sm hover:bg-primary/5"
+                  >
+                    {t("dailyOps.bulkInput")}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </form>
@@ -576,13 +704,13 @@ export function DailyOperationsPageClient({
         <div className="flex gap-2">
           <Link
             className={`rounded-md border border-zinc-200 px-3 py-1 text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-            href={`/${locale}/daily-operations?q=${encodeURIComponent(searchParams.q ?? "")}&date=${encodeURIComponent(searchParams.date ?? "")}&page=${page - 1}`}
+            href={`/${locale}/daily-operations?q=${encodeURIComponent(searchParams.q ?? "")}&month=${encodeURIComponent(searchParams.month ?? getCurrentMonthYYYYMM())}&page=${page - 1}`}
           >
             {t("common.prev")}
           </Link>
           <Link
             className={`rounded-md border border-zinc-200 px-3 py-1 text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800 ${page * data.page_size >= data.total ? "pointer-events-none opacity-50" : ""}`}
-            href={`/${locale}/daily-operations?q=${encodeURIComponent(searchParams.q ?? "")}&date=${encodeURIComponent(searchParams.date ?? "")}&page=${page + 1}`}
+            href={`/${locale}/daily-operations?q=${encodeURIComponent(searchParams.q ?? "")}&month=${encodeURIComponent(searchParams.month ?? getCurrentMonthYYYYMM())}&page=${page + 1}`}
           >
             {t("common.next")}
           </Link>
@@ -918,210 +1046,210 @@ function DailyOperationSingleModal({
       title={t("dailyOps.singleInput")}
     >
       <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <div className="space-y-4">
-        <div className="text-sm font-semibold text-primary">
-          {step === 1 ? t("dailyOps.stepOne") : t("dailyOps.stepTwo")}
-        </div>
+        <div className="space-y-4">
+          <div className="text-sm font-semibold text-primary">
+            {step === 1 ? t("dailyOps.stepOne") : t("dailyOps.stepTwo")}
+          </div>
 
-        {step === 1 ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="text-sm text-primary">{t("dailyOps.dateLabel")}</label>
-                <div className="mt-1">
-                  <DatePicker
-                    value={date ? dayjs(date) : null}
-                    onChange={(d: Dayjs | null) => setDate(d ? d.format("YYYY-MM-DD") : today)}
-                    maxDate={dayjs(today)}
-                    slotProps={{
-                      textField: {
-                        size: "small",
-                        className: "w-full",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            fontSize: "0.875rem",
-                            color: "inherit",
-                            backgroundColor: isDark ? "rgb(24 24 27)" : "white",
-                            "& fieldset": {
-                              borderColor: isDark ? "rgb(63 63 70)" : "rgb(228 228 231)",
-                            },
-                            "&:hover fieldset": {
-                              borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
-                            },
-                            "&.Mui-focused fieldset": {
-                              borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+          {step === 1 ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm text-primary">{t("dailyOps.dateLabel")}</label>
+                  <div className="mt-1">
+                    <DatePicker
+                      value={date ? dayjs(date) : null}
+                      onChange={(d: Dayjs | null) => setDate(d ? d.format("YYYY-MM-DD") : today)}
+                      maxDate={dayjs(today)}
+                      slotProps={{
+                        textField: {
+                          size: "small",
+                          className: "w-full",
+                          sx: {
+                            "& .MuiOutlinedInput-root": {
+                              fontSize: "0.875rem",
+                              color: "inherit",
+                              backgroundColor: isDark ? "rgb(24 24 27)" : "white",
+                              "& fieldset": {
+                                borderColor: isDark ? "rgb(63 63 70)" : "rgb(228 228 231)",
+                              },
+                              "&:hover fieldset": {
+                                borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+                              },
+                              "&.Mui-focused fieldset": {
+                                borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+                              },
                             },
                           },
                         },
-                      },
+                      }}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-primary/60">{t("dailyOps.dateMaxToday")}</p>
+                </div>
+                <div>
+                  <label className="text-sm text-primary">{t("dailyOps.selectEmployee")}</label>
+                  <EmployeeSearchBox
+                    value={employeeId}
+                    onChange={(id) => {
+                      setEmployeeId(id);
+                      if (!id) setEmployee(null);
                     }}
+                    onSelectOption={(opt) => {
+                      setEmployee(opt);
+                      setEmployeeId(opt.id);
+                    }}
+                    searchPath="/api/daily-operations/employees/search"
+                    placeholder={t("dailyOps.searchByNameOrCode")}
                   />
                 </div>
-                <p className="mt-1 text-xs text-primary/60">{t("dailyOps.dateMaxToday")}</p>
               </div>
-              <div>
-                <label className="text-sm text-primary">{t("dailyOps.selectEmployee")}</label>
-                <EmployeeSearchBox
-                  value={employeeId}
-                  onChange={(id) => {
-                    setEmployeeId(id);
-                    if (!id) setEmployee(null);
-                  }}
-                  onSelectOption={(opt) => {
-                    setEmployee(opt);
-                    setEmployeeId(opt.id);
-                  }}
-                  searchPath="/api/daily-operations/employees/search"
-                  placeholder={t("dailyOps.searchByNameOrCode")}
-                />
-              </div>
+              {employee ? <EmployeeCard employee={employee} /> : null}
             </div>
-            {employee ? <EmployeeCard employee={employee} /> : null}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field
-              label={t("dailyOps.ordersCount")}
-              value={ordersCount}
-              onChange={setOrdersCount}
-              type="number"
-              min={0.01}
-              step="1"
-            />
-            <Field
-              label={t("dailyOps.totalRevenue")}
-              value={totalRevenue}
-              onChange={setTotalRevenue}
-              type="number"
-              min={0.01}
-              step="0.01"
-            />
-            <Field
-              label={t("dailyOps.cashCollected")}
-              value={cashCollected}
-              onChange={setCashCollected}
-              type="number"
-              min={0.01}
-              step="0.01"
-            />
-            <Field
-              label={t("dailyOps.cashReceived")}
-              value={cashReceived}
-              onChange={setCashReceived}
-              type="number"
-              min={0}
-              step="0.01"
-            />
-            <Field
-              label={t("dailyOps.deductions")}
-              value={deductionAmount}
-              onChange={setDeductionAmount}
-              type="number"
-              min={0}
-              step="0.01"
-            />
-            {showDeductionReason ? (
-              <div className="sm:col-span-2">
-                <label className="text-sm text-primary">{t("dailyOps.deductionReason")}</label>
-                <input
-                  value={deductionReason}
-                  onChange={(e) => setDeductionReason(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-900"
-                />
-              </div>
-            ) : null}
-            <Field
-              label={t("dailyOps.tips")}
-              value={tipsAmount}
-              onChange={setTipsAmount}
-              type="number"
-              min={0}
-              step="0.01"
-            />
-            <div className="sm:col-span-2">
-              <label className="text-sm text-primary">{t("dailyOps.difference")}</label>
-              <div className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900">
-                <div className={`text-lg font-semibold ${isNegativeDifference ? "text-red-600" : "text-emerald-600"}`}>
-                  {formatAmount(difference)}
-                </div>
-                <div className="text-xs text-primary/60">{t("dailyOps.differenceHint")}</div>
-                {isNegativeDifference ? (
-                  <div className="text-xs text-red-600">{t("dailyOps.differenceWarning")}</div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-            {error}
-          </div>
-        )}
-
-        <div className="flex justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (step === 1) {
-                reset();
-                onClose();
-              } else {
-                setStep(1);
-              }
-            }}
-            className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
-          >
-            {step === 1 ? t("common.cancel") : t("common.back")}
-          </button>
-          {step === 1 ? (
-            <button
-              type="button"
-              disabled={!employeeId || checkingEntry}
-              onClick={async () => {
-                if (!employeeId) return;
-                setError(null);
-                setCheckingEntry(true);
-                try {
-                  const checkRes = await fetch(
-                    `/api/daily-operations/records/check?employment_record_id=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(date)}`,
-                  );
-                  const checkData = await checkRes.json().catch(() => null);
-                  if (checkData?.hasEntry) {
-                    setError(t("dailyOps.employeeAlreadyHasEntryForDate"));
-                    return;
-                  }
-                  setStep(2);
-                } finally {
-                  setCheckingEntry(false);
-                }
-              }}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
-            >
-              {checkingEntry ? t("common.loading") : (t("common.next") || "Next")}
-            </button>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => submit("draft")}
-                disabled={saving}
-                className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
-              >
-                {saving ? t("common.saving") : t("dailyOps.saveDraft")}
-              </button>
-              <button
-                type="button"
-                onClick={() => submit("approve")}
-                disabled={saving}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
-              >
-                {saving ? t("common.saving") : t("dailyOps.saveAndApprove")}
-              </button>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field
+                label={t("dailyOps.ordersCount")}
+                value={ordersCount}
+                onChange={setOrdersCount}
+                type="number"
+                min={0.01}
+                step="1"
+              />
+              <Field
+                label={t("dailyOps.totalRevenue")}
+                value={totalRevenue}
+                onChange={setTotalRevenue}
+                type="number"
+                min={0.01}
+                step="0.01"
+              />
+              <Field
+                label={t("dailyOps.cashCollected")}
+                value={cashCollected}
+                onChange={setCashCollected}
+                type="number"
+                min={0.01}
+                step="0.01"
+              />
+              <Field
+                label={t("dailyOps.cashReceived")}
+                value={cashReceived}
+                onChange={setCashReceived}
+                type="number"
+                min={0}
+                step="0.01"
+              />
+              <Field
+                label={t("dailyOps.deductions")}
+                value={deductionAmount}
+                onChange={setDeductionAmount}
+                type="number"
+                min={0}
+                step="0.01"
+              />
+              {showDeductionReason ? (
+                <div className="sm:col-span-2">
+                  <label className="text-sm text-primary">{t("dailyOps.deductionReason")}</label>
+                  <input
+                    value={deductionReason}
+                    onChange={(e) => setDeductionReason(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-900"
+                  />
+                </div>
+              ) : null}
+              <Field
+                label={t("dailyOps.tips")}
+                value={tipsAmount}
+                onChange={setTipsAmount}
+                type="number"
+                min={0}
+                step="0.01"
+              />
+              <div className="sm:col-span-2">
+                <label className="text-sm text-primary">{t("dailyOps.difference")}</label>
+                <div className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+                  <div className={`text-lg font-semibold ${isNegativeDifference ? "text-red-600" : "text-emerald-600"}`}>
+                    {formatAmount(difference)}
+                  </div>
+                  <div className="text-xs text-primary/60">{t("dailyOps.differenceHint")}</div>
+                  {isNegativeDifference ? (
+                    <div className="text-xs text-red-600">{t("dailyOps.differenceWarning")}</div>
+                  ) : null}
+                </div>
+              </div>
             </div>
           )}
+
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (step === 1) {
+                  reset();
+                  onClose();
+                } else {
+                  setStep(1);
+                }
+              }}
+              className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+            >
+              {step === 1 ? t("common.cancel") : t("common.back")}
+            </button>
+            {step === 1 ? (
+              <button
+                type="button"
+                disabled={!employeeId || checkingEntry}
+                onClick={async () => {
+                  if (!employeeId) return;
+                  setError(null);
+                  setCheckingEntry(true);
+                  try {
+                    const checkRes = await fetch(
+                      `/api/daily-operations/records/check?employment_record_id=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(date)}`,
+                    );
+                    const checkData = await checkRes.json().catch(() => null);
+                    if (checkData?.hasEntry) {
+                      setError(t("dailyOps.employeeAlreadyHasEntryForDate"));
+                      return;
+                    }
+                    setStep(2);
+                  } finally {
+                    setCheckingEntry(false);
+                  }
+                }}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+              >
+                {checkingEntry ? t("common.loading") : (t("common.next") || "Next")}
+              </button>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => submit("draft")}
+                  disabled={saving}
+                  className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+                >
+                  {saving ? t("common.saving") : t("dailyOps.saveDraft")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => submit("approve")}
+                  disabled={saving}
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {saving ? t("common.saving") : t("dailyOps.saveAndApprove")}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       </LocalizationProvider>
     </Modal>
   );
@@ -1369,280 +1497,280 @@ function DailyOperationBulkModal({
       maxWidth="8xl"
     >
       <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <div className="space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="text-sm text-primary">{t("dailyOps.dateLabel")}</label>
-            <div className="mt-1">
-              <DatePicker
-                value={date ? dayjs(date) : null}
-                onChange={(d: Dayjs | null) => setDate(d ? d.format("YYYY-MM-DD") : today)}
-                maxDate={dayjs(today)}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    className: "w-full",
-                    sx: {
-                      "& .MuiOutlinedInput-root": {
-                        fontSize: "0.875rem",
-                        color: "inherit",
-                        backgroundColor: isDark ? "rgb(24 24 27)" : "white",
-                        "& fieldset": {
-                          borderColor: isDark ? "rgb(63 63 70)" : "rgb(228 228 231)",
-                        },
-                        "&:hover fieldset": {
-                          borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
-                        },
-                        "&.Mui-focused fieldset": {
-                          borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-sm text-primary">{t("dailyOps.dateLabel")}</label>
+              <div className="mt-1">
+                <DatePicker
+                  value={date ? dayjs(date) : null}
+                  onChange={(d: Dayjs | null) => setDate(d ? d.format("YYYY-MM-DD") : today)}
+                  maxDate={dayjs(today)}
+                  slotProps={{
+                    textField: {
+                      size: "small",
+                      className: "w-full",
+                      sx: {
+                        "& .MuiOutlinedInput-root": {
+                          fontSize: "0.875rem",
+                          color: "inherit",
+                          backgroundColor: isDark ? "rgb(24 24 27)" : "white",
+                          "& fieldset": {
+                            borderColor: isDark ? "rgb(63 63 70)" : "rgb(228 228 231)",
+                          },
+                          "&:hover fieldset": {
+                            borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderColor: isDark ? "rgb(82 82 91)" : "rgb(161 161 170)",
+                          },
                         },
                       },
                     },
-                  },
-                }}
+                  }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-primary/60">{t("dailyOps.dateMaxToday")}</p>
+            </div>
+            <div>
+              <label className="text-sm text-primary">{t("dailyOps.supervisorName")}</label>
+              <input
+                type="text"
+                value={supervisorName}
+                onChange={(e) => setSupervisorName(e.target.value)}
+                placeholder={t("dailyOps.supervisorNamePlaceholder")}
+                className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
               />
             </div>
-            <p className="mt-1 text-xs text-primary/60">{t("dailyOps.dateMaxToday")}</p>
           </div>
-          <div>
-            <label className="text-sm text-primary">{t("dailyOps.supervisorName")}</label>
-            <input
-              type="text"
-              value={supervisorName}
-              onChange={(e) => setSupervisorName(e.target.value)}
-              placeholder={t("dailyOps.supervisorNamePlaceholder")}
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </div>
-        </div>
 
-        <div className="overflow-auto rounded-md border border-zinc-200 dark:border-zinc-700">
-          <table className="min-w-full text-sm text-primary">
-            <thead className="bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-primary/70 dark:bg-zinc-800/60 dark:text-primary/60">
-              <tr>
-                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.employeeNameCode")}</th>
-                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.platform")}</th>
-                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.ordersCount")}</th>
-                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.totalRevenue")}</th>
-                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.cashCollected")}</th>
-                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.cashReceived")}</th>
-                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.deductions")}</th>
-                <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.tips")}</th>
-                <th className={`px-3 py-2 ${thAlign(locale, true)}`}>{t("dailyOps.tableActions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, idx) => {
-                const showDeductionReason = Number(row.deduction_amount || 0) > 0;
-                const nameAr = row.selected?.recruitment_candidate?.full_name_ar ?? row.selected?.full_name_ar ?? "";
-                const nameEn = row.selected?.recruitment_candidate?.full_name_en ?? row.selected?.full_name_en ?? "";
-                const code = row.selected?.employee_no ?? row.selected?.employee_code ?? "";
-                const nameCodeDisplay = row.selected ? `${nameAr}${nameEn ? ` | ${nameEn}` : ""} | ${code}` : null;
-                return (
-                  <tr key={idx} className="border-t border-zinc-200 align-top dark:border-zinc-700">
-                    <td className="px-3 py-2 min-w-[220px]">
-                      {row.selected ? (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium text-primary">{nameCodeDisplay}</span>
-                          <button
-                            type="button"
-                            onClick={() => updateRow(idx, { employment_record_id: null, selected: null })}
-                            className="w-fit text-xs text-primary/70 hover:underline"
-                          >
-                            {t("dailyOps.changeEmployee")}
-                          </button>
-                        </div>
-                      ) : (
-                        <EmployeeSearchBox
-                          value={row.employment_record_id}
-                          onChange={(id) => updateRow(idx, { employment_record_id: id })}
-                          onSelectOption={(opt) => handleSelectEmployee(idx, opt)}
-                          searchPath="/api/daily-operations/employees/search"
-                          placeholder={t("dailyOps.searchByNameOrCode")}
-                        />
-                      )}
-                    </td>
-                    <td className="px-3 py-2 min-w-[140px]">
-                      {row.selected ? (
-                        <div className="flex flex-col gap-1">
-                          <PlatformIcon platform={(row.selected.assigned_platform as string) ?? "NONE"} />
-                          {row.selected.platform_user_no ? (
-                            <span className="text-xs text-primary/60">{t("common.platformUserNo")}: {row.selected.platform_user_no}</span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-primary/60">{t("dailyOps.platformNone")}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        ref={(el) => {
-                          if (el) orderRefs.current[idx] = el;
-                        }}
-                        type="text"
-                        inputMode="numeric"
-                        value={row.orders_count}
-                        onChange={(e) => updateRow(idx, { orders_count: allowPositiveInteger(e.target.value) })}
-                        onKeyDown={onKeyDownRow(idx)}
-                        className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={row.total_revenue}
-                        onChange={(e) => updateRow(idx, { total_revenue: allowPositiveDecimal(e.target.value) })}
-                        onKeyDown={onKeyDownRow(idx)}
-                        className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={row.cash_collected}
-                        onChange={(e) => updateRow(idx, { cash_collected: allowPositiveDecimal(e.target.value) })}
-                        onKeyDown={onKeyDownRow(idx)}
-                        className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={row.cash_received}
-                        onChange={(e) => updateRow(idx, { cash_received: allowNonNegativeDecimal(e.target.value, true) })}
-                        onKeyDown={onKeyDownRow(idx)}
-                        className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col gap-2">
+          <div className="overflow-auto rounded-md border border-zinc-200 dark:border-zinc-700">
+            <table className="min-w-full text-sm text-primary">
+              <thead className="bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-primary/70 dark:bg-zinc-800/60 dark:text-primary/60">
+                <tr>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.employeeNameCode")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.platform")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.ordersCount")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.totalRevenue")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.cashCollected")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.cashReceived")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.deductions")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.tips")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale, true)}`}>{t("dailyOps.tableActions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => {
+                  const showDeductionReason = Number(row.deduction_amount || 0) > 0;
+                  const nameAr = row.selected?.recruitment_candidate?.full_name_ar ?? row.selected?.full_name_ar ?? "";
+                  const nameEn = row.selected?.recruitment_candidate?.full_name_en ?? row.selected?.full_name_en ?? "";
+                  const code = row.selected?.employee_no ?? row.selected?.employee_code ?? "";
+                  const nameCodeDisplay = row.selected ? `${nameAr}${nameEn ? ` | ${nameEn}` : ""} | ${code}` : null;
+                  return (
+                    <tr key={idx} className="border-t border-zinc-200 align-top dark:border-zinc-700">
+                      <td className="px-3 py-2 min-w-[220px]">
+                        {row.selected ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-sm font-medium text-primary">{nameCodeDisplay}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateRow(idx, { employment_record_id: null, selected: null })}
+                              className="w-fit text-xs text-primary/70 hover:underline"
+                            >
+                              {t("dailyOps.changeEmployee")}
+                            </button>
+                          </div>
+                        ) : (
+                          <EmployeeSearchBox
+                            value={row.employment_record_id}
+                            onChange={(id) => updateRow(idx, { employment_record_id: id })}
+                            onSelectOption={(opt) => handleSelectEmployee(idx, opt)}
+                            searchPath="/api/daily-operations/employees/search"
+                            placeholder={t("dailyOps.searchByNameOrCode")}
+                          />
+                        )}
+                      </td>
+                      <td className="px-3 py-2 min-w-[140px]">
+                        {row.selected ? (
+                          <div className="flex flex-col gap-1">
+                            <PlatformIcon platform={(row.selected.assigned_platform as string) ?? "NONE"} />
+                            {row.selected.platform_user_no ? (
+                              <span className="text-xs text-primary/60">{t("common.platformUserNo")}: {row.selected.platform_user_no}</span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-primary/60">{t("dailyOps.platformNone")}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
                         <input
+                          ref={(el) => {
+                            if (el) orderRefs.current[idx] = el;
+                          }}
                           type="text"
-                          inputMode="decimal"
-                          value={row.deduction_amount}
-                          onChange={(e) => updateRow(idx, { deduction_amount: allowNonNegativeDecimal(e.target.value, true) })}
+                          inputMode="numeric"
+                          value={row.orders_count}
+                          onChange={(e) => updateRow(idx, { orders_count: allowPositiveInteger(e.target.value) })}
                           onKeyDown={onKeyDownRow(idx)}
                           className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
                         />
-                        {showDeductionReason && (
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={row.total_revenue}
+                          onChange={(e) => updateRow(idx, { total_revenue: allowPositiveDecimal(e.target.value) })}
+                          onKeyDown={onKeyDownRow(idx)}
+                          className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={row.cash_collected}
+                          onChange={(e) => updateRow(idx, { cash_collected: allowPositiveDecimal(e.target.value) })}
+                          onKeyDown={onKeyDownRow(idx)}
+                          className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={row.cash_received}
+                          onChange={(e) => updateRow(idx, { cash_received: allowNonNegativeDecimal(e.target.value, true) })}
+                          onKeyDown={onKeyDownRow(idx)}
+                          className="w-28 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-2">
                           <input
-                            value={row.deduction_reason}
-                            onChange={(e) => updateRow(idx, { deduction_reason: e.target.value })}
-                            placeholder={t("dailyOps.deductionReason")}
-                            className="w-full rounded-md border border-zinc-200 bg-white px-2 py-2 text-xs text-primary placeholder:text-primary/40 dark:border-zinc-700 dark:bg-zinc-900"
+                            type="text"
+                            inputMode="decimal"
+                            value={row.deduction_amount}
+                            onChange={(e) => updateRow(idx, { deduction_amount: allowNonNegativeDecimal(e.target.value, true) })}
+                            onKeyDown={onKeyDownRow(idx)}
+                            className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
                           />
+                          {showDeductionReason && (
+                            <input
+                              value={row.deduction_reason}
+                              onChange={(e) => updateRow(idx, { deduction_reason: e.target.value })}
+                              placeholder={t("dailyOps.deductionReason")}
+                              className="w-full rounded-md border border-zinc-200 bg-white px-2 py-2 text-xs text-primary placeholder:text-primary/40 dark:border-zinc-700 dark:bg-zinc-900"
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={row.tips}
+                          onChange={(e) => updateRow(idx, { tips: allowNonNegativeDecimal(e.target.value, true) })}
+                          onKeyDown={onKeyDownRow(idx)}
+                          className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                        />
+                      </td>
+                      <td className={`px-3 py-2 ${thAlign(locale, true)}`}>
+                        {rows.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removeRow(idx)}
+                            className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            title={t("dailyOps.removeRow")}
+                            aria-label={t("dailyOps.removeRow")}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        ) : (
+                          <span className="text-xs text-primary/40">-</span>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={row.tips}
-                        onChange={(e) => updateRow(idx, { tips: allowNonNegativeDecimal(e.target.value, true) })}
-                        onKeyDown={onKeyDownRow(idx)}
-                        className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                      />
-                    </td>
-                    <td className={`px-3 py-2 ${thAlign(locale, true)}`}>
-                      {rows.length > 1 ? (
-                        <button
-                          type="button"
-                          onClick={() => removeRow(idx)}
-                          className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                          title={t("dailyOps.removeRow")}
-                          aria-label={t("dailyOps.removeRow")}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <span className="text-xs text-primary/40">-</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={addRow}
-            className="rounded-md border border-dashed border-primary px-3 py-2 text-sm text-primary hover:bg-primary/5"
-          >
-            {t("dailyOps.addRow")}
-          </button>
-          <div className="text-xs text-primary/60">{t("dailyOps.keyboardHelp")}</div>
-        </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={addRow}
+              className="rounded-md border border-dashed border-primary px-3 py-2 text-sm text-primary hover:bg-primary/5"
+            >
+              {t("dailyOps.addRow")}
+            </button>
+            <div className="text-xs text-primary/60">{t("dailyOps.keyboardHelp")}</div>
+          </div>
 
-        <div className="grid grid-cols-1 gap-2 rounded-md border border-zinc-200 bg-white p-3 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800 sm:grid-cols-3 lg:grid-cols-6">
-          <div>
-            <div className="text-xs text-primary/60">{t("dailyOps.summaryOrders")}</div>
-            <div className="font-semibold">{summary.orders.toLocaleString()}</div>
+          <div className="grid grid-cols-1 gap-2 rounded-md border border-zinc-200 bg-white p-3 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800 sm:grid-cols-3 lg:grid-cols-6">
+            <div>
+              <div className="text-xs text-primary/60">{t("dailyOps.summaryOrders")}</div>
+              <div className="font-semibold">{summary.orders.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-xs text-primary/60">{t("dailyOps.summaryRevenue")}</div>
+              <div className="font-semibold">{formatAmount(summary.revenue)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-primary/60">{t("dailyOps.summaryCashCollected")}</div>
+              <div className="font-semibold">{formatAmount(summary.cashCollected)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-primary/60">{t("dailyOps.summaryCashReceived")}</div>
+              <div className="font-semibold">{formatAmount(summary.cashReceived)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-primary/60">{t("dailyOps.summaryDeductions")}</div>
+              <div className="font-semibold">{formatAmount(summary.deductions)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-primary/60">{t("dailyOps.summaryTips")}</div>
+              <div className="font-semibold">{formatAmount(summary.tips)}</div>
+            </div>
           </div>
-          <div>
-            <div className="text-xs text-primary/60">{t("dailyOps.summaryRevenue")}</div>
-            <div className="font-semibold">{formatAmount(summary.revenue)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-primary/60">{t("dailyOps.summaryCashCollected")}</div>
-            <div className="font-semibold">{formatAmount(summary.cashCollected)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-primary/60">{t("dailyOps.summaryCashReceived")}</div>
-            <div className="font-semibold">{formatAmount(summary.cashReceived)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-primary/60">{t("dailyOps.summaryDeductions")}</div>
-            <div className="font-semibold">{formatAmount(summary.deductions)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-primary/60">{t("dailyOps.summaryTips")}</div>
-            <div className="font-semibold">{formatAmount(summary.tips)}</div>
+
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+              {error}
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (!dirty || confirm(t("common.unsavedPrompt"))) {
+                  onClose();
+                }
+              }}
+              className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={() => submit("draft")}
+              disabled={saving}
+              className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+            >
+              {saving ? t("common.saving") : t("dailyOps.saveDraft")}
+            </button>
+            <button
+              type="button"
+              onClick={() => submit("approve")}
+              disabled={saving}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+            >
+              {saving ? t("common.saving") : t("dailyOps.saveAndApprove")}
+            </button>
           </div>
         </div>
-
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-            {error}
-          </div>
-        )}
-
-        <div className="flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (!dirty || confirm(t("common.unsavedPrompt"))) {
-                onClose();
-              }
-            }}
-            className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={() => submit("draft")}
-            disabled={saving}
-            className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
-          >
-            {saving ? t("common.saving") : t("dailyOps.saveDraft")}
-          </button>
-          <button
-            type="button"
-            onClick={() => submit("approve")}
-            disabled={saving}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
-          >
-            {saving ? t("common.saving") : t("dailyOps.saveAndApprove")}
-          </button>
-        </div>
-      </div>
       </LocalizationProvider>
     </Modal>
   );

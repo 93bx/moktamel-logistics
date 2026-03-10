@@ -425,8 +425,22 @@ export class DailyOperationsService {
     return { dateFrom, dateTo };
   }
 
-  async monthlyCharts(company_id: string) {
-    const { dateFrom, dateTo } = await this.getCurrentMonthBounds(company_id);
+  /** Month bounds from YYYY-MM string (UTC). */
+  private getMonthBoundsFromParam(month: string): { dateFrom: Date; dateTo: Date } {
+    const match = /^(\d{4})-(\d{2})$/.exec(month);
+    if (!match) throw new BadRequestException('month must be YYYY-MM');
+    const year = Number(match[1]);
+    const monthNum = Number(match[2]);
+    if (monthNum < 1 || monthNum > 12) throw new BadRequestException('month must be 01-12');
+    const dateFrom = new Date(Date.UTC(year, monthNum - 1, 1, 0, 0, 0, 0));
+    const dateTo = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
+    return { dateFrom, dateTo };
+  }
+
+  async monthlyCharts(company_id: string, month?: string) {
+    const { dateFrom, dateTo } = month
+      ? this.getMonthBoundsFromParam(month)
+      : await this.getCurrentMonthBounds(company_id);
 
     const activeEmployments = await this.prisma.employmentRecord.findMany({
       where: {
@@ -440,6 +454,7 @@ export class DailyOperationsService {
         employee_no: true,
         full_name_ar: true,
         full_name_en: true,
+        avatar_file_id: true,
         recruitment_candidate: {
           select: { full_name_ar: true, full_name_en: true },
         },
@@ -458,6 +473,7 @@ export class DailyOperationsService {
       by: ['employment_record_id'],
       where: {
         company_id,
+        status_code: 'REVIEWED',
         employment_record_id: { in: employmentIds },
         date: { gte: dateFrom, lte: dateTo },
       },
@@ -478,6 +494,7 @@ export class DailyOperationsService {
       full_name_en: string | null;
       orders_count: number;
       monthly_orders_target: number | null;
+      avatar_file_id: string | null;
     }> = [];
 
     for (const emp of activeEmployments) {
@@ -497,6 +514,7 @@ export class DailyOperationsService {
         full_name_en: nameEn,
         orders_count,
         monthly_orders_target: emp.monthly_orders_target,
+        avatar_file_id: emp.avatar_file_id ?? null,
       });
     }
 

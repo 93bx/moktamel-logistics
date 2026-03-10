@@ -549,8 +549,8 @@
     "noResults": "لا توجد عمليات يومية",
     "charts": {
       "monthlyTargetAchieved": "تحقيق هدف الطلبات الشهري (الشهر الحالي)",
-      "achieved": "المحقق",
-      "remaining": "المتبقي",
+      "achieved": "المحققة",
+      "remaining": "المتبقية",
       "orders": "الطلبات",
       "noTargetData": "لا يوجد هدف أو طلبات لهذا الشهر.",
       "employeeOrders": "الطلبات حسب الموظف (الشهر الحالي)",

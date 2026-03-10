@@ -197,7 +197,11 @@ export class DailyOperationsController {
 
   @Get('monthly-charts')
   @Permissions('DAILY_OPS_READ')
-  async monthlyCharts(@Req() req: Request & { user?: any }) {
-    return this.svc.monthlyCharts(req.user.company_id);
+  async monthlyCharts(
+    @Req() req: Request & { user?: any },
+    @Query('month') month?: string,
+  ) {
+    const parsed = month?.trim() && /^\d{4}-\d{2}$/.test(month) ? month : undefined;
+    return this.svc.monthlyCharts(req.user.company_id, parsed);
   }
 }
