@@ -422,9 +422,9 @@ export class DashboardService {
     return employees.map((e) => {
       const o = opsMap.get(e.id) ?? { orders: 0, revenue: 0 };
       const full_name_ar =
-        e.recruitment_candidate?.full_name_ar ?? e.full_name_ar ?? e.id;
+        e.full_name_ar ?? e.full_name_en ?? e.recruitment_candidate?.full_name_ar ?? e.recruitment_candidate?.full_name_en ?? e.id;
       const full_name_en =
-        e.recruitment_candidate?.full_name_en ?? e.full_name_en ?? null;
+        e.full_name_en ?? e.recruitment_candidate?.full_name_en ?? null;
       return {
         employment_record_id: e.id,
         full_name_ar,
@@ -593,9 +593,9 @@ export class DashboardService {
     return top10.map((t) => {
       const e = empMap.get(t.employment_record_id)!;
       const full_name_ar =
-        e.recruitment_candidate?.full_name_ar ?? e.full_name_ar ?? e.id;
+        e.full_name_ar ?? e.full_name_en ?? e.recruitment_candidate?.full_name_ar ?? e.recruitment_candidate?.full_name_en ?? e.id;
       const full_name_en =
-        e.recruitment_candidate?.full_name_en ?? e.full_name_en ?? null;
+        e.full_name_en ?? e.recruitment_candidate?.full_name_en ?? null;
       return {
         employment_record_id: t.employment_record_id,
         full_name_ar,
@@ -637,9 +637,9 @@ export class DashboardService {
     return rows.map((r) => {
       const emp = r.employment_record;
       const full_name_ar =
-        emp.recruitment_candidate?.full_name_ar ?? emp.full_name_ar ?? '';
+        emp.full_name_ar ?? emp.full_name_en ?? emp.recruitment_candidate?.full_name_ar ?? emp.recruitment_candidate?.full_name_en ?? '';
       const full_name_en =
-        emp.recruitment_candidate?.full_name_en ?? emp.full_name_en ?? null;
+        emp.full_name_en ?? emp.recruitment_candidate?.full_name_en ?? null;
       return {
         date: r.date.toISOString().slice(0, 10),
         amount: toNum(r.deduction_amount),

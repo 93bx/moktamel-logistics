@@ -87,18 +87,18 @@ export function AssetsTable({
                         {row.avatar_file_id ? (
                           <img
                             src={`/api/files/${row.avatar_file_id}/view`}
-                            alt={row.recruitment_candidate?.full_name_en ?? ""}
+                            alt={row.full_name_en ?? row.recruitment_candidate?.full_name_en ?? ""}
                             className="h-full w-full object-cover"
                           />
                         ) : (
                           <span className="text-xs font-bold text-primary">
-                            {row.recruitment_candidate?.full_name_en?.charAt(0) || row.recruitment_candidate?.full_name_ar?.charAt(0) || "?"}
+                            {(row.full_name_en ?? row.full_name_ar ?? row.recruitment_candidate?.full_name_en ?? row.recruitment_candidate?.full_name_ar)?.charAt(0) || "?"}
                           </span>
                         )}
                       </div>
                       <div className="flex flex-col">
-                        <span className="font-medium">{row.recruitment_candidate?.full_name_ar}</span>
-                        <span className="text-xs text-primary/60">{row.recruitment_candidate?.full_name_en}</span>
+                        <span className="font-medium">{row.full_name_ar ?? row.recruitment_candidate?.full_name_ar ?? "—"}</span>
+                        <span className="text-xs text-primary/60">{row.full_name_en ?? row.recruitment_candidate?.full_name_en ?? ""}</span>
                       </div>
                     </div>
                   </td>

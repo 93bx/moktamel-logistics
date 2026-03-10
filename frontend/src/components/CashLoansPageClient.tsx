@@ -471,7 +471,7 @@ function ReceiveCashModal({ isOpen, onClose, employee, defaultDate }: { isOpen: 
       {selected ? (
         <div className="space-y-4 text-sm">
           <div className="text-primary font-semibold">
-            {selected.recruitment_candidate?.full_name_ar} / {selected.recruitment_candidate?.full_name_en} ({selected.employee_no ?? "-"})
+            {selected.full_name_ar ?? selected.recruitment_candidate?.full_name_ar} / {selected.full_name_en ?? selected.recruitment_candidate?.full_name_en} ({selected.employee_no ?? "-"})
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -613,7 +613,7 @@ function LoanModal({ isOpen, onClose, employee, defaultDate }: { isOpen: boolean
       {selected ? (
         <div className="space-y-4 text-sm">
           <div className="text-primary font-semibold">
-            {selected.recruitment_candidate?.full_name_ar} / {selected.recruitment_candidate?.full_name_en} ({selected.employee_no ?? "-"})
+            {selected.full_name_ar ?? selected.recruitment_candidate?.full_name_ar} / {selected.full_name_en ?? selected.recruitment_candidate?.full_name_en} ({selected.employee_no ?? "-"})
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>

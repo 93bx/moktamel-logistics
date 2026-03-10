@@ -70,6 +70,28 @@ type DailyOperationListItem = {
   } | null;
 };
 
+/** One row per employee with monthly aggregates. */
+type DailyOperationByEmployeeItem = {
+  employment_record_id: string;
+  employment_record: {
+    id: string;
+    employee_no: string | null;
+    full_name_ar?: string | null;
+    full_name_en?: string | null;
+    avatar_file_id?: string | null;
+    platform_user_no?: string | null;
+    recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
+  } | null;
+  orders_count: number;
+  total_revenue: number;
+  cash_collected: number;
+  tips: number;
+  deduction_amount: number;
+  platform: OperatingPlatform | "MULTIPLE";
+  status_code: string;
+  records_count: number;
+};
+
 type StatsData = {
   totalOrders: number;
   activeEmployees: number;
@@ -77,13 +99,28 @@ type StatsData = {
   totalDeductions: number;
 };
 
+type ViewEmployeePayload = {
+  employeeId: string;
+  employeeDisplay: {
+    nameAr: string;
+    nameEn: string | null;
+    avatar_file_id?: string | null;
+    employee_no: string | null;
+    platform_user_no?: string | null;
+  };
+  dateFrom: string;
+  dateTo: string;
+};
+
 type DailyOpsPageProps = {
   locale: string;
-  data: { items: DailyOperationListItem[]; total: number; page: number; page_size: number };
+  data: { items: DailyOperationByEmployeeItem[]; total: number; page: number; page_size: number };
   stats: StatsData;
   chartsData: MonthlyChartsData | null;
   searchParams: { q?: string; month?: string };
   page: number;
+  dateFrom: string;
+  dateTo: string;
 };
 
 const formatAmount = (v: number | string | null | undefined) =>
@@ -170,6 +207,7 @@ function splitNameTwoLines(name: string, maxPerLine = 12): [string, string] {
 }
 
 const statusTone = (status: string) => {
+  if (status === "NONE") return "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-700 dark:text-zinc-400 dark:border-zinc-600";
   if (status === "FLAGGED_DEDUCTION") return "bg-amber-100 text-amber-800 border-amber-300";
   if (status === "DRAFT") return "bg-zinc-100 text-zinc-800 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-600";
   if (status === "APPROVED") return "bg-emerald-100 text-emerald-800 border-emerald-300";
@@ -197,6 +235,8 @@ export function DailyOperationsPageClient({
   chartsData,
   searchParams,
   page,
+  dateFrom,
+  dateTo,
 }: DailyOpsPageProps) {
   const t = useTranslations();
   const tDashboard = useTranslations("dashboard");
@@ -204,7 +244,7 @@ export function DailyOperationsPageClient({
   const [showBulk, setShowBulk] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [viewItem, setViewItem] = useState<DailyOperationListItem | null>(null);
+  const [viewEmployee, setViewEmployee] = useState<ViewEmployeePayload | null>(null);
   const [editItem, setEditItem] = useState<DailyOperationListItem | null>(null);
   const [barMode, setBarMode] = useState<"top5" | "worst5">("top5");
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -318,12 +358,14 @@ export function DailyOperationsPageClient({
     return item.employment_record?.employee_no ?? "-";
   };
 
+  console.log('data: ', data);
+
   return (
     <>
       {/* Quick Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={t("dailyOps.totalOrders")} value={stats.totalOrders.toLocaleString()} />
         <StatCard label={t("dailyOps.activeEmployees")} value={stats.activeEmployees.toLocaleString()} />
+        <StatCard label={t("dailyOps.totalOrders")} value={stats.totalOrders.toLocaleString()} />
         <StatCard label={t("dailyOps.totalSales")} value={stats.totalSales.toLocaleString()} />
         <StatCard label={t("dailyOps.totalDeductions")} value={stats.totalDeductions.toLocaleString()} />
       </div>
@@ -563,19 +605,23 @@ export function DailyOperationsPageClient({
               </tr>
             </thead>
             <tbody>
-              {data.items.map((item) => {
-                const name = displayName(item);
+              {data.items.map((row) => {
+                const er = row.employment_record;
+                const nameAr =
+                  er?.full_name_ar ?? er?.recruitment_candidate?.full_name_ar ?? "";
+                const nameEn =
+                  er?.full_name_en ?? er?.recruitment_candidate?.full_name_en ?? null;
+                const fallbackLabel =
+                  er?.employee_no ?? er?.platform_user_no ?? "-";
+                const name = locale === "ar" ? (nameAr || nameEn || fallbackLabel) : (nameEn || nameAr || fallbackLabel);
                 const initial = name && name !== "-" ? name.charAt(0).toUpperCase() : "?";
-                const nameAr = item.employment_record?.recruitment_candidate?.full_name_ar ?? "";
-                const nameEn = item.employment_record?.recruitment_candidate?.full_name_en ?? null;
-                const fallbackLabel = item.employment_record?.employee_no ?? "-";
                 return (
-                  <tr key={item.id} className="border-b border-zinc-100 dark:border-zinc-700">
+                  <tr key={row.employment_record_id} className="border-b border-zinc-100 dark:border-zinc-700">
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-3">
-                        {item.employment_record?.avatar_file_id ? (
+                        {row.employment_record?.avatar_file_id ? (
                           <img
-                            src={`/api/files/${item.employment_record.avatar_file_id}/view`}
+                            src={`/api/files/${row.employment_record.avatar_file_id}/view`}
                             alt={name}
                             className="h-10 w-10 shrink-0 rounded-full object-cover"
                           />
@@ -600,86 +646,69 @@ export function DailyOperationsPageClient({
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-col gap-0.5">
-                        <PlatformIcon platform={item.platform} />
-                        {item.employment_record?.platform_user_no ? (
+                        {row.platform === "MULTIPLE" ? (
+                          <span className="text-primary/80">{t("dailyOps.platformMultiple")}</span>
+                        ) : row.platform === "NONE" ? (
+                          <span className="text-primary/50">—</span>
+                        ) : (
+                          <PlatformIcon platform={row.platform} />
+                        )}
+                        {row.employment_record?.platform_user_no ? (
                           <span className="text-xs text-primary/60">
-                            {t("common.platformUserNo")}: {item.employment_record.platform_user_no}
+                            {t("common.platformUserNo")}: {row.employment_record.platform_user_no}
                           </span>
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-3 py-2">{item.orders_count}</td>
-                    <td className="px-3 py-2">{formatAmount(item.total_revenue)}</td>
-                    <td className="px-3 py-2">{formatAmount(item.cash_collected)}</td>
-                    <td className="px-3 py-2">{formatAmount(item.tips)}</td>
+                    <td className="px-3 py-2">{row.orders_count}</td>
+                    <td className="px-3 py-2">{formatAmount(row.total_revenue)}</td>
+                    <td className="px-3 py-2">{formatAmount(row.cash_collected)}</td>
+                    <td className="px-3 py-2">{formatAmount(row.tips)}</td>
+                    <td className="px-3 py-2">{formatAmount(row.deduction_amount)}</td>
                     <td className="px-3 py-2">
-                      <div className="flex flex-col">
-                        <span>{formatAmount(item.deduction_amount)}</span>
-                        {item.deduction_amount && Number(item.deduction_amount) > 0 && item.deduction_reason ? (
-                          <span className="text-xs text-primary/60">{item.deduction_reason}</span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusTone(item.status_code)}`}>
-                        {item.status_code === "FLAGGED_DEDUCTION"
-                          ? t("dailyOps.statusFlagged")
-                          : item.status_code === "APPROVED"
-                            ? t("dailyOps.statusApproved")
-                            : item.status_code === "DRAFT"
-                              ? t("dailyOps.statusDraft")
-                              : item.status_code === "REVIEWED"
-                                ? t("dailyOps.statusReviewed")
-                                : t("dailyOps.statusRecorded")}
+                      <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusTone(row.status_code)}`}>
+                        {row.status_code === "NONE"
+                          ? t("dailyOps.statusNoRecords")
+                          : row.status_code === "FLAGGED_DEDUCTION"
+                            ? t("dailyOps.statusFlagged")
+                            : row.status_code === "APPROVED"
+                              ? t("dailyOps.statusApproved")
+                              : row.status_code === "DRAFT"
+                                ? t("dailyOps.statusDraft")
+                                : row.status_code === "REVIEWED"
+                                  ? t("dailyOps.statusReviewed")
+                                  : t("dailyOps.statusRecorded")}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <div className="flex justify-end gap-2">
-                        {item.status_code === "APPROVED" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(item.id, "REVIEWED")}
-                            disabled={updatingId === item.id}
-                            title={t("dailyOps.markReviewed")}
-                            aria-label={t("dailyOps.markReviewed")}
-                            className="rounded-md border border-zinc-200 p-1.5 text-primary hover:bg-primary/5 disabled:opacity-50 dark:border-zinc-700"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </button>
-                        ) : null}
-                        {item.status_code === "DRAFT" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDraft(item.id)}
-                            disabled={updatingId === item.id}
-                            title={t("dailyOps.deleteDraft")}
-                            aria-label={t("dailyOps.deleteDraft")}
-                            className="rounded-md border border-zinc-200 p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-red-900/20"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        ) : null}
-                        {(item.status_code === "DRAFT" || item.status_code === "APPROVED") ? (
-                          <button
-                            type="button"
-                            onClick={() => setEditItem(item)}
-                            title={t("common.edit")}
-                            aria-label={t("common.edit")}
-                            className="rounded-md border border-zinc-200 p-1.5 text-primary hover:bg-primary/5 dark:border-zinc-700"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => setViewItem(item)}
-                          title={t("common.view")}
-                          aria-label={t("common.view")}
-                          className="rounded-md border border-zinc-200 p-1.5 text-primary hover:bg-primary/5 dark:border-zinc-700"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setViewEmployee({
+                            employeeId: row.employment_record_id,
+                            employeeDisplay: {
+                              nameAr:
+                                row.employment_record?.full_name_ar ??
+                                row.employment_record?.recruitment_candidate?.full_name_ar ??
+                                "",
+                              nameEn:
+                                row.employment_record?.full_name_en ??
+                                row.employment_record?.recruitment_candidate?.full_name_en ??
+                                null,
+                              avatar_file_id: row.employment_record?.avatar_file_id,
+                              employee_no: row.employment_record?.employee_no ?? null,
+                              platform_user_no: row.employment_record?.platform_user_no ?? undefined,
+                            },
+                            dateFrom,
+                            dateTo,
+                          })
+                        }
+                        title={t("common.view")}
+                        aria-label={t("common.view")}
+                        className="rounded-md border border-zinc-200 p-1.5 text-primary hover:bg-primary/5 dark:border-zinc-700"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
                     </td>
                   </tr>
                 );
@@ -718,9 +747,14 @@ export function DailyOperationsPageClient({
       </div>
 
       <DailyOperationViewModal
-        isOpen={!!viewItem}
-        onClose={() => setViewItem(null)}
-        record={viewItem}
+        isOpen={!!viewEmployee}
+        onClose={() => setViewEmployee(null)}
+        locale={locale}
+        employeeId={viewEmployee?.employeeId ?? ""}
+        employeeDisplay={viewEmployee?.employeeDisplay}
+        dateFrom={viewEmployee?.dateFrom ?? ""}
+        dateTo={viewEmployee?.dateTo ?? ""}
+        onEditRecord={(record) => setEditItem(record)}
       />
       <DailyOperationEditModal
         isOpen={!!editItem}
@@ -782,7 +816,7 @@ function DailyOperationEditModal({
   const validate = () => {
     if (!ordersCount || Number(ordersCount) <= 0) return t("dailyOps.ordersCountRequired");
     if (!totalRevenue || Number(totalRevenue) <= 0) return t("dailyOps.totalRevenueRequired");
-    if (!cashCollected || Number(cashCollected) <= 0) return t("dailyOps.cashCollectedRequired");
+    if (!cashCollected || Number(cashCollected) < 0) return t("dailyOps.cashCollectedRequired");
     if (Number(deductionAmount || 0) > 0 && !deductionReason) return t("dailyOps.deductionReasonRequired");
     return null;
   };
@@ -980,7 +1014,7 @@ function DailyOperationSingleModal({
     if (!employeeId) return t("dailyOps.selectEmployee");
     if (!ordersCount || Number(ordersCount) <= 0) return t("dailyOps.ordersCountRequired");
     if (!totalRevenue || Number(totalRevenue) <= 0) return t("dailyOps.totalRevenueRequired");
-    if (!cashCollected || Number(cashCollected) <= 0) return t("dailyOps.cashCollectedRequired");
+    if (!cashCollected || Number(cashCollected) < 0) return t("dailyOps.cashCollectedRequired");
     if (Number(deductionAmount || 0) > 0 && !deductionReason) return t("dailyOps.deductionReasonRequired");
     return null;
   };
@@ -1562,8 +1596,8 @@ function DailyOperationBulkModal({
               <tbody>
                 {rows.map((row, idx) => {
                   const showDeductionReason = Number(row.deduction_amount || 0) > 0;
-                  const nameAr = row.selected?.recruitment_candidate?.full_name_ar ?? row.selected?.full_name_ar ?? "";
-                  const nameEn = row.selected?.recruitment_candidate?.full_name_en ?? row.selected?.full_name_en ?? "";
+                  const nameAr = row.selected?.full_name_ar ?? row.selected?.recruitment_candidate?.full_name_ar ?? "";
+                  const nameEn = row.selected?.full_name_en ?? row.selected?.recruitment_candidate?.full_name_en ?? "";
                   const code = row.selected?.employee_no ?? row.selected?.employee_code ?? "";
                   const nameCodeDisplay = row.selected ? `${nameAr}${nameEn ? ` | ${nameEn}` : ""} | ${code}` : null;
                   return (
@@ -1813,8 +1847,8 @@ function Field({
 }
 
 function EmployeeCard({ employee }: { employee: EmployeeOption }) {
-  const nameAr = employee.recruitment_candidate?.full_name_ar ?? employee.full_name_ar ?? "-";
-  const nameEn = employee.recruitment_candidate?.full_name_en ?? employee.full_name_en ?? "-";
+  const nameAr = employee.full_name_ar ?? employee.recruitment_candidate?.full_name_ar ?? "-";
+  const nameEn = employee.full_name_en ?? employee.recruitment_candidate?.full_name_en ?? "-";
   const initial = (nameAr || employee.employee_no || employee.employee_code || "?").charAt(0);
 
   return (

@@ -123,6 +123,8 @@ export function EmployeeAssetsViewModal({
   if (!isOpen) return null;
 
   const displayName =
+    record?.full_name_ar ??
+    record?.full_name_en ??
     record?.recruitment_candidate?.full_name_ar ??
     record?.recruitment_candidate?.full_name_en ??
     "—";
@@ -177,10 +179,10 @@ export function EmployeeAssetsViewModal({
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-lg font-semibold text-primary">
-                    {record.recruitment_candidate?.full_name_ar ?? "—"}
+                    {record.full_name_ar ?? record.recruitment_candidate?.full_name_ar ?? "—"}
                   </h3>
                   <p className="text-sm text-primary/60">
-                    {record.recruitment_candidate?.full_name_en ?? ""}
+                    {record.full_name_en ?? record.recruitment_candidate?.full_name_en ?? ""}
                   </p>
                 </div>
               </div>

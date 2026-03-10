@@ -152,6 +152,8 @@ export class HrAssetsService {
           employee_no: true,
           employee_code: true,
           avatar_file_id: true,
+          full_name_ar: true,
+          full_name_en: true,
           recruitment_candidate: {
             select: {
               full_name_ar: true,
@@ -197,6 +199,8 @@ export class HrAssetsService {
       where: { id: employment_record_id, company_id, deleted_at: null },
       select: {
         id: true,
+        full_name_ar: true,
+        full_name_en: true,
         recruitment_candidate: {
           select: { full_name_ar: true, full_name_en: true },
         },

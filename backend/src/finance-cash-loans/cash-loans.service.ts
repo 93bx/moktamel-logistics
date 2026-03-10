@@ -585,9 +585,9 @@ export class CashLoansService {
         employee_code: emp.employee_code,
         avatar_file_id: emp.avatar_file_id,
         full_name_ar:
-          emp.recruitment_candidate?.full_name_ar ?? emp.full_name_ar ?? '',
+          emp.full_name_ar ?? emp.recruitment_candidate?.full_name_ar ?? '',
         full_name_en:
-          emp.recruitment_candidate?.full_name_en ?? emp.full_name_en ?? '',
+          emp.full_name_en ?? emp.recruitment_candidate?.full_name_en ?? '',
         total_revenue: Number(totalRevenue),
         total_cash_collected: Number(totalCashCollected),
         total_cash_not_collected: Math.max(0, Number(notCollected)),

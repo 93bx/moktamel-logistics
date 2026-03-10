@@ -34,6 +34,26 @@ type DailyOperationListItem = {
   } | null;
 };
 
+/** One row per employee with monthly aggregates (from GET records/by-employee). */
+export type DailyOperationByEmployeeItem = {
+  employment_record_id: string;
+  employment_record: {
+    id: string;
+    employee_no: string | null;
+    avatar_file_id?: string | null;
+    platform_user_no?: string | null;
+    recruitment_candidate: { full_name_ar: string; full_name_en: string | null } | null;
+  } | null;
+  orders_count: number;
+  total_revenue: number;
+  cash_collected: number;
+  tips: number;
+  deduction_amount: number;
+  platform: OperatingPlatform | "MULTIPLE";
+  status_code: string;
+  records_count: number;
+};
+
 type StatsData = {
   totalOrders: number;
   activeEmployees: number;
@@ -72,21 +92,22 @@ export default async function DailyOperationsPage({
   const { from: dateFrom, to: dateTo } = monthToDateRange(month);
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
 
-  let data: { items: DailyOperationListItem[]; total: number; page: number; page_size: number };
+  type ByEmployeeResponse = {
+    items: DailyOperationByEmployeeItem[];
+    total: number;
+    page: number;
+    page_size: number;
+  };
+  let data: ByEmployeeResponse;
   let stats: StatsData;
   let chartsData: MonthlyChartsData | null = null;
 
   try {
     [data, stats, chartsData] = await Promise.all([
-      backendApi<{
-        items: DailyOperationListItem[];
-        total: number;
-        page: number;
-        page_size: number;
-      }>({
-        path: `/operations/daily/records?q=${encodeURIComponent(sp.q ?? "")}&date_from=${encodeURIComponent(
+      backendApi<ByEmployeeResponse>({
+        path: `/operations/daily/records/by-employee?date_from=${encodeURIComponent(
           dateFrom,
-        )}&date_to=${encodeURIComponent(dateTo)}&page=${page}&page_size=25`,
+        )}&date_to=${encodeURIComponent(dateTo)}&q=${encodeURIComponent(sp.q ?? "")}&page=${page}&page_size=25`,
       }),
       backendApi<StatsData>({
         path: `/operations/daily/stats?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`,
@@ -133,6 +154,8 @@ export default async function DailyOperationsPage({
         chartsData={chartsData}
         searchParams={{ q: sp.q, month }}
         page={page}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
       />
     </div>
   );

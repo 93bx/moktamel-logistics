@@ -35,8 +35,23 @@ const ListQuerySchema = z.object({
     (val) => (val === '' ? undefined : val),
     z.string().datetime().optional(),
   ),
+  employment_record_id: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().uuid().optional(),
+  ),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(200).default(25),
+});
+
+const ListByEmployeeQuerySchema = z.object({
+  date_from: z.string().datetime(),
+  date_to: z.string().datetime(),
+  q: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+  page: z.coerce.number().int().min(1).default(1),
+  page_size: z.coerce.number().int().min(1).max(100).default(25),
 });
 
 const StatsQuerySchema = z.object({
@@ -103,6 +118,12 @@ const CheckEntryQuerySchema = z.object({
   date: z.string(),
 });
 
+const LogsQuerySchema = z.object({
+  employment_record_id: z.string().uuid(),
+  date_from: z.string().datetime(),
+  date_to: z.string().datetime(),
+});
+
 @Controller('operations/daily')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class DailyOperationsController {
@@ -113,6 +134,13 @@ export class DailyOperationsController {
   async stats(@Req() req: Request & { user?: any }, @Query() query: any) {
     const q = StatsQuerySchema.parse(query);
     return this.svc.stats(req.user.company_id, q);
+  }
+
+  @Get('records/by-employee')
+  @Permissions('DAILY_OPS_READ')
+  async listByEmployee(@Req() req: Request & { user?: any }, @Query() query: any) {
+    const q = ListByEmployeeQuerySchema.parse(query);
+    return this.svc.listByEmployee(req.user.company_id, q);
   }
 
   @Get('records')
@@ -170,6 +198,18 @@ export class DailyOperationsController {
   @Permissions('DAILY_OPS_UPDATE')
   async delete(@Req() req: Request & { user?: any }, @Param('id') id: string) {
     await this.svc.delete(req.user.company_id, req.user.sub, id);
+  }
+
+  @Get('logs')
+  @Permissions('DAILY_OPS_READ')
+  async logs(@Req() req: Request & { user?: any }, @Query() query: unknown) {
+    const q = LogsQuerySchema.parse(query);
+    return this.svc.logsForEmployee(
+      req.user.company_id,
+      q.employment_record_id,
+      q.date_from,
+      q.date_to,
+    );
   }
 
   @Get('records/check')

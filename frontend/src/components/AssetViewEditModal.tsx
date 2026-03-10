@@ -121,7 +121,13 @@ export function AssetViewEditModal({
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-primary/60">
-                {record.employment_record.recruitment_candidate ? `${record.employment_record.recruitment_candidate.full_name_ar} ${record.employment_record.recruitment_candidate.full_name_en ? `(${record.employment_record.recruitment_candidate.full_name_en})` : ""}` : record.employment_record.employee_no}
+                {(() => {
+                  const er = record.employment_record;
+                  const nameAr = er.full_name_ar ?? er.recruitment_candidate?.full_name_ar ?? "";
+                  const nameEn = er.full_name_en ?? er.recruitment_candidate?.full_name_en;
+                  if (nameAr || nameEn) return `${nameAr}${nameEn ? ` (${nameEn})` : ""}`.trim();
+                  return er.employee_no ?? "—";
+                })()}
               </div>
               <div className="text-lg font-semibold text-primary">{record.asset.name}</div>
             </div>

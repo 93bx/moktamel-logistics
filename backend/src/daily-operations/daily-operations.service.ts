@@ -166,9 +166,9 @@ export class DailyOperationsService {
         'OPS_DAILY_006: Total revenue must be positive',
       );
     }
-    if (!values.cash_collected || values.cash_collected <= 0) {
+    if (values.cash_collected == null || values.cash_collected < 0) {
       throw new BadRequestException(
-        'OPS_DAILY_007: Cash collected must be positive',
+        'OPS_DAILY_007: Cash collected must be zero or positive',
       );
     }
     if (values.deduction_amount > 0 && !input.deduction_reason) {
@@ -301,6 +301,7 @@ export class DailyOperationsService {
       platform?: OperatingPlatform;
       date_from?: string;
       date_to?: string;
+      employment_record_id?: string;
       page: number;
       page_size: number;
     },
@@ -326,6 +327,8 @@ export class DailyOperationsService {
       ];
     }
     if (input.platform) where.platform = input.platform;
+    if (input.employment_record_id)
+      where.employment_record_id = input.employment_record_id;
     if (input.date_from || input.date_to) {
       where.date = {};
       if (input.date_from) (where.date as any).gte = new Date(input.date_from);
@@ -372,6 +375,258 @@ export class DailyOperationsService {
     ]);
 
     return { items, total, page: input.page, page_size: input.page_size };
+  }
+
+  async listByEmployee(
+    company_id: string,
+    input: {
+      date_from: string;
+      date_to: string;
+      q?: string;
+      page: number;
+      page_size: number;
+    },
+  ) {
+    const dateFrom = new Date(input.date_from);
+    const dateTo = new Date(input.date_to);
+
+    const employeeWhere: Prisma.EmploymentRecordWhereInput = {
+      company_id,
+      deleted_at: null,
+      status_code: 'EMPLOYMENT_STATUS_ACTIVE',
+    };
+    if (input.q?.trim()) {
+      const trimmed = input.q.trim();
+      employeeWhere.OR = [
+        { employee_no: { contains: trimmed, mode: 'insensitive' } },
+        { employee_code: { contains: trimmed, mode: 'insensitive' } },
+        { full_name_ar: { contains: trimmed, mode: 'insensitive' } },
+        { full_name_en: { contains: trimmed, mode: 'insensitive' } },
+        {
+          recruitment_candidate: {
+            OR: [
+              { full_name_ar: { contains: trimmed, mode: 'insensitive' } },
+              { full_name_en: { contains: trimmed, mode: 'insensitive' } },
+            ],
+          },
+        },
+      ];
+    }
+
+    const [activeEmployees, records] = await this.prisma.$transaction([
+      this.prisma.employmentRecord.findMany({
+        where: employeeWhere,
+        select: {
+          id: true,
+          employee_no: true,
+          full_name_ar: true,
+          full_name_en: true,
+          avatar_file_id: true,
+          platform_user_no: true,
+          recruitment_candidate: {
+            select: { full_name_ar: true, full_name_en: true },
+          },
+        },
+      }),
+      this.prisma.dailyOperation.findMany({
+        where: {
+          company_id,
+          date: { gte: dateFrom, lte: dateTo },
+        },
+        orderBy: { date: 'desc' },
+        take: 5000,
+        select: {
+          employment_record_id: true,
+          platform: true,
+          orders_count: true,
+          total_revenue: true,
+          cash_collected: true,
+          tips: true,
+          deduction_amount: true,
+          status_code: true,
+        },
+      }),
+    ]);
+
+    const aggregatesByEmp = new Map<
+      string,
+      {
+        orders_count: number;
+        total_revenue: number;
+        cash_collected: number;
+        tips: number;
+        deduction_amount: number;
+        platforms: Set<OperatingPlatform>;
+        statuses: string[];
+        records_count: number;
+      }
+    >();
+
+    for (const r of records) {
+      const eid = r.employment_record_id;
+      if (!eid) continue;
+      const agg = aggregatesByEmp.get(eid);
+      if (!agg) {
+        aggregatesByEmp.set(eid, {
+          orders_count: r.orders_count,
+          total_revenue: Number(r.total_revenue),
+          cash_collected: Number(r.cash_collected),
+          tips: Number(r.tips),
+          deduction_amount: Number(r.deduction_amount),
+          platforms: new Set([r.platform]),
+          statuses: [r.status_code],
+          records_count: 1,
+        });
+      } else {
+        agg.orders_count += r.orders_count;
+        agg.total_revenue += Number(r.total_revenue);
+        agg.cash_collected += Number(r.cash_collected);
+        agg.tips += Number(r.tips);
+        agg.deduction_amount += Number(r.deduction_amount);
+        agg.platforms.add(r.platform);
+        agg.statuses.push(r.status_code);
+        agg.records_count += 1;
+      }
+    }
+
+    const statusSummary = (statuses: string[]) => {
+      if (statuses.some((s) => s === 'DRAFT')) return 'DRAFT';
+      if (statuses.some((s) => s === 'FLAGGED_DEDUCTION')) return 'FLAGGED_DEDUCTION';
+      if (statuses.every((s) => s === 'REVIEWED')) return 'REVIEWED';
+      if (statuses.some((s) => s === 'REVIEWED') || statuses.some((s) => s === 'APPROVED'))
+        return 'REVIEWED';
+      return statuses[0] ?? 'APPROVED';
+    };
+
+    const items = activeEmployees
+      .map((emp) => {
+        const agg = aggregatesByEmp.get(emp.id);
+        if (!agg) {
+          return {
+            employment_record_id: emp.id,
+            employment_record: emp,
+            orders_count: 0,
+            total_revenue: 0,
+            cash_collected: 0,
+            tips: 0,
+            deduction_amount: 0,
+            platform: 'NONE' as const,
+            status_code: 'NONE' as const,
+            records_count: 0,
+          };
+        }
+        return {
+          employment_record_id: emp.id,
+          employment_record: emp,
+          orders_count: agg.orders_count,
+          total_revenue: agg.total_revenue,
+          cash_collected: agg.cash_collected,
+          tips: agg.tips,
+          deduction_amount: agg.deduction_amount,
+          platform:
+            agg.platforms.size > 1 ? ('MULTIPLE' as const) : Array.from(agg.platforms)[0],
+          status_code: statusSummary(agg.statuses),
+          records_count: agg.records_count,
+        };
+      })
+      .sort((a, b) => {
+        const nameA =
+          a.employment_record?.full_name_ar ??
+          a.employment_record?.full_name_en ??
+          a.employment_record?.recruitment_candidate?.full_name_ar ??
+          a.employment_record?.recruitment_candidate?.full_name_en ??
+          a.employment_record?.employee_no ??
+          a.employment_record?.platform_user_no ??
+          '';
+        const nameB =
+          b.employment_record?.full_name_ar ??
+          b.employment_record?.full_name_en ??
+          b.employment_record?.recruitment_candidate?.full_name_ar ??
+          b.employment_record?.recruitment_candidate?.full_name_en ??
+          b.employment_record?.employee_no ??
+          b.employment_record?.platform_user_no ??
+          '';
+        return String(nameA).localeCompare(String(nameB));
+      });
+
+    const total = items.length;
+    const start = (input.page - 1) * input.page_size;
+    const pageItems = items.slice(start, start + input.page_size);
+
+    return {
+      items: pageItems,
+      total,
+      page: input.page,
+      page_size: input.page_size,
+    };
+  }
+
+  async logsForEmployee(
+    company_id: string,
+    employment_record_id: string,
+    date_from: string,
+    date_to: string,
+  ) {
+    const opIds = await this.prisma.dailyOperation.findMany({
+      where: { company_id, employment_record_id },
+      select: { id: true },
+    });
+    const ids = opIds.map((o) => o.id);
+    if (ids.length === 0) {
+      return { items: [] };
+    }
+
+    const dateFrom = new Date(date_from);
+    const dateTo = new Date(date_to);
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        company_id,
+        entity_type: 'DAILY_OPERATION',
+        entity_id: { in: ids },
+        created_at: { gte: dateFrom, lte: dateTo },
+      },
+      orderBy: { created_at: 'desc' },
+      take: 200,
+      select: {
+        id: true,
+        action: true,
+        entity_id: true,
+        old_values: true,
+        new_values: true,
+        created_at: true,
+        actor_user_id: true,
+        actor_role: true,
+      },
+    });
+
+    const userIds = [
+      ...new Set(
+        logs.map((l) => l.actor_user_id).filter((id): id is string => id != null),
+      ),
+    ];
+    const users =
+      userIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, name: true, email: true },
+          })
+        : [];
+    const userMap = new Map(users.map((u) => [u.id, u.name || u.email || u.id]));
+
+    const items = logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      entity_id: log.entity_id,
+      old_values: log.old_values,
+      new_values: log.new_values,
+      created_at: log.created_at,
+      actor_user_id: log.actor_user_id,
+      actor_name: log.actor_user_id ? userMap.get(log.actor_user_id) ?? null : null,
+      actor_role: log.actor_role,
+    }));
+
+    return { items };
   }
 
   async stats(
@@ -502,12 +757,14 @@ export class DailyOperationsService {
       totalTarget += target;
       const orders_count = achievedMap.get(emp.id) ?? 0;
       const nameAr =
-        emp.recruitment_candidate?.full_name_ar ??
         emp.full_name_ar ??
+        emp.full_name_en ??
+        emp.recruitment_candidate?.full_name_ar ??
+        emp.recruitment_candidate?.full_name_en ??
         emp.employee_no ??
         emp.id;
       const nameEn =
-        emp.recruitment_candidate?.full_name_en ?? emp.full_name_en ?? null;
+        emp.full_name_en ?? emp.recruitment_candidate?.full_name_en ?? null;
       byEmployee.push({
         employment_record_id: emp.id,
         full_name_ar: nameAr,
