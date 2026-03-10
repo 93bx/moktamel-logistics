@@ -209,6 +209,7 @@
     "page": "page",
     "prev": "Prev",
     "next": "Next",
+    "retry": "Retry",
     "newCandidate": "New candidate",
     "editCandidate": "Edit candidate",
     "newEmployment": "New employment",

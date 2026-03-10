@@ -88,14 +88,14 @@ const formatAmount = (v: number | string | null | undefined) =>
   Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CHART_COLORS = [
-  "#6366f1", // indigo
-  "#22c55e", // emerald
-  "#f59e0b", // amber
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#8b5cf6", // violet
-  "#ef4444", // red
-  "#3b82f6", // blue
+  "#0F1E33", 
+  "#1E3961", 
+  "#244473", 
+  "#3C5F91",
+  "#5B7EAD", 
+  "#7C9CC7", 
+  "#A4B8D9", 
+  "#CBD6EB", 
 ];
 
 /** Split name into two lines for Y-axis (break near middle, preferably at space). */

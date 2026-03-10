@@ -56,6 +56,22 @@ export function SalariesPayrollPageClient({ locale, initialMonth }: SalariesPayr
 
   return (
     <div className="space-y-6">
+      {/* List fetch error banner */}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+          <div className="flex items-center justify-between gap-3">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => refresh()}
+              className="shrink-0 rounded border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:border-red-700 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60"
+            >
+              {t("common.retry")}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Quick Stats Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
         <StatCard
@@ -166,12 +182,28 @@ export function SalariesPayrollPageClient({ locale, initialMonth }: SalariesPayr
                   <tr key={row.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-zinc-200" />
+                        <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-zinc-200">
+                          {row.employee_avatar_url ? (
+                            <img
+                              src={`/api/files/${row.employee_avatar_url}/view`}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          ) : null}
+                        </div>
                         <div>
                           <div className="font-medium text-primary leading-tight">
-                            {locale === "ar" ? row.employee_name_ar : row.employee_name_en}
+                            {(locale === "ar" ? row.employee_name_ar : row.employee_name_en) ||
+                              row.employee_code ||
+                              "—"}
                           </div>
-                          <div className="text-xs text-primary/40">{row.employee_code}</div>
+                          {row.employee_code &&
+                            (locale === "ar" ? row.employee_name_ar : row.employee_name_en) && (
+                            <div className="text-xs text-primary/40">{row.employee_code}</div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -332,12 +364,28 @@ function EmployeeDetailView({
       {/* Employee Header */}
       <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-700">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-full bg-zinc-200" />
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-zinc-200">
+            {data.employee_avatar_url ? (
+              <img
+                src={`/api/files/${data.employee_avatar_url}/view`}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            ) : null}
+          </div>
           <div>
             <h3 className="text-lg font-semibold text-primary leading-tight">
-              {locale === "ar" ? data.employee_name_ar : data.employee_name_en}
+              {(locale === "ar" ? data.employee_name_ar : data.employee_name_en) ||
+                data.employee_code ||
+                "—"}
             </h3>
-            <div className="text-sm text-primary/40">{data.employee_code}</div>
+            {data.employee_code &&
+              (locale === "ar" ? data.employee_name_ar : data.employee_name_en) && (
+              <div className="text-sm text-primary/40">{data.employee_code}</div>
+            )}
           </div>
         </div>
         <div className="text-right">
