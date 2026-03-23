@@ -26,6 +26,7 @@ type StatsData = {
   draftCount: number;
   olderThan45DaysCount: number;
   arrivingWithin7DaysCount: number;
+  totalCandidatesCount?: number;
 };
 
 export default async function RecruitmentPage({
@@ -55,9 +56,10 @@ export default async function RecruitmentPage({
     page_size: number;
   };
   let stats: StatsData;
+  let totalCandidatesData: { total: number };
 
   try {
-    [data, stats] = await Promise.all([
+    [data, stats, totalCandidatesData] = await Promise.all([
       backendApi<{
         items: CandidateListItem[];
         total: number;
@@ -71,7 +73,13 @@ export default async function RecruitmentPage({
       backendApi<StatsData>({
         path: `/hr/recruitment/stats`,
       }),
+      backendApi<{
+        total: number;
+      }>({
+        path: `/hr/recruitment/candidates?page=1&page_size=1`,
+      }),
     ]);
+    stats.totalCandidatesCount = totalCandidatesData.total;
   } catch (error) {
     // If it's an auth error, redirect to login
     if (error instanceof AuthError) {

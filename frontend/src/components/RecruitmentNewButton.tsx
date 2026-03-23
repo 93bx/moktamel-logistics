@@ -39,7 +39,7 @@ export function RecruitmentNewButton({ locale }: { locale: string }) {
         <button
           type="button"
           onClick={() => setDropdownOpen((v) => !v)}
-          className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-600"
+          className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-600"
           aria-expanded={dropdownOpen}
           aria-haspopup="true"
         >

@@ -4,7 +4,22 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CheckCircle, Eye, Pencil, User } from "lucide-react";
+import {
+  CheckCircle,
+  ChevronDown,
+  CircleHelp,
+  Clock3,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Eye,
+  Pencil,
+  Plane,
+  TriangleAlert,
+  Upload,
+  User,
+  Users,
+} from "lucide-react";
 import { RecruitmentNewButton } from "@/components/RecruitmentNewButton";
 import { RecruitmentEditModal } from "@/components/RecruitmentEditModal";
 import { RecruitmentViewModal } from "@/components/RecruitmentViewModal";
@@ -32,6 +47,7 @@ type StatsData = {
   draftCount: number;
   olderThan45DaysCount: number;
   arrivingWithin7DaysCount: number;
+  totalCandidatesCount?: number;
 };
 
 export function RecruitmentPageClient({
@@ -74,6 +90,8 @@ export function RecruitmentPageClient({
   const [viewCandidateId, setViewCandidateId] = useState<string | null>(null);
   const [markingAsArrivedId, setMarkingAsArrivedId] = useState<string | null>(null);
   const [addToEmploymentCandidateId, setAddToEmploymentCandidateId] = useState<string | null>(null);
+  const [isRowColorCodingEnabled, setIsRowColorCodingEnabled] = useState(true);
+  const hasFiltersApplied = Boolean(searchParams.q || searchParams.status_code || searchParams.sort);
 
   const handleViewClick = (candidateId: string) => {
     setViewCandidateId(candidateId);
@@ -125,43 +143,78 @@ export function RecruitmentPageClient({
     <>
       <div className="space-y-4">
         {/* Part 1: Quick Stats Cards (click to sort; click again to clear) */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {(
             [
+              {
+                sort: null,
+                label: t("common.numberOfCandidates"),
+                value: stats.totalCandidatesCount ?? data.total,
+                tip: t("common.recruitmentStatTipTotalCandidates"),
+                href: `/${locale}/recruitment`,
+                icon: Users,
+              },
               {
                 sort: "under_procedure" as const,
                 label: t("common.underProcedure"),
                 value: stats.underProcedureCount,
+                tip: t("common.recruitmentStatTipUnderProcedure"),
+                href: buildRecruitmentUrl({ sort: "under_procedure", page: 1 }),
+                icon: Clock3,
               },
               {
                 sort: "arriving_soon" as const,
                 label: t("common.arrivingWithin7Days"),
                 value: stats.arrivingWithin7DaysCount,
+                tip: t("common.recruitmentStatTipArrivingSoon"),
+                href: buildRecruitmentUrl({ sort: "arriving_soon", page: 1 }),
+                icon: Plane,
               },
               {
                 sort: "older_than_45_days" as const,
                 label: t("common.olderThan45Days"),
                 value: stats.olderThan45DaysCount,
+                tip: t("common.recruitmentStatTipOlderThan45Days"),
+                href: buildRecruitmentUrl({ sort: "older_than_45_days", page: 1 }),
+                icon: TriangleAlert,
               },
               {
                 sort: "drafts" as const,
                 label: t("common.drafts"),
                 value: stats.draftCount,
+                tip: t("common.recruitmentStatTipDrafts"),
+                href: buildRecruitmentUrl({ sort: "drafts", page: 1 }),
+                icon: FileText,
               },
             ] as const
-          ).map(({ sort, label, value }) => {
-            const isActive = searchParams.sort === sort;
+          ).map(({ sort, label, value, tip, href, icon: Icon }) => {
+            const isActive = sort === null ? !hasFiltersApplied : searchParams.sort === sort;
             return (
               <Link
-                key={sort}
-                href={isActive ? buildRecruitmentUrl({ sort: null, page: 1 }) : buildRecruitmentUrl({ sort, page: 1 })}
-                className={`rounded-lg border p-4 transition-colors dark:bg-zinc-800 ${
-                  isActive
-                    ? "border-primary bg-primary/5 ring-2 ring-primary/20 dark:bg-primary/10"
-                    : "border-zinc-200 bg-white dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
-                } cursor-pointer`}
+                key={sort ?? "all_candidates"}
+                href={sort === null ? href : isActive ? buildRecruitmentUrl({ sort: null, page: 1 }) : href}
+                className={`group rounded-lg border p-4 transition-colors dark:bg-zinc-800 ${isActive
+                  ? "border-primary bg-primary/5 ring-2 ring-primary/20 dark:bg-primary/10"
+                  : "border-zinc-200 bg-white dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
+                  } cursor-pointer relative`}
               >
-                <div className="text-sm text-primary/60">{label}</div>
+                <span
+                  className={`absolute top-2 ${locale === "ar" ? "left-2" : "right-2"} group/tip inline-flex items-center justify-center rounded-full bg-zinc-100 p-1 text-primary/60 shadow-sm ring-1 ring-zinc-200 transition-colors hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-200 dark:ring-zinc-600 dark:hover:bg-zinc-600`}
+                  aria-label={tip}
+                  tabIndex={0}
+                >
+                  <CircleHelp className="h-3.5 w-3.5" />
+                  <span
+                    className={`pointer-events-none absolute top-full z-20 mt-2 w-56 rounded-md border border-zinc-200 bg-white p-2 text-xs font-normal text-zinc-700 opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${locale === "ar" ? "left-0 text-right" : "right-0 text-left"}`}
+                    role="tooltip"
+                  >
+                    {tip}
+                  </span>
+                </span>
+                <div className="flex items-center gap-2 text-sm text-primary/70">
+                  <Icon className="h-4 w-4 text-primary/70" />
+                  <span>{label}</span>
+                </div>
                 <div className="mt-1 text-2xl font-semibold text-primary">{value}</div>
               </Link>
             );
@@ -170,34 +223,78 @@ export function RecruitmentPageClient({
 
         {/* Part 2: Control Buttons (aligned) */}
         <form className="flex justify-between items-center " action={`/${locale}/recruitment`} method="get">
-          <div className="flex gap-2 bg-[#244473] p-2 rounded-md w-[50%]">
-            {searchParams.sort ? (
-              <input type="hidden" name="sort" value={searchParams.sort} />
-            ) : null}
-            <input
-              name="q"
-              defaultValue={searchParams.q ?? ""}
-              placeholder={t("common.searchNameOfficePassport")}
-              className="w-full max-w-sm rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-800"
-            />
-            <select
-              name="status_code"
-              defaultValue={searchParams.status_code ?? ""}
-              className="w-full max-w-xs rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
-            >
-              <option value="">{t("common.allStatuses")}</option>
-              <option value="DRAFT">{t("common.statusDraft")}</option>
-              <option value="UNDER_PROCEDURE">{t("common.statusUnderProcedure")}</option>
-              <option value="ON_ARRIVAL">{t("common.statusOnArrival")}</option>
-              <option value="ARRIVED">{t("common.statusArrived")}</option>
-            </select>
-
-            <button className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700">
-              {t("common.filter")}
-            </button>
-
+          <div className="flex gap-2 bg-[#244473] p-2 rounded-md w-full max-w-3xl justify-between">
+            <div className="flex gap-2 flex-1">
+              {searchParams.sort ? (
+                <input type="hidden" name="sort" value={searchParams.sort} />
+              ) : null}
+              <input
+                name="q"
+                defaultValue={searchParams.q ?? ""}
+                placeholder={t("common.searchNameOfficePassport")}
+                className="w-full max-w-sm rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary placeholder:text-primary/50 dark:border-zinc-700 dark:bg-zinc-800"
+              />
+              <select
+                name="status_code"
+                defaultValue={searchParams.status_code ?? ""}
+                className="w-full max-w-32 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-primary dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <option value="">{t("common.allStatuses")}</option>
+                <option value="DRAFT">{t("common.statusDraft")}</option>
+                <option value="UNDER_PROCEDURE">{t("common.statusUnderProcedure")}</option>
+                <option value="ON_ARRIVAL">{t("common.statusOnArrival")}</option>
+                <option value="ARRIVED">{t("common.statusArrived")}</option>
+              </select>
+              <label className="p-2 flex items-center gap-2 text-sm font-semibold bg-white border-1 rounded-md min-w-max">
+                <input
+                  type="checkbox"
+                  checked={isRowColorCodingEnabled}
+                  onChange={(e) => setIsRowColorCodingEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-300 text-primary focus:ring-primary dark:border-zinc-600"
+                />
+                <span>{t("common.recruitmentRowColorCoding")}</span>
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700">
+                {t("common.filter")}
+              </button>
+              {hasFiltersApplied ? (
+                <Link
+                  href={`/${locale}/recruitment`}
+                  className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-primary hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+                >
+                  {t("common.clearFilters")}
+                </Link>
+              ) : null}
+            </div>
           </div>
-          <RecruitmentNewButton locale={locale} />
+          <div className="flex items-center gap-2">
+            <details className="relative">
+              <summary className="inline-flex list-none cursor-pointer items-center gap-2 rounded-md border border-[#0E5C2F] bg-[#107C41] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#185C37] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#107C41]/40 dark:border-[#21A366] dark:bg-[#107C41] dark:hover:bg-[#185C37] [&::-webkit-details-marker]:hidden">
+                <FileSpreadsheet className="h-4 w-4" />
+                {t("common.excel")}
+                <ChevronDown className="h-4 w-4" />
+              </summary>
+              <div className="absolute z-20 mt-2 min-w-40 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                >
+                  <Upload className="h-4 w-4" />
+                  {t("common.import")}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                >
+                  <Download className="h-4 w-4" />
+                  {t("common.export")}
+                </button>
+              </div>
+            </details>
+            <RecruitmentNewButton locale={locale} />
+          </div>
         </form>
 
         {/* Part 3: Candidates Table */}
@@ -243,7 +340,20 @@ export function RecruitmentPageClient({
                   return (
                     <tr
                       key={c.id}
-                      className={`border-b border-zinc-100 dark:border-zinc-700 ${c.status_code === "DRAFT" ? "bg-zinc-300 dark:bg-zinc-800/80" : c.status_code === "ARRIVED" ? "bg-green-100 dark:bg-green-900/20" : arrivalSoon ? "bg-amber-100 dark:bg-amber-900/20" : olderThan45Days ? "bg-red-200 dark:bg-red-900/20" : onArrivalPastDue ? "bg-red-200 dark:bg-red-900/20" : ""} ${isArrivalImminent || onArrivalPastDue ? "font-semibold" : ""} ${locale === "ar" ? "text-right" : "text-left"}`}
+                      className={`border-b border-zinc-100 dark:border-zinc-700 ${isRowColorCodingEnabled
+                        ? c.status_code === "DRAFT"
+                          ? "bg-zinc-300 dark:bg-zinc-800/80"
+                          : c.status_code === "ARRIVED"
+                            ? "bg-green-100 dark:bg-green-900/20"
+                            : arrivalSoon
+                              ? "bg-amber-100 dark:bg-amber-900/20"
+                              : olderThan45Days
+                                ? "bg-red-200 dark:bg-red-900/20"
+                                : onArrivalPastDue
+                                  ? "bg-red-200 dark:bg-red-900/20"
+                                  : ""
+                        : ""
+                        } ${isArrivalImminent || onArrivalPastDue ? "font-semibold" : ""} ${locale === "ar" ? "text-right" : "text-left"}`}
                     >
                       <td className="px-3 py-2">
                         <div className="h-10 w-10 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-700">
