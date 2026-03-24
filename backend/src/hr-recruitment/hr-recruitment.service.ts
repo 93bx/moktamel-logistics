@@ -1155,6 +1155,172 @@ export class HrRecruitmentService {
   }
 
   /**
+   * All candidates matching filters (same ordering as list), capped at 10k for export.
+   */
+  async listForExport(
+    company_id: string,
+    input: {
+      q?: string;
+      status_code?: string;
+      sort?:
+        | 'under_procedure'
+        | 'drafts'
+        | 'arriving_soon'
+        | 'older_than_45_days';
+    },
+  ) {
+    const qPattern = input.q ? `%${input.q}%` : null;
+    const defaultOrderBy = Prisma.sql`CASE "status_code"
+      WHEN 'ON_ARRIVAL' THEN 1
+      WHEN 'UNDER_PROCEDURE' THEN 2
+      WHEN 'DRAFT' THEN 3
+      WHEN 'ARRIVED' THEN 4
+      ELSE 5
+    END, "expected_arrival_at" ASC NULLS LAST`;
+    let orderByFragment: Prisma.Sql;
+    switch (input.sort) {
+      case 'under_procedure':
+        orderByFragment = Prisma.sql`(CASE "status_code" WHEN 'UNDER_PROCEDURE' THEN 0 ELSE 1 END) ASC, "expected_arrival_at" ASC NULLS LAST`;
+        break;
+      case 'drafts':
+        orderByFragment = Prisma.sql`(CASE "status_code" WHEN 'DRAFT' THEN 0 ELSE 1 END) ASC, "expected_arrival_at" ASC NULLS LAST`;
+        break;
+      case 'arriving_soon':
+        orderByFragment = Prisma.sql`"expected_arrival_at" ASC NULLS LAST`;
+        break;
+      case 'older_than_45_days':
+        orderByFragment = Prisma.sql`"visa_sent_at" ASC NULLS LAST`;
+        break;
+      default:
+        orderByFragment = defaultOrderBy;
+    }
+
+    const listQuery = Prisma.sql`
+      SELECT id, full_name_ar, full_name_en, nationality, passport_no, passport_expiry_at, job_title_code,
+             status_code, department_id, responsible_office, responsible_office_number,
+             visa_deadline_at, visa_sent_at, expected_arrival_at, notes, avatar_file_id,
+             created_at, updated_at
+      FROM "RecruitmentCandidate"
+      WHERE "company_id" = ${company_id}::uuid AND "deleted_at" IS NULL
+      ${input.status_code ? Prisma.sql`AND "status_code" = ${input.status_code}` : Prisma.empty}
+      ${qPattern !== null ? Prisma.sql`AND ("full_name_ar" ILIKE ${qPattern} OR "full_name_en" ILIKE ${qPattern} OR "passport_no" ILIKE ${qPattern} OR "responsible_office" ILIKE ${qPattern})` : Prisma.empty}
+      ORDER BY ${orderByFragment}
+      LIMIT 10000
+    `;
+
+    return this.prisma.$queryRaw(listQuery);
+  }
+
+  /**
+   * Excel import "full" row: explicit UNDER_PROCEDURE (no derive from expected arrival).
+   */
+  async createImportFull(
+    company_id: string,
+    actor_user_id: string,
+    data: {
+      full_name_ar: string;
+      full_name_en: string;
+      nationality: string;
+      passport_no: string;
+      passport_expiry_at: string;
+      job_title_code?: string | null;
+      department_id?: string | null;
+      responsible_office: string;
+      responsible_office_number?: string | null;
+      visa_deadline_at?: string | null;
+      visa_sent_at?: string | null;
+      expected_arrival_at?: string | null;
+      notes?: string | null;
+      passport_image_file_id: string;
+      visa_image_file_id?: string | null;
+      flight_ticket_image_file_id?: string | null;
+      personal_picture_file_id?: string | null;
+    },
+  ) {
+    const expectedArrival = data.expected_arrival_at
+      ? new Date(data.expected_arrival_at)
+      : null;
+
+    const created = await this.prisma.recruitmentCandidate.create({
+      data: {
+        company_id,
+        created_by_user_id: actor_user_id,
+        full_name_ar: data.full_name_ar,
+        full_name_en: data.full_name_en.trim(),
+        nationality: data.nationality,
+        passport_no: data.passport_no,
+        passport_expiry_at: new Date(data.passport_expiry_at),
+        job_title_code: data.job_title_code ?? null,
+        department_id: data.department_id ?? null,
+        responsible_office: data.responsible_office,
+        responsible_office_number:
+          data.responsible_office_number?.trim() || null,
+        avatar_file_id: data.personal_picture_file_id ?? null,
+        status_code: RECRUITMENT_STATUS.UNDER_PROCEDURE,
+        visa_deadline_at: data.visa_deadline_at
+          ? new Date(data.visa_deadline_at)
+          : null,
+        visa_sent_at: data.visa_sent_at ? new Date(data.visa_sent_at) : null,
+        expected_arrival_at: expectedArrival,
+        notes: data.notes ?? null,
+      },
+    });
+
+    const filePurposes = [
+      { file_id: data.passport_image_file_id, purpose_code: 'PASSPORT_IMAGE' },
+      { file_id: data.visa_image_file_id, purpose_code: 'VISA_IMAGE' },
+      {
+        file_id: data.flight_ticket_image_file_id,
+        purpose_code: 'FLIGHT_TICKET_IMAGE',
+      },
+      {
+        file_id: data.personal_picture_file_id,
+        purpose_code: 'PERSONAL_PICTURE',
+      },
+    ].filter(
+      (f): f is { file_id: string; purpose_code: string } =>
+        typeof f.file_id === 'string' && f.file_id.length > 0,
+    );
+
+    for (const { file_id, purpose_code } of filePurposes) {
+      await this.files.linkToEntity({
+        company_id,
+        actor_user_id,
+        file_id,
+        entity_type: 'RECRUITMENT_CANDIDATE',
+        entity_id: created.id,
+        purpose_code,
+      });
+    }
+
+    await this.audit.log({
+      company_id,
+      actor_user_id,
+      actor_role: null,
+      action: 'HR_RECRUITMENT_CREATE',
+      entity_type: 'RECRUITMENT_CANDIDATE',
+      entity_id: created.id,
+      new_values: created,
+    });
+
+    if (
+      created.expected_arrival_at &&
+      this.isWithinArrivalSoonWindow(created.expected_arrival_at)
+    ) {
+      await this.upsertArrivalSoonNotification(
+        company_id,
+        created.id,
+        created.expected_arrival_at,
+        created.full_name_ar,
+        created.full_name_en,
+        actor_user_id,
+      );
+    }
+
+    return created;
+  }
+
+  /**
    * Daily job: recompute status for all candidates with expected_arrival_at.
    * Only syncs UNDER_PROCEDURE and ON_ARRIVAL from expected date. ARRIVED is never set automatically;
    * it only changes when the user clicks "Mark as Arrived".

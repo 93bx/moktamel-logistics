@@ -95,12 +95,30 @@ const nameEnToCountry = new Map<string, Country>(
   countries.map((c) => [c.name_en, c])
 );
 
+const codeToCountry = new Map<string, Country>(
+  countries.map((c) => [c.code.toUpperCase(), c]),
+);
+
 /**
  * Find a country by English name (used when value is stored from API).
  */
 export function getCountryByNameEn(name: string | null | undefined): Country | undefined {
   if (name == null || !name.trim()) return undefined;
   return nameEnToCountry.get(name.trim());
+}
+
+/**
+ * Map Excel/import cell (ISO code or English name) to stored `name_en` for forms and API.
+ */
+export function resolveNationalityToStoredName(raw: string | null | undefined): string {
+  if (raw == null) return "";
+  const t = raw.trim();
+  if (!t) return "";
+  const byName = getCountryByNameEn(t);
+  if (byName) return byName.name_en;
+  const byCode = codeToCountry.get(t.toUpperCase());
+  if (byCode) return byCode.name_en;
+  return t;
 }
 
 /**

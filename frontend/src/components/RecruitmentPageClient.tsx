@@ -24,6 +24,10 @@ import { RecruitmentNewButton } from "@/components/RecruitmentNewButton";
 import { RecruitmentEditModal } from "@/components/RecruitmentEditModal";
 import { RecruitmentViewModal } from "@/components/RecruitmentViewModal";
 import { EmploymentModal } from "@/components/EmploymentModal";
+import {
+  RecruitmentImportModal,
+  downloadRecruitmentExport,
+} from "@/components/RecruitmentImportModal";
 
 type CandidateListItem = {
   id: string;
@@ -91,6 +95,8 @@ export function RecruitmentPageClient({
   const [markingAsArrivedId, setMarkingAsArrivedId] = useState<string | null>(null);
   const [addToEmploymentCandidateId, setAddToEmploymentCandidateId] = useState<string | null>(null);
   const [isRowColorCodingEnabled, setIsRowColorCodingEnabled] = useState(true);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const hasFiltersApplied = Boolean(searchParams.q || searchParams.status_code || searchParams.sort);
 
   const handleViewClick = (candidateId: string) => {
@@ -279,6 +285,7 @@ export function RecruitmentPageClient({
               <div className="absolute z-20 mt-2 min-w-40 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
                 <button
                   type="button"
+                  onClick={() => setImportModalOpen(true)}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-zinc-50 dark:hover:bg-zinc-700"
                 >
                   <Upload className="h-4 w-4" />
@@ -286,10 +293,31 @@ export function RecruitmentPageClient({
                 </button>
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                  disabled={exporting}
+                  onClick={() => {
+                    void (async () => {
+                      setExporting(true);
+                      try {
+                        await downloadRecruitmentExport({
+                          q: searchParams.q,
+                          status_code: searchParams.status_code,
+                          sort: searchParams.sort,
+                          locale: locale === "ar" ? "ar" : "en",
+                        });
+                      } catch (e) {
+                        console.error(e);
+                        alert(
+                          e instanceof Error ? e.message : t("recruitment.import.exportFailed"),
+                        );
+                      } finally {
+                        setExporting(false);
+                      }
+                    })();
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-primary hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50"
                 >
                   <Download className="h-4 w-4" />
-                  {t("common.export")}
+                  {exporting ? t("common.loading") : t("common.export")}
                 </button>
               </div>
             </details>
@@ -484,6 +512,14 @@ export function RecruitmentPageClient({
         onClose={() => setAddToEmploymentCandidateId(null)}
         locale={locale}
         recruitmentCandidateId={addToEmploymentCandidateId}
+      />
+      <RecruitmentImportModal
+        isOpen={importModalOpen}
+        onClose={() => {
+          setImportModalOpen(false);
+          router.refresh();
+        }}
+        locale={locale}
       />
     </>
   );

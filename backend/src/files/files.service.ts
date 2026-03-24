@@ -10,6 +10,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { createHash } from 'crypto';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AuditService } from '../audit/audit.service';
 
@@ -111,6 +112,71 @@ export class FilesService {
     });
 
     return { file_id: file.id, upload_url: uploadUrl };
+  }
+
+  /**
+   * Server-side upload (e.g. import from URL). Writes object to S3 and returns file id.
+   */
+  async uploadBuffer(input: {
+    company_id: string;
+    actor_user_id: string;
+    buffer: Buffer;
+    original_name: string;
+    mime_type: string;
+  }): Promise<string> {
+    const max =
+      Number(this.config.get<string>('FILES_MAX_BYTES') ?? 20 * 1024 * 1024);
+    if (input.buffer.length <= 0 || input.buffer.length > max) {
+      throw new BadRequestException('Invalid file size');
+    }
+
+    const file = await this.prisma.fileObject.create({
+      data: {
+        company_id: input.company_id,
+        bucket: this.bucket(),
+        object_key: 'PENDING',
+        original_name: input.original_name,
+        mime_type: input.mime_type,
+        size_bytes: input.buffer.length,
+        checksum: createHash('sha256').update(input.buffer).digest('hex'),
+        created_by_user_id: input.actor_user_id,
+      },
+      select: { id: true },
+    });
+
+    const object_key = this.key(
+      input.company_id,
+      file.id,
+      input.original_name,
+    );
+    await this.prisma.fileObject.update({
+      where: { id: file.id },
+      data: { object_key },
+    });
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket(),
+        Key: object_key,
+        Body: input.buffer,
+        ContentType: input.mime_type,
+      }),
+    );
+
+    await this.audit.log({
+      company_id: input.company_id,
+      actor_user_id: input.actor_user_id,
+      action: 'FILES_BUFFER_UPLOADED',
+      entity_type: 'FILE',
+      entity_id: file.id,
+      new_values: {
+        original_name: input.original_name,
+        mime_type: input.mime_type,
+        size_bytes: input.buffer.length,
+      },
+    });
+
+    return file.id;
   }
 
   async createDownloadUrl(input: {

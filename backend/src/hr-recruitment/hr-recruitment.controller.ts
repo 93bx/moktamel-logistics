@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,14 +9,19 @@ import {
   Post,
   Query,
   Req,
+  StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Permissions } from '../rbac/permissions.decorator';
 import { PermissionsGuard } from '../rbac/permissions.guard';
 import { HrRecruitmentService } from './hr-recruitment.service';
+import { HrRecruitmentImportService } from './hr-recruitment-import.service';
 
 const SORT_VALUES = [
   'under_procedure',
@@ -23,6 +29,26 @@ const SORT_VALUES = [
   'arriving_soon',
   'older_than_45_days',
 ] as const;
+
+const ExportQuerySchema = z.object({
+  q: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(1).optional(),
+  ),
+  status_code: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(2).optional(),
+  ),
+  sort: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.enum(SORT_VALUES).optional(),
+  ),
+  locale: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.enum(['en', 'ar']).optional(),
+  ),
+});
+
 const ListQuerySchema = z.object({
   q: z.preprocess(
     (val) => (val === '' ? undefined : val),
@@ -117,7 +143,89 @@ const CandidateBulkCreateSchema = z.object({
 @Controller('hr/recruitment')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class HrRecruitmentController {
-  constructor(private readonly svc: HrRecruitmentService) {}
+  constructor(
+    private readonly svc: HrRecruitmentService,
+    private readonly importSvc: HrRecruitmentImportService,
+  ) {}
+
+  @Get('candidates/export')
+  @Permissions('HR_RECRUITMENT_READ')
+  async exportCandidates(
+    @Req() req: Request & { user?: any },
+    @Query() query: unknown,
+  ) {
+    const q = ExportQuerySchema.parse(query);
+    const { buffer, filename } = await this.importSvc.exportFilteredBuffer(
+      req.user.company_id,
+      req.user.sub,
+      {
+        q: q.q,
+        status_code: q.status_code,
+        sort: q.sort,
+        locale: q.locale,
+      },
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Get('candidates/import/template')
+  @Permissions('HR_RECRUITMENT_READ')
+  async importTemplate(@Query('locale') locale: string | undefined) {
+    const loc = locale === 'ar' ? 'ar' : 'en';
+    const buffer = await this.importSvc.generateTemplateBuffer(loc);
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: `attachment; filename="recruitment-import-template-${loc}.xlsx"`,
+    });
+  }
+
+  @Post('candidates/import/validate')
+  @Permissions('HR_RECRUITMENT_CREATE')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 1 * 1024 * 1024 } }),
+  )
+  async validateImport(
+    @Req() req: Request & { user?: any },
+    @UploadedFile() file: { buffer?: Buffer } | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('No file uploaded');
+    }
+    return this.importSvc.validateImportFile(
+      req.user.company_id,
+      req.user.sub,
+      file.buffer,
+    );
+  }
+
+  @Post('candidates/import/commit')
+  @Permissions('HR_RECRUITMENT_CREATE')
+  async commitImport(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
+    return this.importSvc.commitImport(
+      req.user.company_id,
+      req.user.sub,
+      body,
+    );
+  }
+
+  @Post('candidates/import/validate-rows')
+  @Permissions('HR_RECRUITMENT_CREATE')
+  async validateImportRows(
+    @Req() req: Request & { user?: any },
+    @Body() body: unknown,
+  ) {
+    return this.importSvc.validateImportRowsJson(
+      req.user.company_id,
+      req.user.sub,
+      body,
+    );
+  }
 
   @Get('stats')
   @Permissions('HR_RECRUITMENT_READ')
