@@ -14,17 +14,17 @@ export default async function AppLayout({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  
+
   // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/bfa58f2a-7ab1-463f-905a-0dfca7fc2a75',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'(app)/layout.tsx:15',message:'AppLayout locale from params',data:{locale},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+  fetch('http://127.0.0.1:7243/ingest/bfa58f2a-7ab1-463f-905a-0dfca7fc2a75', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: '(app)/layout.tsx:15', message: 'AppLayout locale from params', data: { locale }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'post-fix', hypothesisId: 'A' }) }).catch(() => { });
   // #endregion
-  
+
   const t = await getTranslations({ locale });
-  
+
   // #region agent log
   const navDashboard = t("nav.dashboard");
   const appTitle = t("app.title");
-  fetch('http://127.0.0.1:7243/ingest/bfa58f2a-7ab1-463f-905a-0dfca7fc2a75',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'(app)/layout.tsx:17',message:'AppLayout translations result',data:{locale,translatedNavDashboard:navDashboard,translatedAppTitle:appTitle},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A,D'})}).catch(()=>{});
+  fetch('http://127.0.0.1:7243/ingest/bfa58f2a-7ab1-463f-905a-0dfca7fc2a75', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: '(app)/layout.tsx:17', message: 'AppLayout translations result', data: { locale, translatedNavDashboard: navDashboard, translatedAppTitle: appTitle }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'post-fix', hypothesisId: 'A,D' }) }).catch(() => { });
   // #endregion
 
   // Server-side auth check - redirect if not authenticated
@@ -52,13 +52,13 @@ export default async function AppLayout({
             <SideNav />
           </div>
           <div className="mt-auto flex-shrink-0 pt-4 flex justify-center">
-            <Image
+            {/* <Image
               src="/logo.png"
               alt="Moktamel Logistics"
               width={200}
               height={64}
               className="max-w-full h-auto object-contain"
-            />
+            /> */}
           </div>
         </aside>
 

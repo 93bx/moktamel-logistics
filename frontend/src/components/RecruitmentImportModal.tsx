@@ -283,16 +283,19 @@ export function RecruitmentImportModal({
         {
           n: 1,
           title: t("recruitment.import.instructionsStep1Title"),
+          image: "/images/recruitment-import-step-1.png",
           body: t("recruitment.import.instructionsStep1Body"),
         },
         {
           n: 2,
           title: t("recruitment.import.instructionsStep2Title"),
+          image: "/images/recruitment-import-step-2.png",
           body: t("recruitment.import.instructionsStep2Body"),
         },
         {
           n: 3,
           title: t("recruitment.import.instructionsStep3Title"),
+          image: "/images/recruitment-import-step-3.png",
           body: t("recruitment.import.instructionsStep3Body"),
         },
       ] as const,
@@ -330,8 +333,12 @@ export function RecruitmentImportModal({
                     >
                       {s.n}
                     </span>
+                    {/* <div className="flex items-center gap-2">
+                      {s.image}
+                    </div> */}
                     <div className="min-w-0 space-y-1">
                       <p className="text-sm font-semibold text-primary">{s.title}</p>
+                      {s.image && <Image src={s.image} alt={s.title} height={100} width={100} className="w-full h-auto" />}
                       <p className="text-xs leading-relaxed text-primary/75">{s.body}</p>
                     </div>
                   </div>
