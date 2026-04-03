@@ -3,15 +3,18 @@ import { Prisma } from '@prisma/client';
 
 export interface CalculationInput {
   baseSalary: number;
-  monthlyTarget: number;
+  targetType: string; // 'TARGET_TYPE_ORDERS' | 'TARGET_TYPE_REVENUE'
+  monthlyOrdersTarget: number;
+  monthlyRevenueTarget: number;
   ordersCount: number;
+  totalRevenue: number;
   workingDays: number;
-  deductionMethod: string; // 'ORDERS_COUNT' | 'REVENUE' | 'FIXED_DEDUCTION'
-  deductionTiers: any[]; // [{ from: number, to: number, deduction: number }]
+  deductionType: string; // 'DEDUCTION_FIXED' | 'DEDUCTION_ORDERS_TIERS' | 'DEDUCTION_REVENUE_TIERS'
+  ordersTiers: any[];
+  revenueTiers: any[];
   deductionPerOrder: number;
   scheduledLoanInstallments: number;
   totalBonus: number;
-  totalRevenue: number;
   averageCost: number;
 }
 
@@ -26,55 +29,81 @@ export interface CalculationOutput {
 @Injectable()
 export class SalariesPayrollCalculationService {
   calculate(input: CalculationInput): CalculationOutput {
-    const targetDifference = input.ordersCount - input.monthlyTarget;
+    let targetDifference = 0;
     let performanceDeduction = 0;
     const details: any = {
       performanceDeductionBreakdown: [],
     };
 
-    if (targetDifference < 0) {
-      const missingOrders = Math.abs(targetDifference);
+    // Calculate gap based on target type
+    if (input.targetType === 'TARGET_TYPE_ORDERS') {
+      targetDifference = input.ordersCount - input.monthlyOrdersTarget;
+    } else if (input.targetType === 'TARGET_TYPE_REVENUE') {
+      targetDifference = input.totalRevenue - input.monthlyRevenueTarget;
+    }
 
-      if (input.deductionMethod === 'FIXED_DEDUCTION') {
-        performanceDeduction = missingOrders * input.deductionPerOrder;
-        details.performanceDeductionBreakdown.push({
-          type: 'FIXED_PER_ORDER',
-          missingOrders,
-          rate: input.deductionPerOrder,
-          amount: performanceDeduction,
-        });
-      } else if (
-        input.deductionMethod === 'ORDERS_COUNT' ||
-        input.deductionMethod === 'REVENUE'
-      ) {
-        // Use tiered deductions if available
-        if (input.deductionTiers && input.deductionTiers.length > 0) {
-          // Find the matching tier
-          const tier = input.deductionTiers.find(
-            (t) => missingOrders >= t.from && missingOrders <= t.to,
-          );
-          if (tier) {
-            performanceDeduction = tier.deduction;
+    if (targetDifference < 0) {
+      const missingAmount = Math.abs(targetDifference);
+
+      if (input.deductionType === 'DEDUCTION_FIXED') {
+        // Fixed deduction only applies to orders
+        if (input.targetType === 'TARGET_TYPE_ORDERS') {
+          performanceDeduction = missingAmount * input.deductionPerOrder;
+          details.performanceDeductionBreakdown.push({
+            type: 'FIXED_PER_ORDER',
+            missingOrders: missingAmount,
+            rate: input.deductionPerOrder,
+            amount: performanceDeduction,
+          });
+        }
+      } else if (input.deductionType === 'DEDUCTION_ORDERS_TIERS') {
+        const tiers = input.ordersTiers || [];
+        const tier = tiers.find(
+          (t) => missingAmount >= t.from && missingAmount <= t.to,
+        );
+        if (tier) {
+          performanceDeduction = tier.deduction;
+          details.performanceDeductionBreakdown.push({
+            type: 'ORDERS_TIERED',
+            missingOrders: missingAmount,
+            tier,
+            amount: performanceDeduction,
+          });
+        } else {
+          const lastTier = [...tiers].sort((a, b) => b.to - a.to)[0];
+          if (lastTier && missingAmount > lastTier.to) {
+            performanceDeduction = lastTier.deduction;
             details.performanceDeductionBreakdown.push({
-              type: 'TIERED',
-              missingOrders,
-              tier,
+              type: 'ORDERS_TIERED_MAX',
+              missingOrders: missingAmount,
+              tier: lastTier,
               amount: performanceDeduction,
             });
-          } else {
-            // Check if it's beyond the last tier
-            const lastTier = [...input.deductionTiers].sort(
-              (a, b) => b.to - a.to,
-            )[0];
-            if (lastTier && missingOrders > lastTier.to) {
-              performanceDeduction = lastTier.deduction;
-              details.performanceDeductionBreakdown.push({
-                type: 'TIERED_MAX',
-                missingOrders,
-                tier: lastTier,
-                amount: performanceDeduction,
-              });
-            }
+          }
+        }
+      } else if (input.deductionType === 'DEDUCTION_REVENUE_TIERS') {
+        const tiers = input.revenueTiers || [];
+        const tier = tiers.find(
+          (t) => missingAmount >= t.from && missingAmount <= t.to,
+        );
+        if (tier) {
+          performanceDeduction = tier.deduction;
+          details.performanceDeductionBreakdown.push({
+            type: 'REVENUE_TIERED',
+            missingRevenue: missingAmount,
+            tier,
+            amount: performanceDeduction,
+          });
+        } else {
+          const lastTier = [...tiers].sort((a, b) => b.to - a.to)[0];
+          if (lastTier && missingAmount > lastTier.to) {
+            performanceDeduction = lastTier.deduction;
+            details.performanceDeductionBreakdown.push({
+              type: 'REVENUE_TIERED_MAX',
+              missingRevenue: missingAmount,
+              tier: lastTier,
+              amount: performanceDeduction,
+            });
           }
         }
       }
@@ -98,12 +127,14 @@ export class SalariesPayrollCalculationService {
         ...details,
         inputs: {
           baseSalary: input.baseSalary,
-          monthlyTarget: input.monthlyTarget,
+          targetType: input.targetType,
+          monthlyOrdersTarget: input.monthlyOrdersTarget,
+          monthlyRevenueTarget: input.monthlyRevenueTarget,
           ordersCount: input.ordersCount,
+          totalRevenue: input.totalRevenue,
           workingDays: input.workingDays,
           scheduledLoanInstallments: input.scheduledLoanInstallments,
           totalBonus: input.totalBonus,
-          totalRevenue: input.totalRevenue,
           averageCost: input.averageCost,
         },
       },

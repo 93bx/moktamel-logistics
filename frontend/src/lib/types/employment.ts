@@ -17,6 +17,10 @@ export type EmploymentListItem = {
   status_code: string;
   salary_amount: string | null;
   salary_currency_code: string | null;
+  target_type: "TARGET_TYPE_ORDERS" | "TARGET_TYPE_REVENUE" | null;
+  target_deduction_type: string | null;
+  monthly_orders_target: number | null;
+  monthly_target_amount: string | null;
   cost_center_code: string | null;
   assigned_platform: string | null;
   platform_user_no: string | null;

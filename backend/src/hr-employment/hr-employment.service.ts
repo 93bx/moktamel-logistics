@@ -93,6 +93,10 @@ export class HrEmploymentService {
           status_code: true,
           salary_amount: true,
           salary_currency_code: true,
+          target_type: true,
+          target_deduction_type: true,
+          monthly_orders_target: true,
+          monthly_target_amount: true,
           assigned_platform: true,
           platform_user_no: true,
           job_type: true,
@@ -189,14 +193,103 @@ export class HrEmploymentService {
     });
     if (!row) throw new NotFoundException();
 
-    const audit_logs = await this.prisma.auditLog.findMany({
-      where: { company_id, entity_type: 'EMPLOYMENT_RECORD', entity_id: id },
-      orderBy: { created_at: 'desc' },
-      take: 100,
-      select: { id: true, action: true, created_at: true },
+    const { gte: monthStartRiyadh, lte: monthEndRiyadh } =
+      this.getAsiaRiyadhCurrentMonthUtcBounds();
+
+    const [auditRows, deductionChangeCandidates] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: { company_id, entity_type: 'EMPLOYMENT_RECORD', entity_id: id },
+        orderBy: { created_at: 'desc' },
+        take: 500,
+        select: {
+          id: true,
+          action: true,
+          created_at: true,
+          actor_user_id: true,
+          actor_role: true,
+        },
+      }),
+      this.prisma.auditLog.findMany({
+        where: {
+          company_id,
+          entity_type: 'EMPLOYMENT_RECORD',
+          entity_id: id,
+          action: 'HR_EMPLOYMENT_UPDATE',
+          created_at: { gte: monthStartRiyadh, lte: monthEndRiyadh },
+        },
+        select: { old_values: true, new_values: true },
+      }),
+    ]);
+
+    const deduction_method_changed_this_month = deductionChangeCandidates.some(
+      (log) => {
+        const oldV = log.old_values as Record<string, unknown> | null;
+        const newV = log.new_values as Record<string, unknown> | null;
+        if (!oldV || !newV) return false;
+        const a = oldV['target_deduction_type'];
+        const b = newV['target_deduction_type'];
+        const str = (v: unknown) =>
+          v === null || v === undefined
+            ? ''
+            : typeof v === 'string' ||
+                typeof v === 'number' ||
+                typeof v === 'boolean' ||
+                typeof v === 'bigint'
+              ? String(v)
+              : '';
+        return str(a) !== str(b);
+      },
+    );
+
+    const actorIds = [
+      ...new Set(
+        auditRows
+          .map((l) => l.actor_user_id)
+          .filter((x): x is string => typeof x === 'string' && x.length > 0),
+      ),
+    ];
+    const users =
+      actorIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: actorIds } },
+            select: { id: true, name: true, email: true },
+          })
+        : [];
+    const userById = new Map(users.map((u) => [u.id, u]));
+
+    const audit_logs = auditRows.map((log) => {
+      const u = log.actor_user_id ? userById.get(log.actor_user_id) : undefined;
+      return {
+        id: log.id,
+        action: log.action,
+        created_at: log.created_at,
+        actor_user_id: log.actor_user_id,
+        actor_role: log.actor_role,
+        actor_display: u?.name?.trim() || u?.email || null,
+      };
     });
 
-    return { ...row, audit_logs };
+    return { ...row, audit_logs, deduction_method_changed_this_month };
+  }
+
+  /** Calendar month bounds in Asia/Riyadh, expressed as UTC `Date` for DB filtering. */
+  private getAsiaRiyadhCurrentMonthUtcBounds(): { gte: Date; lte: Date } {
+    const now = new Date();
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Riyadh',
+      year: 'numeric',
+      month: 'numeric',
+    });
+    const parts = fmt.formatToParts(now);
+    const year = Number(parts.find((p) => p.type === 'year')?.value);
+    const month = Number(parts.find((p) => p.type === 'month')?.value);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const lastDay = new Date(year, month, 0).getDate();
+    const gte = new Date(`${year}-${pad(month)}-01T00:00:00+03:00`);
+    const lte = new Date(
+      `${year}-${pad(month)}-${pad(lastDay)}T23:59:59.999+03:00`,
+    );
+    return { gte, lte };
   }
 
   /** Prefix from company name: 2 words → first letters; else first 2 chars. Uppercase A–Z only (fallback X). */
@@ -331,13 +424,44 @@ export class HrEmploymentService {
       });
     }
 
-    const method = config.calculation_method;
-    if (method === 'ORDERS_COUNT' || method === 'FIXED_DEDUCTION') {
-      if (data.monthly_orders_target == null)
+    // Validate target type and target value
+    if (!data.target_type) {
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_TARGET_TYPE');
+    }
+
+    if (data.target_type === 'TARGET_TYPE_ORDERS') {
+      if (data.monthly_orders_target == null) {
         throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_ORDERS_TARGET');
-    } else if (method === 'REVENUE') {
-      if (data.monthly_target_amount == null)
+      }
+    } else if (data.target_type === 'TARGET_TYPE_REVENUE') {
+      if (data.monthly_target_amount == null) {
         throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_REVENUE_TARGET');
+      }
+    }
+
+    // Validate target deduction type
+    if (!data.target_deduction_type) {
+      throw new BadRequestException('HR_EMPLOYMENT_ACTIVE_DEDUCTION_TYPE');
+    }
+
+    // Validate consistency: revenue target → must use revenue tiers
+    if (
+      data.target_type === 'TARGET_TYPE_REVENUE' &&
+      data.target_deduction_type !== 'DEDUCTION_REVENUE_TIERS'
+    ) {
+      throw new BadRequestException(
+        'HR_EMPLOYMENT_REVENUE_REQUIRES_REVENUE_TIERS',
+      );
+    }
+
+    // Validate consistency: orders target → cannot use revenue tiers
+    if (
+      data.target_type === 'TARGET_TYPE_ORDERS' &&
+      data.target_deduction_type === 'DEDUCTION_REVENUE_TIERS'
+    ) {
+      throw new BadRequestException(
+        'HR_EMPLOYMENT_ORDERS_CANNOT_USE_REVENUE_TIERS',
+      );
     }
 
     if (!data.license_expiry_at)
@@ -428,6 +552,8 @@ export class HrEmploymentService {
         assigned_platform: data.assigned_platform ?? null,
         platform_user_no: data.platform_user_no ?? null,
         job_type: jobType,
+        target_type: data.target_type ?? null,
+        target_deduction_type: data.target_deduction_type ?? null,
         monthly_orders_target: data.monthly_orders_target ?? null,
         monthly_target_amount: data.monthly_target_amount ?? null,
       },
@@ -501,6 +627,12 @@ export class HrEmploymentService {
       }
       resolvedStatus = data.status_code;
       if (
+        resolvedStatus === 'EMPLOYMENT_STATUS_DRAFT' &&
+        existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE'
+      ) {
+        throw new BadRequestException('HR_EMPLOYMENT_005');
+      }
+      if (
         resolvedStatus === 'EMPLOYMENT_STATUS_DESERTED' &&
         existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE'
       ) {
@@ -573,6 +705,8 @@ export class HrEmploymentService {
       assigned_platform: data.assigned_platform ?? undefined,
       platform_user_no: data.platform_user_no ?? undefined,
       job_type: data.job_type ?? undefined,
+      target_type: data.target_type ?? undefined,
+      target_deduction_type: data.target_deduction_type ?? undefined,
       monthly_orders_target: data.monthly_orders_target ?? undefined,
       monthly_target_amount: data.monthly_target_amount ?? undefined,
     };
@@ -626,7 +760,7 @@ export class HrEmploymentService {
     if (!existing) throw new NotFoundException();
     if (existing.status_code === 'EMPLOYMENT_STATUS_ACTIVE') {
       throw new ForbiddenException(
-        'HR_EMPLOYMENT_001: Cannot delete an active employee. Archive to Draft instead.',
+        'HR_EMPLOYMENT_001: Cannot delete an active employee. Deactivate first.',
       );
     }
 

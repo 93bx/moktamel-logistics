@@ -4,16 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
+import { InfoTooltip } from "./InfoTooltip";
 
 type PayrollConfigData = {
-  calculation_method: 'ORDERS_COUNT' | 'REVENUE' | 'FIXED_DEDUCTION';
-  monthly_target?: number | null;
-  monthly_target_amount?: number | null;
-  bonus_per_order?: number | null;
   minimum_salary?: number | null;
-  unit_amount?: number | null;
+  bonus_per_order?: number | null;
   deduction_per_order?: number | null;
-  deduction_tiers?: Array<{ from: number; to: number; deduction: number }> | null;
+  orders_deduction_tiers?: Array<{ from: number; to: number; deduction: number }> | null;
+  revenue_deduction_tiers?: Array<{ from: number; to: number; deduction: number }> | null;
+  revenue_unit_amount?: number | null;
 };
 
 type PayrollStatsData = {
@@ -212,7 +211,8 @@ export function PayrollConfigPageClient({
   const [savingFields, setSavingFields] = useState<Set<string>>(new Set());
   const [savedFields, setSavedFields] = useState<Set<string>>(new Set());
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [tierErrors, setTierErrors] = useState<string[]>([]);
+  const [ordersTierErrors, setOrdersTierErrors] = useState<string[]>([]);
+  const [revenueTierErrors, setRevenueTierErrors] = useState<string[]>([]);
   const saveTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
   const [activeTab, setActiveTab] = useState<"payroll" | "costs">("payroll");
 
@@ -306,46 +306,132 @@ export function PayrollConfigPageClient({
     router.push(`/${locale}/payroll-config?year=${y}&month=${m}`);
   };
 
-  const handleMethodChange = (method: 'ORDERS_COUNT' | 'REVENUE' | 'FIXED_DEDUCTION') => {
-    saveConfig("calculation_method", { calculation_method: method });
-  };
-
   const handleFieldChange = (field: keyof PayrollConfigData, value: number | null) => {
     setConfig((prev) => ({ ...prev, [field]: value }));
     saveConfig(field, { [field]: value });
   };
 
-  const handleTiersChange = (tiers: DeductionTier[]) => {
+  const handleTiersChange = (tierType: "orders" | "revenue", tiers: DeductionTier[]) => {
     const validation = validateDeductionTiers(tiers);
-    setTierErrors(validation.errors);
+    if (tierType === "orders") {
+      setOrdersTierErrors(validation.errors);
+    } else {
+      setRevenueTierErrors(validation.errors);
+    }
     if (validation.valid) {
-      setConfig((prev) => ({ ...prev, deduction_tiers: tiers }));
-      saveConfig("deduction_tiers", { deduction_tiers: tiers });
+      const fieldName = tierType === "orders" ? "orders_deduction_tiers" : "revenue_deduction_tiers";
+      setConfig((prev) => ({ ...prev, [fieldName]: tiers }));
+      saveConfig(fieldName, { [fieldName]: tiers });
     }
   };
 
-  const addTier = () => {
-    const currentTiers = config.deduction_tiers ?? [];
+  const addTier = (tierType: "orders" | "revenue") => {
+    const currentTiers = tierType === "orders" 
+      ? (config.orders_deduction_tiers ?? [])
+      : (config.revenue_deduction_tiers ?? []);
     const lastTier = currentTiers.length > 0 ? currentTiers[currentTiers.length - 1] : null;
     const newTier: DeductionTier = {
       from: lastTier ? lastTier.to + 1 : 1,
       to: lastTier ? lastTier.to + 50 : 50,
       deduction: 0,
     };
-    handleTiersChange([...currentTiers, newTier]);
+    handleTiersChange(tierType, [...currentTiers, newTier]);
   };
 
-  const removeTier = (index: number) => {
-    const currentTiers = config.deduction_tiers ?? [];
-    handleTiersChange(currentTiers.filter((_, i) => i !== index));
+  const removeTier = (tierType: "orders" | "revenue", index: number) => {
+    const currentTiers = tierType === "orders" 
+      ? (config.orders_deduction_tiers ?? [])
+      : (config.revenue_deduction_tiers ?? []);
+    handleTiersChange(tierType, currentTiers.filter((_, i) => i !== index));
   };
 
-  const updateTier = (index: number, field: keyof DeductionTier, value: number) => {
-    const currentTiers = config.deduction_tiers ?? [];
+  const updateTier = (tierType: "orders" | "revenue", index: number, field: keyof DeductionTier, value: number) => {
+    const currentTiers = tierType === "orders" 
+      ? (config.orders_deduction_tiers ?? [])
+      : (config.revenue_deduction_tiers ?? []);
     const updated = currentTiers.map((tier, i) =>
       i === index ? { ...tier, [field]: value } : tier
     );
-    handleTiersChange(updated);
+    handleTiersChange(tierType, updated);
+  };
+
+  const renderTierTable = (tierType: "orders" | "revenue", tiers: DeductionTier[]) => {
+    const errors = tierType === "orders" ? ordersTierErrors : revenueTierErrors;
+    return (
+      <>
+        {errors.length > 0 && (
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+            {errors.map((err, i) => (
+              <div key={i}>{err}</div>
+            ))}
+          </div>
+        )}
+        <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
+          <table className="min-w-full text-sm">
+            <thead className="bg-zinc-50 text-xs uppercase text-primary/60 dark:bg-zinc-800/60">
+              <tr>
+                <th className="px-3 py-2 text-left">{t("payrollConfig.tierFrom")}</th>
+                <th className="px-3 py-2 text-left">{t("payrollConfig.tierTo")}</th>
+                <th className="px-3 py-2 text-left">{t("payrollConfig.tierDeduction")}</th>
+                <th className="px-3 py-2 text-right">{t("common.actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tiers.map((tier, idx) => (
+                <tr key={idx} className="border-t border-zinc-100 dark:border-zinc-700">
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step={tierType === "orders" ? 1 : 0.01}
+                      value={tier.from}
+                      onChange={(e) => updateTier(tierType, idx, "from", tierType === "orders" ? parseInt(e.target.value, 10) || 0 : parseFloat(e.target.value) || 0)}
+                      className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step={tierType === "orders" ? 1 : 0.01}
+                      value={tier.to}
+                      onChange={(e) => updateTier(tierType, idx, "to", tierType === "orders" ? parseInt(e.target.value, 10) || 0 : parseFloat(e.target.value) || 0)}
+                      className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={tier.deduction}
+                      onChange={(e) => updateTier(tierType, idx, "deduction", parseFloat(e.target.value) || 0)}
+                      className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => removeTier(tierType, idx)}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      {t("payrollConfig.removeTier")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {tiers.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-3 py-4 text-center text-sm text-primary/60">
+                    {t("common.noResults")}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </>
+    );
   };
 
   // Cleanup timeouts on unmount
@@ -444,356 +530,100 @@ export function PayrollConfigPageClient({
               </select>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <div className="text-sm text-primary/60">{t("payrollConfig.calculationMethod")}:</div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700">
-                  <input
-                    type="radio"
-                    name="calculation_method"
-                    checked={config.calculation_method === "ORDERS_COUNT"}
-                    onChange={() => handleMethodChange("ORDERS_COUNT")}
-                    className="h-4 w-4"
-                  />
-                  <span>{t("payrollConfig.methodOrders")}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700">
-                  <input
-                    type="radio"
-                    name="calculation_method"
-                    checked={config.calculation_method === "REVENUE"}
-                    onChange={() => handleMethodChange("REVENUE")}
-                    className="h-4 w-4"
-                  />
-                  <span>{t("payrollConfig.methodRevenue")}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700">
-                  <input
-                    type="radio"
-                    name="calculation_method"
-                    checked={config.calculation_method === "FIXED_DEDUCTION"}
-                    onChange={() => handleMethodChange("FIXED_DEDUCTION")}
-                    className="h-4 w-4"
-                  />
-                  <span>{t("payrollConfig.methodFixed")}</span>
-                </label>
-              </div>
+          </div>
+
+          {/* Company-wide settings */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
+            <h3 className="mb-4 text-lg font-semibold text-primary flex items-center gap-2">
+              {t("payrollConfig.companyWideSettings")}
+              <InfoTooltip content={t("payrollConfig.tooltipCompanyWideSettings")} />
+            </h3>
+            
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <EditableCard
+                label={t("payrollConfig.minimumSalary")}
+                value={config.minimum_salary}
+                min={0}
+                step="0.01"
+                onChange={(val) => handleFieldChange("minimum_salary", val)}
+                saving={savingFields.has("minimum_salary")}
+                saved={savedFields.has("minimum_salary")}
+                error={fieldErrors.minimum_salary}
+                t={t}
+              />
+              <EditableCard
+                label={t("payrollConfig.bonusPerOrder")}
+                value={config.bonus_per_order}
+                min={0}
+                step="0.01"
+                onChange={(val) => handleFieldChange("bonus_per_order", val)}
+                saving={savingFields.has("bonus_per_order")}
+                saved={savedFields.has("bonus_per_order")}
+                error={fieldErrors.bonus_per_order}
+                t={t}
+              />
+              <EditableCard
+                label={t("payrollConfig.deductionPerOrder")}
+                value={config.deduction_per_order}
+                min={0}
+                step="0.01"
+                onChange={(val) => handleFieldChange("deduction_per_order", val)}
+                saving={savingFields.has("deduction_per_order")}
+                saved={savedFields.has("deduction_per_order")}
+                error={fieldErrors.deduction_per_order}
+                t={t}
+              />
             </div>
           </div>
 
-          {/* Config Section based on method */}
-          {config.calculation_method === "ORDERS_COUNT" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <EditableCard
-                  label={t("payrollConfig.monthlyTargetOrders")}
-                  t={t}
-                  value={config.monthly_target}
-                  type="number"
-                  min={1}
-                  step={1}
-                  onChange={(val) => handleFieldChange("monthly_target", val)}
-                  saving={savingFields.has("monthly_target")}
-                  saved={savedFields.has("monthly_target")}
-                  error={fieldErrors.monthly_target}
-                />
-                <EditableCard
-                  label={t("payrollConfig.minimumSalary")}
-                  t={t}
-                  value={config.minimum_salary}
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  onChange={(val) => handleFieldChange("minimum_salary", val)}
-                  saving={savingFields.has("minimum_salary")}
-                  saved={savedFields.has("minimum_salary")}
-                  error={fieldErrors.minimum_salary}
-                />
-                <EditableCard
-                  label={t("payrollConfig.bonusPerOrder")}
-                  t={t}
-                  value={config.bonus_per_order}
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  onChange={(val) => handleFieldChange("bonus_per_order", val)}
-                  saving={savingFields.has("bonus_per_order")}
-                  saved={savedFields.has("bonus_per_order")}
-                  error={fieldErrors.bonus_per_order}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-primary">{t("payrollConfig.deductionTiers")}</h3>
-                  <button
-                    type="button"
-                    onClick={addTier}
-                    className="rounded-md bg-primary px-3 py-1 text-sm text-white hover:bg-primary/90"
-                  >
-                    {t("payrollConfig.addTier")}
-                  </button>
-                </div>
-                {tierErrors.length > 0 && (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-                    {tierErrors.map((err, i) => (
-                      <div key={i}>{err}</div>
-                    ))}
-                  </div>
-                )}
-                <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-zinc-50 text-xs uppercase text-primary/60 dark:bg-zinc-800/60">
-                      <tr>
-                        <th className="px-3 py-2 text-left">{t("payrollConfig.tierFrom")}</th>
-                        <th className="px-3 py-2 text-left">{t("payrollConfig.tierTo")}</th>
-                        <th className="px-3 py-2 text-left">{t("payrollConfig.tierDeduction")}</th>
-                        <th className="px-3 py-2 text-right">{t("common.actions")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(config.deduction_tiers ?? []).map((tier, idx) => (
-                        <tr key={idx} className="border-t border-zinc-100 dark:border-zinc-700">
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              value={tier.from}
-                              onChange={(e) => updateTier(idx, "from", parseInt(e.target.value, 10) || 0)}
-                              className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              value={tier.to}
-                              onChange={(e) => updateTier(idx, "to", parseInt(e.target.value, 10) || 0)}
-                              className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              value={tier.deduction}
-                              onChange={(e) => updateTier(idx, "deduction", parseFloat(e.target.value) || 0)}
-                              className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => removeTier(idx)}
-                              className="text-xs text-primary hover:underline"
-                            >
-                              {t("payrollConfig.removeTier")}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {(!config.deduction_tiers || config.deduction_tiers.length === 0) && (
-                        <tr>
-                          <td colSpan={4} className="px-3 py-4 text-center text-sm text-primary/60">
-                            {t("common.noResults")}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+          {/* Orders Deduction Tiers */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
+                {t("payrollConfig.ordersDeductionTiers")}
+                <InfoTooltip content={t("payrollConfig.tooltipOrdersDeductionTiers")} />
+              </h3>
+              <button
+                type="button"
+                onClick={() => addTier("orders")}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+              >
+                {t("payrollConfig.addTier")}
+              </button>
             </div>
-          )}
+            {renderTierTable("orders", config.orders_deduction_tiers || [])}
+          </div>
 
-          {config.calculation_method === "REVENUE" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <EditableCard
-                  label={t("payrollConfig.monthlyTargetAmount")}
-                  t={t}
-                  value={config.monthly_target_amount}
-                  type="number"
-                  min={0.01}
-                  step={0.01}
-                  onChange={(val) => handleFieldChange("monthly_target_amount", val)}
-                  saving={savingFields.has("monthly_target_amount")}
-                  saved={savedFields.has("monthly_target_amount")}
-                  error={fieldErrors.monthly_target_amount}
-                />
-                <EditableCard
-                  label={t("payrollConfig.unitAmount")}
-                  t={t}
-                  value={config.unit_amount}
-                  type="number"
-                  min={0.01}
-                  step={0.01}
-                  onChange={(val) => handleFieldChange("unit_amount", val)}
-                  saving={savingFields.has("unit_amount")}
-                  saved={savedFields.has("unit_amount")}
-                  error={fieldErrors.unit_amount}
-                />
-                <EditableCard
-                  label={t("payrollConfig.bonusPerOrder")}
-                  t={t}
-                  value={config.bonus_per_order}
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  onChange={(val) => handleFieldChange("bonus_per_order", val)}
-                  saving={savingFields.has("bonus_per_order")}
-                  saved={savedFields.has("bonus_per_order")}
-                  error={fieldErrors.bonus_per_order}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-primary">
-                    {t("payrollConfig.deductionTiers")} ({t("payrollConfig.tierDeductionUnit", { unit: config.unit_amount ?? 0 })})
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={addTier}
-                    className="rounded-md bg-primary px-3 py-1 text-sm text-white hover:bg-primary/90"
-                  >
-                    {t("payrollConfig.addTier")}
-                  </button>
-                </div>
-                {tierErrors.length > 0 && (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-                    {tierErrors.map((err, i) => (
-                      <div key={i}>{err}</div>
-                    ))}
-                  </div>
-                )}
-                <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-zinc-50 text-xs uppercase text-primary/60 dark:bg-zinc-800/60">
-                      <tr>
-                        <th className="px-3 py-2 text-left">{t("payrollConfig.tierFrom")}</th>
-                        <th className="px-3 py-2 text-left">{t("payrollConfig.tierTo")}</th>
-                        <th className="px-3 py-2 text-left">
-                          {t("payrollConfig.tierDeductionUnit", { unit: config.unit_amount ?? 0 })}
-                        </th>
-                        <th className="px-3 py-2 text-right">{t("common.actions")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(config.deduction_tiers ?? []).map((tier, idx) => (
-                        <tr key={idx} className="border-t border-zinc-100 dark:border-zinc-700">
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              value={tier.from}
-                              onChange={(e) => updateTier(idx, "from", parseFloat(e.target.value) || 0)}
-                              className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              value={tier.to}
-                              onChange={(e) => updateTier(idx, "to", parseFloat(e.target.value) || 0)}
-                              className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              value={tier.deduction}
-                              onChange={(e) => updateTier(idx, "deduction", parseFloat(e.target.value) || 0)}
-                              className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => removeTier(idx)}
-                              className="text-xs text-primary hover:underline"
-                            >
-                              {t("payrollConfig.removeTier")}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {(!config.deduction_tiers || config.deduction_tiers.length === 0) && (
-                        <tr>
-                          <td colSpan={4} className="px-3 py-4 text-center text-sm text-primary/60">
-                            {t("common.noResults")}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+          {/* Revenue Deduction Tiers */}
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
+                {t("payrollConfig.revenueDeductionTiers")}
+                <InfoTooltip content={t("payrollConfig.tooltipRevenueDeductionTiers")} />
+              </h3>
+              <button
+                type="button"
+                onClick={() => addTier("revenue")}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+              >
+                {t("payrollConfig.addTier")}
+              </button>
             </div>
-          )}
-
-          {config.calculation_method === "FIXED_DEDUCTION" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-                <EditableCard
-                  label={t("payrollConfig.monthlyTarget")}
-                  t={t}
-                  value={config.monthly_target}
-                  type="number"
-                  min={1}
-                  step={1}
-                  onChange={(val) => handleFieldChange("monthly_target", val)}
-                  saving={savingFields.has("monthly_target")}
-                  saved={savedFields.has("monthly_target")}
-                  error={fieldErrors.monthly_target}
-                />
-                <EditableCard
-                  label={t("payrollConfig.deductionPerOrder")}
-                  t={t}
-                  value={config.deduction_per_order}
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  onChange={(val) => handleFieldChange("deduction_per_order", val)}
-                  saving={savingFields.has("deduction_per_order")}
-                  saved={savedFields.has("deduction_per_order")}
-                  error={fieldErrors.deduction_per_order}
-                />
-                <EditableCard
-                  label={t("payrollConfig.minimumSalary")}
-                  t={t}
-                  value={config.minimum_salary}
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  onChange={(val) => handleFieldChange("minimum_salary", val)}
-                  saving={savingFields.has("minimum_salary")}
-                  saved={savedFields.has("minimum_salary")}
-                  error={fieldErrors.minimum_salary}
-                />
-                <EditableCard
-                  label={t("payrollConfig.bonusPerOrder")}
-                  t={t}
-                  value={config.bonus_per_order}
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  onChange={(val) => handleFieldChange("bonus_per_order", val)}
-                  saving={savingFields.has("bonus_per_order")}
-                  saved={savedFields.has("bonus_per_order")}
-                  error={fieldErrors.bonus_per_order}
-                />
-              </div>
+            <div className="mb-4">
+              <EditableCard
+                label={t("payrollConfig.revenueUnitAmount")}
+                value={config.revenue_unit_amount}
+                min={0}
+                step="0.01"
+                onChange={(val) => handleFieldChange("revenue_unit_amount", val)}
+                saving={savingFields.has("revenue_unit_amount")}
+                saved={savedFields.has("revenue_unit_amount")}
+                error={fieldErrors.revenue_unit_amount}
+                t={t}
+              />
             </div>
-          )}
+            {renderTierTable("revenue", config.revenue_deduction_tiers || [])}
+          </div>
         </>
       ) : (
         <CostsManagementTab locale={locale} onChanged={refreshStats} />

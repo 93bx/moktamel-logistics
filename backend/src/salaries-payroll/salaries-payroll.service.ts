@@ -305,16 +305,19 @@ export class SalariesPayrollService {
 
         const calculation = this.calculator.calculate({
           baseSalary: Number(emp.salary_amount ?? 0),
-          monthlyTarget: config.monthly_target ?? 0,
+          targetType: emp.target_type || 'TARGET_TYPE_ORDERS',
+          monthlyOrdersTarget: emp.monthly_orders_target ?? 0,
+          monthlyRevenueTarget: Number(emp.monthly_target_amount ?? 0),
           ordersCount: opsAgg._sum.orders_count ?? 0,
+          totalRevenue: Number(opsAgg._sum.total_revenue ?? 0),
           workingDays: opsAgg._count.id,
-          deductionMethod: config.calculation_method,
-          deductionTiers: config.deduction_tiers as any[],
+          deductionType: emp.target_deduction_type || 'DEDUCTION_ORDERS_TIERS',
+          ordersTiers: (config.orders_deduction_tiers as any[]) || [],
+          revenueTiers: (config.revenue_deduction_tiers as any[]) || [],
           deductionPerOrder: Number(config.deduction_per_order ?? 0),
           scheduledLoanInstallments: Number(installmentsAgg._sum.amount ?? 0),
-          totalBonus: 0, // Bonus logic can be added here
-          totalRevenue: Number(opsAgg._sum.total_revenue ?? 0),
-          averageCost: 0, // Should come from a cost calculation logic
+          totalBonus: 0,
+          averageCost: 0,
         });
 
         await tx.payrollRunEmployee.create({
@@ -328,11 +331,14 @@ export class SalariesPayrollService {
             employee_avatar_url: emp.avatar_file_id,
             status: 'NOT_PAID',
             base_salary: emp.salary_amount ?? 0,
-            monthly_target: config.monthly_target ?? 0,
+            monthly_target:
+              emp.target_type === 'TARGET_TYPE_ORDERS'
+                ? emp.monthly_orders_target ?? 0
+                : Number(emp.monthly_target_amount ?? 0),
             orders_count: opsAgg._sum.orders_count ?? 0,
             working_days: opsAgg._count.id,
             target_difference: calculation.targetDifference,
-            deduction_method: config.calculation_method,
+            deduction_method: emp.target_deduction_type || 'DEDUCTION_ORDERS_TIERS',
             total_deductions: calculation.totalDeductions,
             scheduled_loan_installments: Number(
               installmentsAgg._sum.amount ?? 0,

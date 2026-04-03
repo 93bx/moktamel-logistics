@@ -18,6 +18,11 @@ import {
   Trash2,
   UserX,
   RotateCcw,
+  AlertTriangle,
+  Wallet,
+  Crosshair,
+  Goal,
+  Percent,
 } from "lucide-react";
 import { Modal } from "./Modal";
 import { StatusBadge } from "./StatusBadge";
@@ -26,7 +31,7 @@ import { NationalityDisplay } from "./NationalityDisplay";
 import { CandidateImageCard } from "./CandidateImageCard";
 import { ImageViewerModal } from "./ImageViewerModal";
 
-type EmploymentRecordForView = {
+export type EmploymentRecordForView = {
   id: string;
   recruitment_candidate_id: string | null;
   employment_source: string | null;
@@ -56,11 +61,14 @@ type EmploymentRecordForView = {
   assigned_platform: string | null;
   platform_user_no: string | null;
   job_type: string | null;
+  target_type: "TARGET_TYPE_ORDERS" | "TARGET_TYPE_REVENUE" | null;
+  target_deduction_type: string | null;
   monthly_orders_target: number | null;
   monthly_target_amount: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
+  deduction_method_changed_this_month?: boolean;
   recruitment_candidate: {
     full_name_ar: string;
     full_name_en: string | null;
@@ -71,7 +79,14 @@ type EmploymentRecordForView = {
     expiry_at: string | null;
     file_id: string | null;
   }>;
-  audit_logs?: Array<{ id: string; action: string; created_at: string }>;
+  audit_logs?: Array<{
+    id: string;
+    action: string;
+    created_at: string;
+    actor_user_id: string | null;
+    actor_role: string | null;
+    actor_display: string | null;
+  }>;
 };
 
 interface EmploymentViewModalProps {
@@ -139,7 +154,7 @@ export function EmploymentViewModal({
         if (data.contract_file_id) fileIds.push({ key: "contract", fileId: data.contract_file_id });
         if (data.license_file_id) fileIds.push({ key: "license", fileId: data.license_file_id });
         if (data.promissory_note_file_id) fileIds.push({ key: "promissory_note", fileId: data.promissory_note_file_id });
-        (data.extra_documents ?? []).forEach((doc: { id: string; file_id: string | null }, i: number) => {
+        (data.extra_documents ?? []).forEach((doc: { id: string; file_id: string | null }) => {
           if (doc.file_id) fileIds.push({ key: `extra_${doc.id}`, fileId: doc.file_id });
         });
 
@@ -170,6 +185,10 @@ export function EmploymentViewModal({
     return () => {
       cancelled = true;
     };
+  }, [isOpen, employmentId]);
+
+  useEffect(() => {
+    if (isOpen && employmentId) setActiveTab("documents");
   }, [isOpen, employmentId]);
 
   const formatDate = (dateString: string | null): string => {
@@ -204,10 +223,15 @@ export function EmploymentViewModal({
   };
 
   const getAuditActionLabel = (action: string): string => {
-    try {
-      return t(`employment.auditAction.${action}` as any);
-    } catch {
-      return action;
+    switch (action) {
+      case "HR_EMPLOYMENT_CREATE":
+        return t("employment.auditAction.HR_EMPLOYMENT_CREATE");
+      case "HR_EMPLOYMENT_UPDATE":
+        return t("employment.auditAction.HR_EMPLOYMENT_UPDATE");
+      case "HR_EMPLOYMENT_DELETE":
+        return t("employment.auditAction.HR_EMPLOYMENT_DELETE");
+      default:
+        return action;
     }
   };
 
@@ -292,22 +316,101 @@ export function EmploymentViewModal({
                 </div>
               </div>
 
+              {/* Actions (status-dependent) */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => {
+                    onEdit(record.id);
+                    onClose();
+                  }}
+                  className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                >
+                  <Pencil className="h-4 w-4" />
+                  {t("common.edit")}
+                </button>
+                {record.status_code !== "EMPLOYMENT_STATUS_ACTIVE" && (
+                  <button
+                    onClick={() => {
+                      onActivate(record);
+                      onClose();
+                    }}
+                    className="flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    {t("common.activate")}
+                  </button>
+                )}
+                {record.status_code === "EMPLOYMENT_STATUS_ACTIVE" && (
+                  <button
+                    onClick={() => {
+                      onDeactivate(record);
+                      onClose();
+                    }}
+                    className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+                  >
+                    <Slash className="h-4 w-4" />
+                    {t("common.deactivate")}
+                  </button>
+                )}
+                {record.status_code !== "EMPLOYMENT_STATUS_ACTIVE" &&
+                  record.status_code !== "EMPLOYMENT_STATUS_DESERTED" && (
+                    <button
+                      onClick={() => {
+                        onDesert(record);
+                        onClose();
+                      }}
+                      className="flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+                    >
+                      <UserX className="h-4 w-4" />
+                      {t("common.markAsDeserted")}
+                    </button>
+                  )}
+                {(record.status_code === "EMPLOYMENT_STATUS_DESERTED" ||
+                  record.status_code === "EMPLOYMENT_STATUS_DRAFT") && (
+                    <button
+                      onClick={() => {
+                        onRestore(record);
+                        onClose();
+                      }}
+                      className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      {t("common.restoreToInProgress")}
+                    </button>
+                  )}
+                {record.status_code !== "EMPLOYMENT_STATUS_ACTIVE" && (
+                  <button
+                    onClick={() => {
+                      onDelete(record);
+                      onClose();
+                    }}
+                    className="flex items-center gap-2 rounded-md border border-zinc-300 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {t("common.delete")}
+                  </button>
+                )}
+              </div>
+
               {/* Tabs */}
               <div>
                 <div className="flex border-b border-zinc-100 dark:border-zinc-800">
                   <button
-                    onClick={() => setActiveTab("operating")}
-                    className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "operating" ? "border-b-2 border-primary text-primary" : "text-zinc-500 hover:text-primary"}`}
-                  >
-                    {t("employment.operatingData")}
-                  </button>
-                  <button
+                    type="button"
                     onClick={() => setActiveTab("documents")}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "documents" ? "border-b-2 border-primary text-primary" : "text-zinc-500 hover:text-primary"}`}
                   >
                     {t("employment.officialDocuments")}
                   </button>
                   <button
+                    type="button"
+                    onClick={() => setActiveTab("operating")}
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "operating" ? "border-b-2 border-primary text-primary" : "text-zinc-500 hover:text-primary"}`}
+                  >
+                    {t("employment.operatingData")}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setActiveTab("logs")}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === "logs" ? "border-b-2 border-primary text-primary" : "text-zinc-500 hover:text-primary"}`}
                   >
@@ -442,8 +545,9 @@ export function EmploymentViewModal({
                 )}
 
                 {activeTab === "operating" && (
-                  <div className="rounded-lg border border-t-0 border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-t-0 border-zinc-200 bg-zinc-50/50 p-4 pb-0 dark:border-zinc-700 dark:bg-zinc-900/50">
+
+                    <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="flex items-center gap-2 text-sm">
                         <Monitor className="h-4 w-4 shrink-0 text-primary/50" />
                         <span className="text-primary/60">{t("common.operatingPlatform")}:</span>
@@ -468,24 +572,77 @@ export function EmploymentViewModal({
                         <span className="text-primary/60">{t("common.status")}:</span>
                         <StatusBadge status={record.status_code} />
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-primary/60">{t("common.salaryAmount")}:</span>
-                        <span className="font-medium text-primary">
-                          {record.salary_amount != null ? `${record.salary_amount} ${record.salary_currency_code || "SAR"}` : "-"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-primary/60">
-                          {record.monthly_target_amount != null
-                            ? t("employment.revenueTarget")
-                            : t("employment.ordersTarget")}
-                          :
-                        </span>
-                        <span className="font-medium text-primary">
-                          {record.monthly_orders_target != null
-                            ? String(record.monthly_orders_target)
-                            : record.monthly_target_amount ?? "-"}
-                        </span>
+                    </div>
+                    <hr />
+                    <div className=" bg-white/80 p-4 dark:border-zinc-600 dark:bg-zinc-800/40">
+                      <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary/70">
+                        {t("employment.salaryTargetInfo")}
+                      </h4>
+                      {record.deduction_method_changed_this_month === true && (
+                        <div
+                          className={`mb-4 flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 ${locale === "ar" ? "flex-row-reverse text-right" : ""}`}
+                          role="status"
+                        >
+                          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <p>{t("employment.deductionMethodNextMonthWarning")}</p>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Wallet className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("common.salaryAmount")}:</span>
+                          <span className="font-medium text-primary">
+                            {record.salary_amount != null
+                              ? `${record.salary_amount} ${record.salary_currency_code || "SAR"}`
+                              : "-"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Crosshair className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("employment.targetType")}:</span>
+                          <span className="font-medium text-primary">
+                            {record.target_type === "TARGET_TYPE_REVENUE"
+                              ? t("employment.targetTypeRevenue")
+                              : record.target_type === "TARGET_TYPE_ORDERS"
+                                ? t("employment.targetTypeOrders")
+                                : "-"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Goal className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">
+                            {record.target_type === "TARGET_TYPE_REVENUE"
+                              ? t("employment.revenueTarget")
+                              : record.target_type === "TARGET_TYPE_ORDERS"
+                                ? t("employment.ordersTarget")
+                                : t("employment.monthlyTarget")}
+                            :
+                          </span>
+                          <span className="font-medium text-primary">
+                            {record.target_type === "TARGET_TYPE_ORDERS"
+                              ? (record.monthly_orders_target ?? "-")
+                              : record.target_type === "TARGET_TYPE_REVENUE"
+                                ? record.monthly_target_amount
+                                  ? `${record.monthly_target_amount} ${t("employment.sar")}`
+                                  : "-"
+                                : "-"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Percent className="h-4 w-4 shrink-0 text-primary/50" />
+                          <span className="text-primary/60">{t("employment.targetDeductionType")}:</span>
+                          <span className="font-medium text-primary">
+                            {record.target_deduction_type === "DEDUCTION_FIXED" && t("employment.deductionTypeFixed")}
+                            {record.target_deduction_type === "DEDUCTION_ORDERS_TIERS" &&
+                              t("employment.deductionTypeOrdersTiers")}
+                            {record.target_deduction_type === "DEDUCTION_REVENUE_TIERS" &&
+                              t("employment.deductionTypeRevenueTiers")}
+                            {record.target_deduction_type !== "DEDUCTION_FIXED" &&
+                              record.target_deduction_type !== "DEDUCTION_ORDERS_TIERS" &&
+                              record.target_deduction_type !== "DEDUCTION_REVENUE_TIERS" &&
+                              "-"}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     {(record.notes != null && record.notes !== "") && (
@@ -503,26 +660,30 @@ export function EmploymentViewModal({
                 )}
 
                 {activeTab === "logs" && (
-                  <div className="max-h-64 overflow-auto rounded-md border border-zinc-100 dark:border-zinc-800">
+                  <div className="max-h-[min(24rem,50vh)] overflow-auto rounded-md border border-zinc-100 dark:border-zinc-800">
                     <table className="w-full text-sm">
-                      <thead className="bg-zinc-50 dark:bg-zinc-900/50">
+                      <thead className="sticky top-0 z-[1] bg-zinc-50 dark:bg-zinc-900/50">
                         <tr className={locale === "ar" ? "text-right" : "text-left"}>
                           <th className="px-3 py-2">{t("common.date")}</th>
                           <th className="px-3 py-2">{t("common.action")}</th>
+                          <th className="px-3 py-2">{t("employment.logPerformedBy")}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(record.audit_logs ?? []).map((log) => (
                           <tr key={log.id} className="border-t border-zinc-100 dark:border-zinc-800">
-                            <td className="px-3 py-2 whitespace-nowrap">
+                            <td className="px-3 py-2 whitespace-nowrap align-top">
                               {new Date(log.created_at).toLocaleString(locale === "ar" ? "ar-SA" : "en-US")}
                             </td>
-                            <td className="px-3 py-2">{getAuditActionLabel(log.action)}</td>
+                            <td className="px-3 py-2 align-top">{getAuditActionLabel(log.action)}</td>
+                            <td className="px-3 py-2 align-top">
+                              {log.actor_display?.trim() || t("employment.logActorUnknown")}
+                            </td>
                           </tr>
                         ))}
                         {(!record.audit_logs || record.audit_logs.length === 0) && (
                           <tr>
-                            <td colSpan={2} className="px-3 py-6 text-center text-zinc-400">
+                            <td colSpan={3} className="px-3 py-6 text-center text-zinc-400">
                               {t("common.noResults")}
                             </td>
                           </tr>
@@ -532,81 +693,6 @@ export function EmploymentViewModal({
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Sticky actions row – only show actions that are allowed for current status */}
-            <div className="flex-none flex flex-wrap gap-2 border-t border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-              <button
-                onClick={() => {
-                  onEdit(record.id);
-                  onClose();
-                }}
-                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-              >
-                <Pencil className="h-4 w-4" />
-                {t("common.edit")}
-              </button>
-              {record.status_code !== "EMPLOYMENT_STATUS_ACTIVE" && (
-                <button
-                  onClick={() => {
-                    onActivate(record);
-                    onClose();
-                  }}
-                  className="flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  {t("common.activate")}
-                </button>
-              )}
-              {record.status_code === "EMPLOYMENT_STATUS_ACTIVE" && (
-                <button
-                  onClick={() => {
-                    onDeactivate(record);
-                    onClose();
-                  }}
-                  className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
-                >
-                  <Slash className="h-4 w-4" />
-                  {t("common.deactivate")}
-                </button>
-              )}
-              {record.status_code !== "EMPLOYMENT_STATUS_ACTIVE" &&
-                record.status_code !== "EMPLOYMENT_STATUS_DESERTED" && (
-                  <button
-                    onClick={() => {
-                      onDesert(record);
-                      onClose();
-                    }}
-                    className="flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
-                  >
-                    <UserX className="h-4 w-4" />
-                    {t("common.markAsDeserted")}
-                  </button>
-                )}
-              {(record.status_code === "EMPLOYMENT_STATUS_DESERTED" || record.status_code === "EMPLOYMENT_STATUS_DRAFT") && (
-                <button
-                  onClick={() => {
-                    onRestore(record);
-                    onClose();
-                  }}
-                  className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  {t("common.restoreToInProgress")}
-                </button>
-              )}
-              {record.status_code !== "EMPLOYMENT_STATUS_ACTIVE" && (
-                <button
-                  onClick={() => {
-                    onDelete(record);
-                    onClose();
-                  }}
-                  className="flex items-center gap-2 rounded-md border border-zinc-300 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {t("common.delete")}
-                </button>
-              )}
             </div>
           </>
         )}

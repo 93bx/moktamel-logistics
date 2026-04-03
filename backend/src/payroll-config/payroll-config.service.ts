@@ -13,14 +13,12 @@ type DeductionTier = {
 };
 
 type UpdatePayrollConfigDto = {
-  calculation_method: 'ORDERS_COUNT' | 'REVENUE' | 'FIXED_DEDUCTION';
-  monthly_target?: number | null;
-  monthly_target_amount?: number | null;
-  bonus_per_order?: number | null;
   minimum_salary?: number | null;
-  unit_amount?: number | null;
+  bonus_per_order?: number | null;
   deduction_per_order?: number | null;
-  deduction_tiers?: DeductionTier[] | null;
+  orders_deduction_tiers?: DeductionTier[] | null;
+  revenue_deduction_tiers?: DeductionTier[] | null;
+  revenue_unit_amount?: number | null;
 };
 
 @Injectable()
@@ -29,7 +27,6 @@ export class PayrollConfigService {
 
   private validateDeductionTiers(
     tiers: DeductionTier[],
-    method: 'ORDERS_COUNT' | 'REVENUE' | 'FIXED_DEDUCTION',
   ): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
@@ -82,37 +79,30 @@ export class PayrollConfigService {
     if (!config) {
       // Return default config
       return {
-        calculation_method: 'ORDERS_COUNT' as const,
-        monthly_target: null,
-        monthly_target_amount: null,
-        bonus_per_order: null,
         minimum_salary: 400,
-        unit_amount: null,
+        bonus_per_order: null,
         deduction_per_order: null,
-        deduction_tiers: null,
+        orders_deduction_tiers: null,
+        revenue_deduction_tiers: null,
+        revenue_unit_amount: null,
       };
     }
 
     return {
-      calculation_method: config.calculation_method as
-        | 'ORDERS_COUNT'
-        | 'REVENUE'
-        | 'FIXED_DEDUCTION',
-      monthly_target: config.monthly_target,
-      monthly_target_amount: config.monthly_target_amount
-        ? Number(config.monthly_target_amount)
+      minimum_salary: config.minimum_salary
+        ? Number(config.minimum_salary)
         : null,
       bonus_per_order: config.bonus_per_order
         ? Number(config.bonus_per_order)
         : null,
-      minimum_salary: config.minimum_salary
-        ? Number(config.minimum_salary)
-        : null,
-      unit_amount: config.unit_amount ? Number(config.unit_amount) : null,
       deduction_per_order: config.deduction_per_order
         ? Number(config.deduction_per_order)
         : null,
-      deduction_tiers: config.deduction_tiers as DeductionTier[] | null,
+      orders_deduction_tiers: config.orders_deduction_tiers as DeductionTier[] | null,
+      revenue_deduction_tiers: config.revenue_deduction_tiers as DeductionTier[] | null,
+      revenue_unit_amount: config.revenue_unit_amount
+        ? Number(config.revenue_unit_amount)
+        : null,
     };
   }
 
@@ -121,31 +111,37 @@ export class PayrollConfigService {
     user_id: string,
     data: UpdatePayrollConfigDto,
   ) {
-    // Validate deduction tiers if provided
-    if (data.deduction_tiers && data.deduction_tiers.length > 0) {
-      const validation = this.validateDeductionTiers(
-        data.deduction_tiers,
-        data.calculation_method,
-      );
+    // Validate orders deduction tiers if provided
+    if (data.orders_deduction_tiers && data.orders_deduction_tiers.length > 0) {
+      const validation = this.validateDeductionTiers(data.orders_deduction_tiers);
       if (!validation.valid) {
         throw new BadRequestException(
-          `PAYROLL_CONFIG_001: ${validation.errors.join('; ')}`,
+          `PAYROLL_CONFIG_001: Orders tiers - ${validation.errors.join('; ')}`,
+        );
+      }
+    }
+
+    // Validate revenue deduction tiers if provided
+    if (data.revenue_deduction_tiers && data.revenue_deduction_tiers.length > 0) {
+      const validation = this.validateDeductionTiers(data.revenue_deduction_tiers);
+      if (!validation.valid) {
+        throw new BadRequestException(
+          `PAYROLL_CONFIG_001: Revenue tiers - ${validation.errors.join('; ')}`,
         );
       }
     }
 
     const updateData: Prisma.PayrollConfigUpdateInput = {
-      calculation_method: data.calculation_method,
-      monthly_target: data.monthly_target ?? null,
-      monthly_target_amount: data.monthly_target_amount ?? null,
-      bonus_per_order: data.bonus_per_order ?? null,
       minimum_salary: data.minimum_salary ?? null,
-      unit_amount: data.unit_amount ?? null,
+      bonus_per_order: data.bonus_per_order ?? null,
       deduction_per_order: data.deduction_per_order ?? null,
-      // For JSON fields, Prisma expects InputJsonValue / JsonNull helpers
-      deduction_tiers: data.deduction_tiers
-        ? (data.deduction_tiers as Prisma.InputJsonValue)
+      orders_deduction_tiers: data.orders_deduction_tiers
+        ? (data.orders_deduction_tiers as Prisma.InputJsonValue)
         : undefined,
+      revenue_deduction_tiers: data.revenue_deduction_tiers
+        ? (data.revenue_deduction_tiers as Prisma.InputJsonValue)
+        : undefined,
+      revenue_unit_amount: data.revenue_unit_amount ?? null,
       updated_at: new Date(),
     };
 
@@ -154,40 +150,35 @@ export class PayrollConfigService {
       update: updateData,
       create: {
         company_id,
-        calculation_method: data.calculation_method,
-        monthly_target: data.monthly_target ?? null,
-        monthly_target_amount: data.monthly_target_amount ?? null,
-        bonus_per_order: data.bonus_per_order ?? null,
         minimum_salary: data.minimum_salary ?? null,
-        unit_amount: data.unit_amount ?? null,
+        bonus_per_order: data.bonus_per_order ?? null,
         deduction_per_order: data.deduction_per_order ?? null,
-        deduction_tiers: data.deduction_tiers
-          ? (data.deduction_tiers as Prisma.InputJsonValue)
+        orders_deduction_tiers: data.orders_deduction_tiers
+          ? (data.orders_deduction_tiers as Prisma.InputJsonValue)
           : undefined,
+        revenue_deduction_tiers: data.revenue_deduction_tiers
+          ? (data.revenue_deduction_tiers as Prisma.InputJsonValue)
+          : undefined,
+        revenue_unit_amount: data.revenue_unit_amount ?? null,
         created_by_user_id: user_id,
       },
     });
 
     return {
-      calculation_method: config.calculation_method as
-        | 'ORDERS_COUNT'
-        | 'REVENUE'
-        | 'FIXED_DEDUCTION',
-      monthly_target: config.monthly_target,
-      monthly_target_amount: config.monthly_target_amount
-        ? Number(config.monthly_target_amount)
+      minimum_salary: config.minimum_salary
+        ? Number(config.minimum_salary)
         : null,
       bonus_per_order: config.bonus_per_order
         ? Number(config.bonus_per_order)
         : null,
-      minimum_salary: config.minimum_salary
-        ? Number(config.minimum_salary)
-        : null,
-      unit_amount: config.unit_amount ? Number(config.unit_amount) : null,
       deduction_per_order: config.deduction_per_order
         ? Number(config.deduction_per_order)
         : null,
-      deduction_tiers: config.deduction_tiers as DeductionTier[] | null,
+      orders_deduction_tiers: config.orders_deduction_tiers as DeductionTier[] | null,
+      revenue_deduction_tiers: config.revenue_deduction_tiers as DeductionTier[] | null,
+      revenue_unit_amount: config.revenue_unit_amount
+        ? Number(config.revenue_unit_amount)
+        : null,
     };
   }
 

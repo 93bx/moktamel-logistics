@@ -11,6 +11,7 @@ import dayjs, { Dayjs } from "dayjs";
 import { Modal } from "./Modal";
 import { FileUpload } from "./FileUpload";
 import { NationalitySearchDropdown } from "./NationalitySearchDropdown";
+import { InfoTooltip } from "./InfoTooltip";
 import { FileImage } from "lucide-react";
 
 function getAgeFromDateOfBirth(dob: string | null): number | null {
@@ -71,6 +72,8 @@ type Employment = {
   assigned_platform: string | null;
   platform_user_no: string | null;
   job_type: string | null;
+  target_type: "TARGET_TYPE_ORDERS" | "TARGET_TYPE_REVENUE" | null;
+  target_deduction_type: "DEDUCTION_FIXED" | "DEDUCTION_ORDERS_TIERS" | "DEDUCTION_REVENUE_TIERS" | null;
   monthly_orders_target: number | null;
   monthly_target_amount: string | null;
   notes?: string | null;
@@ -107,6 +110,8 @@ const INITIAL_RECORD: Employment = {
   assigned_platform: null,
   platform_user_no: null,
   job_type: null,
+  target_type: null,
+  target_deduction_type: null,
   monthly_orders_target: null,
   monthly_target_amount: null,
 };
@@ -122,6 +127,19 @@ function phoneToNineDigits(phone: string | null | undefined): string {
   return digits.length === 9 ? digits : String(phone).replace(/\D/g, "").slice(0, 9);
 }
 
+/** Digits only (for order counts) — no spinners when using type="text" */
+function sanitizeIntegerDigits(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
+/** Digits and at most one decimal point */
+function sanitizeDecimalDigits(raw: string): string {
+  let s = raw.replace(/[^\d.]/g, "");
+  const i = s.indexOf(".");
+  if (i === -1) return s;
+  return s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, "");
+}
+
 export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruitmentCandidateId }: EmploymentModalProps) {
   const router = useRouter();
   const t = useTranslations();
@@ -135,7 +153,7 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [record, setRecord] = useState<Employment>(INITIAL_RECORD);
   const [extraDocuments, setExtraDocuments] = useState<Array<{ id: string; document_name: string; expiry_at: string | null; file_id: string | null }>>([]);
-  const [payrollConfig, setPayrollConfig] = useState<{ minimum_salary: number; calculation_method: string } | null>(null);
+  const [payrollConfig, setPayrollConfig] = useState<{ minimum_salary: number } | null>(null);
 
   const getFieldState = (field: FieldErrorKey): "error" | "success" | "neutral" => {
     if (fieldErrors[field]) return "error";
@@ -248,10 +266,9 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
     fetch(`/api/payroll-config/config?year=${year}&month=${month}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data?.minimum_salary != null || data?.calculation_method)
+        if (data?.minimum_salary != null)
           setPayrollConfig({
-            minimum_salary: Number(data.minimum_salary ?? 0),
-            calculation_method: data.calculation_method ?? "ORDERS_COUNT",
+            minimum_salary: Number(data.minimum_salary ?? 400),
           });
       })
       .catch(() => { });
@@ -269,6 +286,13 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
 
   const onSave = async (overrideStatus?: string) => {
     setError(null);
+    if (
+      employmentId &&
+      record.status_code === "EMPLOYMENT_STATUS_ACTIVE" &&
+      overrideStatus === "EMPLOYMENT_STATUS_DRAFT"
+    ) {
+      return;
+    }
     const isDraft = overrideStatus === "EMPLOYMENT_STATUS_DRAFT";
     if (!isDraft) {
       const s1 = validateStep(1);
@@ -318,8 +342,14 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
       assigned_platform: record.assigned_platform || null,
       platform_user_no: record.platform_user_no || null,
       job_type: record.job_type || null,
-      monthly_orders_target: record.monthly_orders_target ?? null,
-      monthly_target_amount: record.monthly_target_amount ? Number(record.monthly_target_amount) : null,
+      target_type: record.target_type || null,
+      target_deduction_type: record.target_deduction_type || null,
+      monthly_orders_target: record.target_type === "TARGET_TYPE_ORDERS"
+        ? (record.monthly_orders_target ?? null)
+        : null,
+      monthly_target_amount: record.target_type === "TARGET_TYPE_REVENUE"
+        ? (record.monthly_target_amount ? Number(record.monthly_target_amount) : null)
+        : null,
       extra_documents: extraDocuments.slice(0, 2).map((d) => ({
         document_name: d.document_name,
         expiry_at: d.expiry_at || null,
@@ -772,7 +802,7 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
                 className="flex relative gap-2 border border-primary rounded-md p-3 dark:border-zinc-700"
               >
                 <div className="rounded absolute top-[-28%] left-[-0.1%] px-2 py-1 bg-primary text-white">
-                  <p className="text-medium">{doc.document_name.length > 0 ? doc.document_name :   t("common.customDocument")}</p>
+                  <p className="text-medium">{doc.document_name.length > 0 ? doc.document_name : t("common.customDocument")}</p>
                 </div>
                 <div className="flex-1 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <div>
@@ -858,115 +888,208 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
     return code;
   };
 
-  const renderStep3 = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="text-sm font-medium text-primary">{t("common.operatingPlatform")}</label>
-          <select
-            value={record.assigned_platform ?? ""}
-            onChange={(e) => setRecord({ ...record, assigned_platform: e.target.value || null })}
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="">-</option>
-            <option value="JAHEZ">Jahez</option>
-            <option value="HUNGERSTATION">Hungerstation</option>
-            <option value="NINJA">Ninja</option>
-            <option value="KEETA">Keeta</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-sm font-medium text-primary">{t("common.platformUserNo")}</label>
-          <input
-            value={record.platform_user_no ?? ""}
-            onChange={(e) => setRecord({ ...record, platform_user_no: e.target.value })}
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium text-primary">{t("common.jobType")}</label>
-          <select
-            value={record.job_type ?? ""}
-            onChange={(e) => setRecord({ ...record, job_type: e.target.value || null })}
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="">-</option>
-            <option value="REPRESENTATIVE">{t("common.jobRepresentative")}</option>
-            <option value="DRIVER">{t("common.jobDriver")}</option>
-            <option value="ADMINISTRATOR">{t("common.jobAdministrator")}</option>
-          </select>
-        </div>
-      </div>
+  const renderStep3 = () => {
+    const isRevenueTarget = record.target_type === "TARGET_TYPE_REVENUE";
+    const targetInputSuffix = isRevenueTarget ? t("employment.sar") : t("employment.ordersUnit");
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="text-sm font-medium text-primary">{t("common.salaryAmount")}</label>
-          <input
-            type="number"
-            min={payrollConfig?.minimum_salary ?? 0}
-            step="0.01"
-            value={record.salary_amount ?? ""}
-            onChange={(e) =>
-              setRecord({ ...record, salary_amount: e.target.value ? String(e.target.value) : null })
-            }
-            className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-          />
-          {payrollConfig && payrollConfig.minimum_salary > 0 && (
-            <p className="mt-0.5 text-xs text-primary/60">
-              Min: {payrollConfig.minimum_salary} SAR
-            </p>
-          )}
+    const targetTypeTooltipContent =
+      record.target_type === "TARGET_TYPE_ORDERS"
+        ? t("employment.tooltipTargetTypeOrdersSelected")
+        : record.target_type === "TARGET_TYPE_REVENUE"
+          ? t("employment.tooltipTargetTypeRevenueSelected")
+          : t("employment.tooltipTargetType");
+
+    const deductionTooltipContent = (() => {
+      const d = record.target_deduction_type;
+      if (!d) return t("employment.tooltipTargetDeductionType");
+      if (d === "DEDUCTION_FIXED") return t("employment.tooltipDeductionFixedSelected");
+      if (d === "DEDUCTION_ORDERS_TIERS") return t("employment.tooltipDeductionOrdersTiersSelected");
+      return t("employment.tooltipDeductionRevenueTiersSelected");
+    })();
+    const deductionTooltipMultiline =
+      record.target_deduction_type === "DEDUCTION_FIXED" ||
+      record.target_deduction_type === "DEDUCTION_ORDERS_TIERS" ||
+      record.target_deduction_type === "DEDUCTION_REVENUE_TIERS";
+
+    return (
+      <div className="space-y-4">
+        {/* R1: Operating Platform + Platform ID */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-sm font-medium text-primary flex items-center gap-1">
+              {t("common.operatingPlatform")}
+              <InfoTooltip content={t("employment.tooltipOperatingPlatform")} />
+            </label>
+            <select
+              value={record.assigned_platform ?? ""}
+              onChange={(e) => setRecord({ ...record, assigned_platform: e.target.value || null })}
+              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+            >
+              <option value="">-</option>
+              <option value="JAHEZ">Jahez</option>
+              <option value="HUNGERSTATION">Hungerstation</option>
+              <option value="NINJA">Ninja</option>
+              <option value="KEETA">Keeta</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-primary flex items-center gap-1">
+              {t("common.platformUserNo")}
+              <InfoTooltip content={t("employment.tooltipPlatformUserNo")} />
+            </label>
+            <input
+              value={record.platform_user_no ?? ""}
+              onChange={(e) => setRecord({ ...record, platform_user_no: e.target.value })}
+              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </div>
         </div>
+
+        {/* R2: Target Type + Target Value */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-sm font-medium text-primary">{t("employment.targetType")}</label>
+            <div className="mt-1 flex items-center gap-2">
+              <select
+                value={record.target_type ?? ""}
+                onChange={(e) => {
+                  const newTargetType = e.target.value || null;
+                  setRecord({
+                    ...record,
+                    target_type: newTargetType as any,
+                    // Auto-set deduction type for revenue
+                    target_deduction_type: newTargetType === "TARGET_TYPE_REVENUE"
+                      ? "DEDUCTION_REVENUE_TIERS"
+                      : record.target_deduction_type,
+                  });
+                }}
+                className="min-w-0 flex-1 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+              >
+                <option value="">-</option>
+                <option value="TARGET_TYPE_ORDERS">{t("employment.targetTypeOrders")}</option>
+                <option value="TARGET_TYPE_REVENUE">{t("employment.targetTypeRevenue")}</option>
+              </select>
+              <span className="inline-flex shrink-0">
+                <InfoTooltip content={targetTypeTooltipContent} maxWidthPx={360} />
+              </span>
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-primary flex items-center gap-1">
+              {isRevenueTarget ? t("employment.revenueTarget") : t("employment.ordersTarget")}
+              <InfoTooltip content={isRevenueTarget
+                ? t("employment.tooltipRevenueTarget")
+                : t("employment.tooltipOrdersTarget")}
+              />
+            </label>
+            <div className="relative mt-1">
+              <input
+                type="text"
+                inputMode={isRevenueTarget ? "decimal" : "numeric"}
+                autoComplete="off"
+                value={
+                  isRevenueTarget
+                    ? (record.monthly_target_amount ?? "")
+                    : record.monthly_orders_target != null
+                      ? String(record.monthly_orders_target)
+                      : ""
+                }
+                onChange={(e) => {
+                  if (isRevenueTarget) {
+                    const s = sanitizeDecimalDigits(e.target.value);
+                    setRecord({
+                      ...record,
+                      monthly_target_amount: s === "" ? null : s,
+                      monthly_orders_target: null,
+                    });
+                  } else {
+                    const s = sanitizeIntegerDigits(e.target.value);
+                    setRecord({
+                      ...record,
+                      monthly_orders_target: s === "" ? null : parseInt(s, 10),
+                      monthly_target_amount: null,
+                    });
+                  }
+                }}
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 ltr:pr-16 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+              />
+              <span className="absolute ltr:right-3 rtl:left-3 top-1/2 -translate-y-1/2 text-sm text-primary/60">
+                {targetInputSuffix}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* R3: Target Deduction Type + Basic Salary */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-sm font-medium text-primary">{t("employment.targetDeductionType")}</label>
+            <div className="mt-1 flex items-center gap-2">
+              <select
+                value={record.target_deduction_type ?? ""}
+                onChange={(e) => setRecord({ ...record, target_deduction_type: e.target.value as any || null })}
+                disabled={isRevenueTarget}
+                className={`min-w-0 flex-1 rounded-md border px-3 py-2 text-sm ${isRevenueTarget
+                  ? "border-zinc-200 bg-zinc-100 text-primary/50 cursor-not-allowed dark:border-zinc-700 dark:bg-zinc-800"
+                  : "border-zinc-200 bg-white text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                  }`}
+              >
+                <option value="">-</option>
+                <option value="DEDUCTION_FIXED">{t("employment.deductionTypeFixed")}</option>
+                <option value="DEDUCTION_ORDERS_TIERS">{t("employment.deductionTypeOrdersTiers")}</option>
+                {isRevenueTarget && (
+                  <option value="DEDUCTION_REVENUE_TIERS">{t("employment.deductionTypeRevenueTiers")}</option>
+                )}
+              </select>
+              <span className="inline-flex shrink-0">
+                <InfoTooltip
+                  content={deductionTooltipContent}
+                  maxWidthPx={380}
+                  multiline={deductionTooltipMultiline}
+                />
+              </span>
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-primary flex items-center gap-1">
+              {t("common.salaryAmount")}
+              <InfoTooltip content={t("employment.tooltipSalaryAmount")} />
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              value={record.salary_amount ?? ""}
+              onChange={(e) => {
+                const s = sanitizeDecimalDigits(e.target.value);
+                setRecord({ ...record, salary_amount: s === "" ? null : s });
+              }}
+              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            {payrollConfig && payrollConfig.minimum_salary > 0 && (
+              <p className="mt-0.5 text-xs text-primary/60">
+                {t("employment.minimumSalary")}: {payrollConfig.minimum_salary} SAR
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* R4: Notes */}
         <div>
-          <label className="text-sm font-medium text-primary">
-            {payrollConfig?.calculation_method === "REVENUE"
-              ? t("employment.revenueTarget")
-              : t("employment.ordersTarget")}
+          <label className="text-sm font-medium text-primary flex items-center gap-1">
+            {t("common.notes")}
+            <InfoTooltip content={t("employment.tooltipNotes")} />
           </label>
-          {payrollConfig?.calculation_method === "REVENUE" ? (
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={record.monthly_target_amount ?? ""}
-              onChange={(e) =>
-                setRecord({
-                  ...record,
-                  monthly_target_amount: e.target.value ? String(e.target.value) : null,
-                })
-              }
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          ) : (
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={record.monthly_orders_target ?? ""}
-              onChange={(e) =>
-                setRecord({
-                  ...record,
-                  monthly_orders_target: e.target.value ? parseInt(e.target.value, 10) : null,
-                })
-              }
-              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          )}
+          <textarea
+            value={record.notes ?? ""}
+            onChange={(e) => setRecord({ ...record, notes: e.target.value })}
+            className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+            rows={3}
+          />
         </div>
       </div>
-
-
-      <div>
-        <label className="text-sm font-medium text-primary">{t("common.notes")}</label>
-        <textarea
-          value={record.notes ?? ""}
-          onChange={(e) => setRecord({ ...record, notes: e.target.value })}
-          className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-          rows={3}
-        />
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <Modal
@@ -1036,16 +1159,17 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
                   {t("employment.addFile")}
                 </button>
               )}
-              {step === 3 && (
-                <button
-                  type="button"
-                  onClick={() => onSave("EMPLOYMENT_STATUS_DRAFT")}
-                  disabled={saving || loading}
-                  className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm text-primary hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
-                >
-                  {t("common.saveAsDraft")}
-                </button>
-              )}
+              {step === 3 &&
+                !(employmentId && record.status_code === "EMPLOYMENT_STATUS_ACTIVE") && (
+                  <button
+                    type="button"
+                    onClick={() => onSave("EMPLOYMENT_STATUS_DRAFT")}
+                    disabled={saving || loading}
+                    className="rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm text-primary hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+                  >
+                    {t("common.saveAsDraft")}
+                  </button>
+                )}
               <button
                 onClick={
                   step === 3

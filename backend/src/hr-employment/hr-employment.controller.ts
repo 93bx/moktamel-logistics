@@ -79,6 +79,8 @@ const EmploymentCreateSchema = z.object({
     .nullable(),
   platform_user_no: z.string().min(1).optional().nullable(),
   job_type: z.string().min(1).optional().nullable(),
+  target_type: z.enum(['TARGET_TYPE_ORDERS', 'TARGET_TYPE_REVENUE']).optional().nullable(),
+  target_deduction_type: z.enum(['DEDUCTION_FIXED', 'DEDUCTION_ORDERS_TIERS', 'DEDUCTION_REVENUE_TIERS']).optional().nullable(),
   monthly_orders_target: z.number().int().min(0).optional().nullable(),
   monthly_target_amount: z.number().min(0).optional().nullable(),
   extra_documents: z.array(ExtraDocumentSchema).max(2).optional(),

@@ -30,14 +30,12 @@ const DeductionTierSchema = z
   });
 
 const UpdateConfigSchema = z.object({
-  calculation_method: z.enum(['ORDERS_COUNT', 'REVENUE', 'FIXED_DEDUCTION']),
-  monthly_target: z.number().int().positive().optional().nullable(),
-  monthly_target_amount: z.number().positive().optional().nullable(),
-  bonus_per_order: z.number().min(0).optional().nullable(),
   minimum_salary: z.number().min(0).optional().nullable(),
-  unit_amount: z.number().positive().optional().nullable(),
+  bonus_per_order: z.number().min(0).optional().nullable(),
   deduction_per_order: z.number().min(0).optional().nullable(),
-  deduction_tiers: z.array(DeductionTierSchema).optional().nullable(),
+  orders_deduction_tiers: z.array(DeductionTierSchema).optional().nullable(),
+  revenue_deduction_tiers: z.array(DeductionTierSchema).optional().nullable(),
+  revenue_unit_amount: z.number().positive().optional().nullable(),
 });
 
 @Controller('payroll-config')
