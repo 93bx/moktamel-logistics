@@ -779,7 +779,18 @@ model PayrollConfig {
 
   // Company-wide settings
   minimum_salary  Decimal? @default(400) @db.Decimal(12, 2)
-  bonus_per_order Decimal? @db.Decimal(12, 2)
+  bonus_per_order Decimal? @db.Decimal(12, 2) // DEPRECATED: use count_bonus_amount
+
+  // Tip recipient setting
+  tip_recipient String @default("REPRESENTATIVE") // REPRESENTATIVE | COMPANY
+
+  // Count-based bonus (per additional order beyond target)
+  count_bonus_enabled Boolean  @default(false)
+  count_bonus_amount  Decimal? @db.Decimal(12, 2)
+
+  // Revenue-based bonus (for meeting revenue target)
+  revenue_bonus_enabled Boolean  @default(false)
+  revenue_bonus_amount  Decimal? @db.Decimal(12, 2)
 
   // Fixed deduction (applies when employee uses DEDUCTION_FIXED)
   deduction_per_order Decimal? @db.Decimal(12, 2)
@@ -898,8 +909,9 @@ model Cost {
 model PayrollRun {
   id                   String           @id @default(uuid()) @db.Uuid
   company_id           String           @db.Uuid
-  month                DateTime // Normalized to first day of month, UTC
+  month                DateTime // Normalized to first day of month in KSA timezone (stored as UTC)
   status               PayrollRunStatus @default(DRAFT)
+  config_snapshot      Json? // Immutable snapshot of PayrollConfig at approval time
   generated_at         DateTime         @default(now())
   generated_by_user_id String           @db.Uuid
   locked_at            DateTime?

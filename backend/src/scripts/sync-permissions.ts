@@ -93,6 +93,11 @@ async function bootstrap() {
       module: 'PAYROLL_CONFIG',
       action: 'UPDATE',
     },
+    {
+      key: 'PAYROLL_APPROVE',
+      module: 'PAYROLL_CONFIG',
+      action: 'APPROVE',
+    },
     { key: 'PAYROLL_VIEW', module: 'SALARIES_PAYROLL', action: 'READ' },
     { key: 'PAYROLL_EDIT', module: 'SALARIES_PAYROLL', action: 'UPDATE' },
     { key: 'COSTS_READ', module: 'COSTS', action: 'READ' },

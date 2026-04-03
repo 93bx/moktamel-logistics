@@ -17,6 +17,7 @@ import {
   CreateSalaryReceiptDto,
 } from './dto/salaries-payroll.dto';
 import { AuditService } from '../audit/audit.service';
+import { getKSAMonthBounds } from '../common/ksa-month';
 
 @Injectable()
 export class SalariesPayrollService {
@@ -28,9 +29,7 @@ export class SalariesPayrollService {
 
   private getMonthBounds(monthStr: string) {
     const [year, month] = monthStr.split('-').map(Number);
-    const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
-    return { start, end };
+    return getKSAMonthBounds(year, month);
   }
 
   async getList(
@@ -42,17 +41,30 @@ export class SalariesPayrollService {
     const page = Number(query.page) || 1;
     const pageSize = Math.min(Math.max(Number(query.pageSize) || 20, 1), 500);
 
-    // 1. Ensure a PayrollRun exists for this month
-    let run = await this.prisma.payrollRun.findUnique({
+    // 1. Check if PayrollRun exists and is approved (LOCKED)
+    const run = await this.prisma.payrollRun.findUnique({
       where: { company_id_month: { company_id, month: start } },
     });
 
-    if (!run) {
-      run = await this.generateRun(company_id, start, end, actor_user_id);
-    } else if (run.status === PayrollRunStatus.DRAFT) {
-      // For draft runs, we might want to refresh data from sources
-      // but for now let's just return what's there.
-      // A "Refresh" button could trigger regeneration.
+    if (!run || run.status !== PayrollRunStatus.LOCKED) {
+      // No approved run: return needs-approval state
+      return {
+        needsApproval: true,
+        month: query.month,
+        quickStats: {
+          activeEmployeesCount: 0,
+          totalLoansAmount: 0,
+          totalDeductionsAmount: 0,
+          totalSalariesDueAmount: 0,
+          totalRevenueAmount: 0,
+        },
+        items: [],
+        pagination: {
+          page,
+          pageSize,
+          total: 0,
+        },
+      };
     }
 
     // 2. Build where clause
@@ -314,6 +326,7 @@ export class SalariesPayrollService {
           deductionType: emp.target_deduction_type || 'DEDUCTION_ORDERS_TIERS',
           ordersTiers: (config.orders_deduction_tiers as any[]) || [],
           revenueTiers: (config.revenue_deduction_tiers as any[]) || [],
+          revenueUnitAmount: Number(config.revenue_unit_amount ?? 0),
           deductionPerOrder: Number(config.deduction_per_order ?? 0),
           scheduledLoanInstallments: Number(installmentsAgg._sum.amount ?? 0),
           totalBonus: 0,

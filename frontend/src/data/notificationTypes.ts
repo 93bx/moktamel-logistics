@@ -74,6 +74,23 @@ const configs: Record<string, NotificationTypeConfig> = {
     actionLabelKey:
       "notifications.types.HR_ASSETS_LOSS_REPORT_REJECTED.actionLabel",
   },
+  PAYROLL_MONTH_APPROVAL_DEADLINE_SOON: {
+    nameKey: "notifications.types.PAYROLL_MONTH_APPROVAL_DEADLINE_SOON.name",
+    shortDescriptionKey:
+      "notifications.types.PAYROLL_MONTH_APPROVAL_DEADLINE_SOON.shortDescription",
+    longDescriptionKey:
+      "notifications.types.PAYROLL_MONTH_APPROVAL_DEADLINE_SOON.longDescription",
+    relevantPage: (locale, payload) => {
+      const y = payload?.payroll_year;
+      const m = payload?.payroll_month;
+      if (typeof y === "number" && typeof m === "number") {
+        return `/${locale}/payroll-config?year=${y}&month=${m}`;
+      }
+      return `/${locale}/payroll-config`;
+    },
+    actionLabelKey:
+      "notifications.types.PAYROLL_MONTH_APPROVAL_DEADLINE_SOON.actionLabel",
+  },
 };
 
 export function getNotificationTypeConfig(

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
-  Zap,
   Eye,
   Pencil,
   CheckCircle,
@@ -177,14 +176,6 @@ export function EmploymentPageClient(props: EmploymentPageClientProps) {
 
   return (
     <>
-      {/* Warning Row */}
-      <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/10 dark:text-amber-400">
-        <div className="flex items-center gap-2">
-          <Zap className="h-4 w-4" />
-          <p>{t("common.employmentWarning") || "Note: Employee status cannot be set to Active unless all mandatory documents are uploaded and valid."}</p>
-        </div>
-      </div>
-
       <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-primary">

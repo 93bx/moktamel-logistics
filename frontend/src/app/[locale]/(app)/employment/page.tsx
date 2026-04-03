@@ -1,17 +1,22 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
-import { backendApi, AuthError, ConfigurationError, ApiError } from "@/lib/backendApi";
+import { backendApi, AuthError, ConfigurationError } from "@/lib/backendApi";
 import type { EmploymentListItem } from "@/lib/types/employment";
+import { EmploymentExcelMenu } from "@/components/EmploymentExcelMenu";
 import { EmploymentNewButton } from "@/components/EmploymentNewButton";
 import { EmploymentPageClient } from "@/components/EmploymentPageClient";
+import {
+  EmploymentStatCards,
+  type EmploymentStatCardItem,
+} from "@/components/EmploymentStatCards";
 
 type StatsData = {
   totalEmployees: number;
   employeesOnDuty: number;
   employeesOnboarding: number;
   employeesDeserted: number;
+  employeesDeactivated: number;
 };
 
 export default async function EmploymentPage({
@@ -96,55 +101,70 @@ export default async function EmploymentPage({
     return `/${locale}/employment${qs ? `?${qs}` : ""}`;
   }
 
-  const statCards = [
+  const statCardDefs = [
     {
+      key: "total",
       statusCode: null as string | null,
+      kind: "total" as const,
       label: t("common.totalEmployees"),
       value: stats.totalEmployees,
+      tip: t("common.employmentStatTipTotalEmployees"),
     },
     {
+      key: "active",
       statusCode: "EMPLOYMENT_STATUS_ACTIVE" as const,
+      kind: "active" as const,
       label: t("common.employeesOnDuty"),
       value: stats.employeesOnDuty,
+      tip: t("common.employmentStatTipOnDuty"),
     },
     {
+      key: "onboarding",
       statusCode: "EMPLOYMENT_STATUS_UNDER_PROCEDURE" as const,
+      kind: "onboarding" as const,
       label: t("common.employeesOnboarding"),
       value: stats.employeesOnboarding,
+      tip: t("common.employmentStatTipOnboarding"),
     },
     {
+      key: "deserted",
       statusCode: "EMPLOYMENT_STATUS_DESERTED" as const,
+      kind: "deserted" as const,
       label: t("common.employeesDeserted"),
       value: stats.employeesDeserted,
+      tip: t("common.employmentStatTipDeserted"),
     },
-  ] as const;
+    {
+      key: "deactivated",
+      statusCode: "EMPLOYMENT_STATUS_DEACTIVATED" as const,
+      kind: "deactivated" as const,
+      label: t("common.employeesDeactivated"),
+      value: stats.employeesDeactivated,
+      tip: t("common.employmentStatTipDeactivated"),
+    },
+  ];
+
+  const statCards: EmploymentStatCardItem[] = statCardDefs.map((def) => {
+    const isActive =
+      def.statusCode === null ? !sp.status_code : sp.status_code === def.statusCode;
+    const href = isActive
+      ? buildEmploymentUrl({ status_code: null, page: 1 })
+      : buildEmploymentUrl({ status_code: def.statusCode ?? undefined, page: 1 });
+    return {
+      key: def.key,
+      href,
+      isActive,
+      label: def.label,
+      value: def.value,
+      tip: def.tip,
+      kind: def.kind,
+    };
+  });
 
   return (
     <div className="space-y-4">
       {/* Part 1: Quick Stats Cards (click to filter; click again to clear) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map(({ statusCode, label, value }) => {
-          const isActive = statusCode !== null && sp.status_code === statusCode;
-          const href =
-            isActive
-              ? buildEmploymentUrl({ status_code: null, page: 1 })
-              : buildEmploymentUrl({ status_code: statusCode ?? undefined, page: 1 });
-          return (
-            <Link
-              key={statusCode ?? "total"}
-              href={href}
-              className={`rounded-lg border p-4 transition-colors dark:bg-zinc-800 ${
-                isActive
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20 dark:bg-primary/10"
-                  : "border-zinc-200 bg-white dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
-              } cursor-pointer`}
-            >
-              <div className="text-sm text-primary/60">{label}</div>
-              <div className="mt-1 text-2xl font-semibold text-primary">{value}</div>
-            </Link>
-          );
-        })}
-      </div>
+      <EmploymentStatCards locale={locale} cards={statCards} />
 
       {/* Part 2: Controls Row */}
       <div className="flex items-center justify-between gap-2">
@@ -182,7 +202,10 @@ export default async function EmploymentPage({
             {t("common.filter")}
           </button>
         </form>
-        <EmploymentNewButton locale={locale} />
+        <div className="flex shrink-0 items-center gap-2">
+          <EmploymentExcelMenu />
+          <EmploymentNewButton locale={locale} />
+        </div>
       </div>
 
       {/* Part 3: Employees Table Client */}

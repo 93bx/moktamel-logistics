@@ -23,6 +23,7 @@ import {
   Crosshair,
   Goal,
   Percent,
+  Info,
 } from "lucide-react";
 import { Modal } from "./Modal";
 import { StatusBadge } from "./StatusBadge";
@@ -130,6 +131,7 @@ export function EmploymentViewModal({
   const [record, setRecord] = useState<EmploymentRecordForView | null>(null);
   const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({});
   const [viewerState, setViewerState] = useState<{ url: string; title: string; filename: string } | null>(null);
+  const [payrollPolicy, setPayrollPolicy] = useState<any>(null);
 
   useEffect(() => {
     if (!isOpen || !employmentId) {
@@ -143,10 +145,15 @@ export function EmploymentViewModal({
       setRecord(null);
       setDocumentUrls({});
       try {
-        const res = await fetch(`/api/employment/${employmentId}`);
-        const data = await res.json().catch(() => null);
-        if (!res.ok || cancelled) return;
+        const [employmentRes, policyRes] = await Promise.all([
+          fetch(`/api/employment/${employmentId}`),
+          fetch(`/api/payroll-config/config?year=${new Date().getFullYear()}&month=${new Date().getMonth() + 1}`).catch(() => null),
+        ]);
+        const data = await employmentRes.json().catch(() => null);
+        const policy = policyRes ? await policyRes.json().catch(() => null) : null;
+        if (!employmentRes.ok || cancelled) return;
         setRecord(data as EmploymentRecordForView);
+        setPayrollPolicy(policy);
 
         const fileIds: { key: string; fileId: string }[] = [];
         if (data.passport_file_id) fileIds.push({ key: "passport", fileId: data.passport_file_id });
@@ -645,6 +652,45 @@ export function EmploymentViewModal({
                         </div>
                       </div>
                     </div>
+
+                    {/* Payroll Policy Hints */}
+                    {payrollPolicy && (
+                      <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary/70">
+                          {t("payrollConfig.generalSettings")}
+                        </h4>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Info className="h-4 w-4 shrink-0 text-primary/50" />
+                            <span className="text-primary/60">{t("payrollConfig.tipRecipient")}:</span>
+                            <span className="font-medium text-primary">
+                              {payrollPolicy.tip_recipient === "COMPANY" 
+                                ? t("payrollConfig.tipRecipientCompany") 
+                                : t("payrollConfig.tipRecipientRepresentative")}
+                            </span>
+                          </div>
+                          {payrollPolicy.count_bonus_enabled && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
+                              <span className="text-primary/60">{t("payrollConfig.countBonusEnabled")}:</span>
+                              <span className="font-medium text-primary">
+                                {payrollPolicy.count_bonus_amount} SAR
+                              </span>
+                            </div>
+                          )}
+                          {payrollPolicy.revenue_bonus_enabled && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
+                              <span className="text-primary/60">{t("payrollConfig.revenueBonusEnabled")}:</span>
+                              <span className="font-medium text-primary">
+                                {payrollPolicy.revenue_bonus_amount} SAR
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {(record.notes != null && record.notes !== "") && (
                       <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-700">
                         <div className="flex items-start gap-2 text-sm">

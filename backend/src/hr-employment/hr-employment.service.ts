@@ -134,6 +134,7 @@ export class HrEmploymentService {
       employeesOnDuty,
       employeesOnboarding,
       employeesDeserted,
+      employeesDeactivated,
     ] = await this.prisma.$transaction([
       // Total employees
       this.prisma.employmentRecord.count({
@@ -166,6 +167,14 @@ export class HrEmploymentService {
           status_code: 'EMPLOYMENT_STATUS_DESERTED',
         },
       }),
+      // Employees deactivated
+      this.prisma.employmentRecord.count({
+        where: {
+          company_id,
+          deleted_at: null,
+          status_code: 'EMPLOYMENT_STATUS_DEACTIVATED',
+        },
+      }),
     ]);
 
     return {
@@ -173,6 +182,7 @@ export class HrEmploymentService {
       employeesOnDuty,
       employeesOnboarding,
       employeesDeserted,
+      employeesDeactivated,
     };
   }
 

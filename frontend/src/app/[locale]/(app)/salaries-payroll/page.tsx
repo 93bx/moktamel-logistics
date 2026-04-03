@@ -14,7 +14,6 @@ export default async function SalariesPayrollPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-primary">{t("salariesPayroll.title")}</h1>
       <SalariesPayrollPageClient locale={locale} initialMonth={currentMonth} />
     </div>
   );

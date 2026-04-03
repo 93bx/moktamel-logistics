@@ -38,6 +38,8 @@ export interface SalariesPayrollRow {
 }
 
 export interface ListSalariesResponse {
+  needsApproval?: boolean;
+  month?: string;
   quickStats: SalariesPayrollQuickStats;
   items: SalariesPayrollRow[];
   pagination: {

@@ -82,7 +82,6 @@ export default async function PayrollConfigPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-primary">{t("payrollConfig.pageTitle")}</h1>
       <PayrollConfigPageClient 
         locale={locale} 
         initialConfig={config} 

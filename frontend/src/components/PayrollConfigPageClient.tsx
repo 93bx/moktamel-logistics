@@ -1,57 +1,67 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
 import { InfoTooltip } from "./InfoTooltip";
+import { PayrollConfigCostsTab } from "./PayrollConfigCostsTab";
+import Tooltip from "@mui/material/Tooltip";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+import {
+  ChevronDown,
+  ChevronUp,
+  Settings,
+  DollarSign,
+  TrendingDown,
+  TrendingUp,
+  CheckCircle,
+  AlertCircle,
+  Info,
+  Pencil,
+  Check,
+  X,
+} from "lucide-react";
+
+type DeductionTier = {
+  from: number;
+  to: number;
+  deduction: number;
+};
 
 type PayrollConfigData = {
   minimum_salary?: number | null;
-  bonus_per_order?: number | null;
+  tip_recipient?: string | null;
+  count_bonus_enabled?: boolean | null;
+  count_bonus_amount?: number | null;
+  revenue_bonus_enabled?: boolean | null;
+  revenue_bonus_amount?: number | null;
   deduction_per_order?: number | null;
-  orders_deduction_tiers?: Array<{ from: number; to: number; deduction: number }> | null;
-  revenue_deduction_tiers?: Array<{ from: number; to: number; deduction: number }> | null;
+  orders_deduction_tiers?: DeductionTier[] | null;
+  revenue_deduction_tiers?: DeductionTier[] | null;
   revenue_unit_amount?: number | null;
+  metadata?: {
+    source?: string;
+    isReadOnly?: boolean;
+    runLockedForMonth?: boolean;
+    currentMonthLocked?: boolean;
+    warningAppliesNextMonth?: boolean;
+    daysUntilMonthEnd?: number;
+    payrollApprovalDeadlineWarning?: boolean;
+    configurationStatus?: {
+      general: "COMPLETE" | "INCOMPLETE";
+      fixed: "COMPLETE" | "INCOMPLETE";
+      ordersTiers: "COMPLETE" | "INCOMPLETE";
+      revenueTiers: "COMPLETE" | "INCOMPLETE";
+    };
+  };
 };
 
 type PayrollStatsData = {
   activeEmployees: number;
   totalCosts: number;
   averageCost: number;
-};
-
-type CostTypeCode =
-  | "COST_TYPE_EMPLOYEE_SALARIES"
-  | "COST_TYPE_HOUSING"
-  | "COST_TYPE_FUEL"
-  | "COST_TYPE_MAINTENANCE"
-  | "COST_TYPE_ADMIN_SALARIES"
-  | "COST_TYPE_GOVERNMENT_EXPENSES";
-
-type CostRecurrenceCode = "ONE_TIME" | "MONTHLY" | "YEARLY";
-
-type CostItem = {
-  id: string;
-  name: string;
-  type_code: CostTypeCode;
-  amount_input: number;
-  vat_included: boolean;
-  vat_rate: number;
-  vat_amount: number;
-  net_amount: number;
-  recurrence_code: CostRecurrenceCode;
-  one_time_date: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type CostListResponse = {
-  items: CostItem[];
-  total: number;
-  page: number;
-  page_size: number;
 };
 
 type PayrollConfigPageClientProps = {
@@ -62,11 +72,151 @@ type PayrollConfigPageClientProps = {
   initialMonth: number;
 };
 
-type DeductionTier = {
+const ORDERS_TIER_RANGES = [
+  { from: 1, to: 50 },
+  { from: 51, to: 100 },
+  { from: 101, to: 150 },
+  { from: 151, to: 200 },
+  { from: 201, to: 250 },
+];
+
+function normalizeOrdersTiers(tiers: DeductionTier[] | null | undefined): DeductionTier[] {
+  return ORDERS_TIER_RANGES.map((range, i) => ({
+    ...range,
+    deduction: tiers?.[i]?.deduction ?? 0,
+  }));
+}
+
+const REVENUE_TIER_COUNT = 9;
+
+function normalizeRevenueTiers(
+  tiers: DeductionTier[] | null | undefined,
+  unitAmount: number,
+): DeductionTier[] {
+  if (!unitAmount || unitAmount <= 0) {
+    return [];
+  }
+  return Array.from({ length: REVENUE_TIER_COUNT }, (_, i) => ({
+    from: i * unitAmount + 1,
+    to: (i + 1) * unitAmount,
+    deduction: tiers?.[i]?.deduction ?? 0,
+  }));
+}
+
+function filterPositiveDecimalRaw(raw: string): string {
+  let s = raw.replace(/[^\d.]/g, "");
+  const dot = s.indexOf(".");
+  if (dot !== -1) {
+    s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, "");
+  }
+  return s;
+}
+
+function parseOptionalPositiveNumber(s: string): number | null {
+  if (s === "" || s === ".") return null;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+function computeProgressiveTotal(deficit: number, tiers: DeductionTier[]): number {
+  if (deficit <= 0 || tiers.length === 0) return 0;
+  let remaining = deficit;
+  let total = 0;
+  for (const tier of tiers) {
+    if (remaining <= 0) break;
+    const width = tier.to - tier.from + 1;
+    const take = Math.min(remaining, width);
+    total += take * tier.deduction;
+    remaining -= take;
+  }
+  if (remaining > 0 && tiers.length > 0) {
+    const last = tiers[tiers.length - 1];
+    total += remaining * last.deduction;
+  }
+  return total;
+}
+
+type ProgressiveLine =
+  | { kind: "tier"; from: number; to: number; take: number; rate: number; subtotal: number }
+  | { kind: "beyond"; take: number; rate: number; subtotal: number };
+
+function computeProgressiveBreakdown(deficit: number, tiers: DeductionTier[]): ProgressiveLine[] {
+  if (deficit <= 0 || tiers.length === 0) return [];
+  let remaining = deficit;
+  const lines: ProgressiveLine[] = [];
+  for (const tier of tiers) {
+    if (remaining <= 0) break;
+    const width = tier.to - tier.from + 1;
+    const take = Math.min(remaining, width);
+    const subtotal = take * tier.deduction;
+    lines.push({
+      kind: "tier",
+      from: tier.from,
+      to: tier.to,
+      take,
+      rate: tier.deduction,
+      subtotal,
+    });
+    remaining -= take;
+  }
+  if (remaining > 0 && tiers.length > 0) {
+    const last = tiers[tiers.length - 1];
+    lines.push({
+      kind: "beyond",
+      take: remaining,
+      rate: last.deduction,
+      subtotal: remaining * last.deduction,
+    });
+  }
+  return lines;
+}
+
+type RevenueFlatBandLine = {
   from: number;
   to: number;
-  deduction: number;
+  flat: number;
+  consumed: number;
+  beyondDefined: boolean;
+  bandWidth: number;
 };
+
+/** Matches backend: one flat SAR charge per deficit band crossed (then last tier flat per unit slice). */
+function computeRevenueFlatBandLines(
+  deficit: number,
+  tiers: DeductionTier[],
+  unitAmount: number,
+): { total: number; lines: RevenueFlatBandLine[] } {
+  if (deficit <= 0 || tiers.length === 0 || unitAmount <= 0) {
+    return { total: 0, lines: [] };
+  }
+  let remaining = deficit;
+  let total = 0;
+  const lines: RevenueFlatBandLine[] = [];
+  let tierIdx = 0;
+
+  while (remaining > 0) {
+    const tier = tierIdx < tiers.length ? tiers[tierIdx] : tiers[tiers.length - 1];
+    const bandWidth =
+      tierIdx < tiers.length ? tier.to - tier.from + 1 : unitAmount;
+    const consumed = Math.min(remaining, bandWidth);
+
+    total += tier.deduction;
+    lines.push({
+      from: tier.from,
+      to: tier.to,
+      flat: tier.deduction,
+      consumed,
+      beyondDefined: tierIdx >= tiers.length,
+      bandWidth,
+    });
+
+    remaining -= consumed;
+    tierIdx++;
+  }
+
+  return { total, lines };
+}
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -77,122 +227,169 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function EditableCard({
-  label,
+function PositiveDecimalField({
   value,
-  type = "number",
-  min,
-  step,
   onChange,
-  saving,
-  saved,
-  error,
-  t,
+  disabled,
+  className,
+  suffix,
+  dir,
 }: {
-  label: string;
   value: number | null | undefined;
-  type?: "number" | "text";
-  min?: number;
-  step?: number | string;
-  onChange: (val: number | null) => void;
-  saving: boolean;
-  saved: boolean;
-  error?: string | null;
-  t: (key: string, values?: Record<string, any>) => string;
+  onChange: (v: number | null) => void;
+  disabled?: boolean;
+  className?: string;
+  suffix?: string;
+  dir?: "ltr" | "rtl";
 }) {
-  const [localValue, setLocalValue] = useState<string>(value?.toString() ?? "");
-  const [isEditing, setIsEditing] = useState(false);
+  const [text, setText] = useState(() =>
+    value != null && Number.isFinite(value) ? String(value) : "",
+  );
 
-  useEffect(() => {
-    setLocalValue(value?.toString() ?? "");
-  }, [value]);
-
-  const handleBlur = () => {
-    setIsEditing(false);
-    const num = localValue === "" ? null : Number(localValue);
-    if (num !== null && min !== undefined && num < min) {
-      setLocalValue(value?.toString() ?? "");
-      return;
-    }
-    onChange(num);
-  };
+  const displayValue = disabled
+    ? value != null && Number.isFinite(value)
+      ? String(value)
+      : ""
+    : text;
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
-      <div className="text-sm text-primary/60">{label}</div>
-      <div className="mt-1 flex items-center gap-2">
-        {isEditing ? (
-          <input
-            type={type}
-            value={localValue}
-            onChange={(e) => setLocalValue(e.target.value)}
-            onBlur={handleBlur}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleBlur();
-              }
-            }}
-            min={min}
-            step={step}
-            className="w-32 rounded-md border border-zinc-200 bg-white px-2 py-1 text-lg font-semibold text-primary dark:border-zinc-700 dark:bg-zinc-900"
-            autoFocus
-          />
-        ) : (
-          <div
-            onClick={() => setIsEditing(true)}
-            className="cursor-pointer text-lg font-semibold text-primary hover:underline"
-          >
-            {value?.toLocaleString() ?? "-"}
-          </div>
-        )}
-        {saving && <span className="text-xs text-primary/60">{saving ? t("payrollConfig.saving") : ""}</span>}
-        {saved && !saving && <span className="text-xs text-emerald-600">{t("payrollConfig.saved")}</span>}
-      </div>
-      {error && <div className="mt-1 text-xs text-red-600">{error}</div>}
+    <div className={`flex items-center gap-2 ${className ?? ""}`} dir={dir}>
+      <input
+        type="text"
+        inputMode="decimal"
+        autoComplete="off"
+        disabled={disabled}
+        value={displayValue}
+        onChange={(e) => {
+          const next = filterPositiveDecimalRaw(e.target.value);
+          setText(next);
+          onChange(parseOptionalPositiveNumber(next));
+        }}
+        onBlur={() => {
+          const n = parseOptionalPositiveNumber(text);
+          if (n == null) setText("");
+          else setText(String(n));
+        }}
+        className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 disabled:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-900"
+      />
+      {suffix ? <span className="shrink-0 text-xs text-zinc-500">{suffix}</span> : null}
     </div>
   );
 }
 
-function validateDeductionTiers(tiers: DeductionTier[]): { valid: boolean; errors: string[] } {
-  const errors: string[] = [];
+function CollapsibleCard({
+  title,
+  description,
+  icon: Icon,
+  isConfigured,
+  incompleteHint,
+  isOpen,
+  onToggle,
+  isEditing,
+  onEdit,
+  onSave,
+  onCancel,
+  isReadOnly,
+  rootClassName = "",
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isConfigured: boolean;
+  incompleteHint: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  isEditing: boolean;
+  onEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+  isReadOnly: boolean;
+  rootClassName?: string;
+  children: React.ReactNode;
+}) {
+  const t = useTranslations();
 
-  if (tiers.length === 0) {
-    return { valid: true, errors: [] };
-  }
-
-  // Sort tiers by 'from' value
-  const sorted = [...tiers].sort((a, b) => a.from - b.from);
-
-  // Check each tier
-  for (const tier of sorted) {
-    if (tier.from > tier.to) {
-      errors.push("From must be <= To");
-    }
-    if (tier.from < 0 || tier.to < 0) {
-      errors.push("Range values must be positive");
-    }
-    if (tier.deduction < 0) {
-      errors.push("Deduction must be positive");
-    }
-  }
-
-  // Check for gaps
-  for (let i = 0; i < sorted.length - 1; i++) {
-    if (sorted[i].to + 1 !== sorted[i + 1].from) {
-      errors.push("Ranges must be continuous (no gaps)");
-      break;
-    }
-  }
-
-  // Check for overlaps
-  for (let i = 0; i < sorted.length - 1; i++) {
-    if (sorted[i].to >= sorted[i + 1].from) {
-      errors.push("Ranges cannot overlap");
-      break;
-    }
-  }
-
-  return { valid: errors.length === 0, errors };
+  return (
+    <div
+      className={`rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800 ${rootClassName}`}
+    >
+      <div className="flex shrink-0 flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Icon className="h-5 w-5 shrink-0 text-primary" />
+            <h3 className="font-semibold text-primary">{title}</h3>
+            {isConfigured ? (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                {t("payrollConfig.configured")}
+              </span>
+            ) : (
+              <Tooltip title={incompleteHint} arrow enterDelay={200}>
+                <span className="inline-flex cursor-help items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                  !
+                </span>
+              </Tooltip>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{description}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
+          {!isReadOnly && (
+            <>
+              {isEditing ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    title={t("payrollConfig.ariaCancelEdit")}
+                    aria-label={t("payrollConfig.ariaCancelEdit")}
+                    className="rounded-md p-2 text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSave}
+                    title={t("payrollConfig.ariaSaveCard")}
+                    aria-label={t("payrollConfig.ariaSaveCard")}
+                    className="rounded-md p-2 text-white bg-primary hover:bg-primary/90"
+                  >
+                    <Check className="h-5 w-5" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  title={t("payrollConfig.ariaEditCard")}
+                  aria-label={t("payrollConfig.ariaEditCard")}
+                  className="rounded-md border border-primary p-2 text-primary hover:bg-primary/5"
+                >
+                  <Pencil className="h-5 w-5" />
+                </button>
+              )}
+            </>
+          )}
+          <button
+            type="button"
+            onClick={onToggle}
+            title={t("payrollConfig.ariaToggleCard")}
+            aria-label={t("payrollConfig.ariaToggleCard")}
+            className="rounded-md p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+          >
+            {isOpen ? (
+              <ChevronUp className="h-5 w-5 text-primary" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-primary" />
+            )}
+          </button>
+        </div>
+      </div>
+      {isOpen && (
+        <div className="min-h-0 flex-1 border-t border-zinc-200 p-4 dark:border-zinc-700">{children}</div>
+      )}
+    </div>
+  );
 }
 
 export function PayrollConfigPageClient({
@@ -203,792 +400,952 @@ export function PayrollConfigPageClient({
   initialMonth,
 }: PayrollConfigPageClientProps) {
   const t = useTranslations();
+  const tDashboard = useTranslations("dashboard");
   const router = useRouter();
-  const [config, setConfig] = useState<PayrollConfigData>(initialConfig);
-  const [stats, setStats] = useState<PayrollStatsData>(initialStats);
+
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);
-  const [savingFields, setSavingFields] = useState<Set<string>>(new Set());
-  const [savedFields, setSavedFields] = useState<Set<string>>(new Set());
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [ordersTierErrors, setOrdersTierErrors] = useState<string[]>([]);
-  const [revenueTierErrors, setRevenueTierErrors] = useState<string[]>([]);
-  const saveTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+  const [config, setConfig] = useState<PayrollConfigData>(initialConfig);
+  const [stats, setStats] = useState<{
+    activeEmployees: number;
+    totalCosts: number;
+    averageCost: number;
+  }>(initialStats);
   const [activeTab, setActiveTab] = useState<"payroll" | "costs">("payroll");
 
-  const refreshStats = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `/api/payroll-config/stats?year=${year}&month=${month}`,
-        { cache: "no-store" }
-      );
-      if (!res.ok) return;
-      const data: PayrollStatsData = await res.json();
-      setStats(data);
-    } catch {
-      // keep previous stats on failure
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: "success" | "error";
+  }>({ open: false, message: "", severity: "success" });
+
+  // Card states
+  const [openCards, setOpenCards] = useState({
+    general: false,
+    fixed: false,
+    orders: false,
+    revenue: false,
+  });
+  const [editingCards, setEditingCards] = useState({
+    general: false,
+    fixed: false,
+    orders: false,
+    revenue: false,
+  });
+
+  // Edit state
+  const [editData, setEditData] = useState<Partial<PayrollConfigData>>({});
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState<string | null>(null);
+  const [approving, setApproving] = useState(false);
+
+  // Month picker
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  const years = useMemo(() => {
+    const y = [];
+    for (let i = currentYear - 2; i <= currentYear + 1; i++) {
+      y.push(i);
     }
-  }, [year, month]);
+    return y;
+  }, [currentYear]);
 
-  // Debounced save function
-  const saveConfig = useCallback(
-    async (field: string, data: Partial<PayrollConfigData>) => {
-      // Clear existing timeout for this field
-      if (saveTimeouts.current[field]) {
-        clearTimeout(saveTimeouts.current[field]);
-      }
+  const visibleMonths = useMemo(() => {
+    if (year < currentYear) return Array.from({ length: 12 }, (_, i) => i + 1);
+    if (year === currentYear) return Array.from({ length: currentMonth }, (_, i) => i + 1);
+    return [];
+  }, [year, currentYear, currentMonth]);
 
-      // Set saving state
-      setSavingFields((prev) => new Set(prev).add(field));
-      setSavedFields((prev) => {
-        const next = new Set(prev);
-        next.delete(field);
-        return next;
-      });
-      setFieldErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-
-      // Debounce the save
-      saveTimeouts.current[field] = setTimeout(async () => {
-        try {
-          const res = await fetch("/api/payroll-config/config", {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              ...config,
-              ...data,
-            }),
-          });
-
-          if (!res.ok) {
-            const errorData = await res.json().catch(() => null);
-            throw new Error(errorData?.message ?? "Failed to save");
-          }
-
-          const updated = await res.json();
-          setConfig(updated);
-          setSavingFields((prev) => {
-            const next = new Set(prev);
-            next.delete(field);
-            return next;
-          });
-          setSavedFields((prev) => new Set(prev).add(field));
-          setTimeout(() => {
-            setSavedFields((prev) => {
-              const next = new Set(prev);
-              next.delete(field);
-              return next;
-            });
-          }, 2000);
-        } catch (error) {
-          setSavingFields((prev) => {
-            const next = new Set(prev);
-            next.delete(field);
-            return next;
-          });
-          setFieldErrors((prev) => ({
-            ...prev,
-            [field]: error instanceof Error ? error.message : "Failed to save",
-          }));
-        }
-      }, 500);
-    },
-    [config]
-  );
-
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const [y, m] = e.target.value.split("-").map(Number);
-    setYear(y);
-    setMonth(m);
-    router.push(`/${locale}/payroll-config?year=${y}&month=${m}`);
-  };
-
-  const handleFieldChange = (field: keyof PayrollConfigData, value: number | null) => {
-    setConfig((prev) => ({ ...prev, [field]: value }));
-    saveConfig(field, { [field]: value });
-  };
-
-  const handleTiersChange = (tierType: "orders" | "revenue", tiers: DeductionTier[]) => {
-    const validation = validateDeductionTiers(tiers);
-    if (tierType === "orders") {
-      setOrdersTierErrors(validation.errors);
-    } else {
-      setRevenueTierErrors(validation.errors);
-    }
-    if (validation.valid) {
-      const fieldName = tierType === "orders" ? "orders_deduction_tiers" : "revenue_deduction_tiers";
-      setConfig((prev) => ({ ...prev, [fieldName]: tiers }));
-      saveConfig(fieldName, { [fieldName]: tiers });
-    }
-  };
-
-  const addTier = (tierType: "orders" | "revenue") => {
-    const currentTiers = tierType === "orders" 
-      ? (config.orders_deduction_tiers ?? [])
-      : (config.revenue_deduction_tiers ?? []);
-    const lastTier = currentTiers.length > 0 ? currentTiers[currentTiers.length - 1] : null;
-    const newTier: DeductionTier = {
-      from: lastTier ? lastTier.to + 1 : 1,
-      to: lastTier ? lastTier.to + 50 : 50,
-      deduction: 0,
-    };
-    handleTiersChange(tierType, [...currentTiers, newTier]);
-  };
-
-  const removeTier = (tierType: "orders" | "revenue", index: number) => {
-    const currentTiers = tierType === "orders" 
-      ? (config.orders_deduction_tiers ?? [])
-      : (config.revenue_deduction_tiers ?? []);
-    handleTiersChange(tierType, currentTiers.filter((_, i) => i !== index));
-  };
-
-  const updateTier = (tierType: "orders" | "revenue", index: number, field: keyof DeductionTier, value: number) => {
-    const currentTiers = tierType === "orders" 
-      ? (config.orders_deduction_tiers ?? [])
-      : (config.revenue_deduction_tiers ?? []);
-    const updated = currentTiers.map((tier, i) =>
-      i === index ? { ...tier, [field]: value } : tier
-    );
-    handleTiersChange(tierType, updated);
-  };
-
-  const renderTierTable = (tierType: "orders" | "revenue", tiers: DeductionTier[]) => {
-    const errors = tierType === "orders" ? ordersTierErrors : revenueTierErrors;
-    return (
-      <>
-        {errors.length > 0 && (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-            {errors.map((err, i) => (
-              <div key={i}>{err}</div>
-            ))}
-          </div>
-        )}
-        <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
-          <table className="min-w-full text-sm">
-            <thead className="bg-zinc-50 text-xs uppercase text-primary/60 dark:bg-zinc-800/60">
-              <tr>
-                <th className="px-3 py-2 text-left">{t("payrollConfig.tierFrom")}</th>
-                <th className="px-3 py-2 text-left">{t("payrollConfig.tierTo")}</th>
-                <th className="px-3 py-2 text-left">{t("payrollConfig.tierDeduction")}</th>
-                <th className="px-3 py-2 text-right">{t("common.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tiers.map((tier, idx) => (
-                <tr key={idx} className="border-t border-zinc-100 dark:border-zinc-700">
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      step={tierType === "orders" ? 1 : 0.01}
-                      value={tier.from}
-                      onChange={(e) => updateTier(tierType, idx, "from", tierType === "orders" ? parseInt(e.target.value, 10) || 0 : parseFloat(e.target.value) || 0)}
-                      className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      step={tierType === "orders" ? 1 : 0.01}
-                      value={tier.to}
-                      onChange={(e) => updateTier(tierType, idx, "to", tierType === "orders" ? parseInt(e.target.value, 10) || 0 : parseFloat(e.target.value) || 0)}
-                      className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      value={tier.deduction}
-                      onChange={(e) => updateTier(tierType, idx, "deduction", parseFloat(e.target.value) || 0)}
-                      className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => removeTier(tierType, idx)}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      {t("payrollConfig.removeTier")}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {tiers.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-4 text-center text-sm text-primary/60">
-                    {t("common.noResults")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </>
-    );
-  };
-
-  // Cleanup timeouts on unmount
   useEffect(() => {
+    setStats(initialStats);
+  }, [initialStats]);
+
+  useEffect(() => {
+    if (activeTab !== "costs") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/payroll-config/stats?year=${year}&month=${month}`,
+          { cache: "no-store" },
+        );
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+      } catch {
+        /* keep previous stats */
+      }
+    })();
     return () => {
-      Object.values(saveTimeouts.current).forEach((timeout) => clearTimeout(timeout));
+      cancelled = true;
     };
+  }, [activeTab, year, month]);
+
+  const pushToast = useCallback((message: string, severity: "success" | "error") => {
+    setSnackbar({ open: true, message, severity });
   }, []);
 
-  const currentMonthString = useMemo(() => {
-    return `${year}-${String(month).padStart(2, "0")}`;
+  const refreshConfig = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/payroll-config/config?year=${year}&month=${month}`,
+        { cache: "no-store" },
+      );
+      if (res.ok) {
+        const full = (await res.json()) as PayrollConfigData;
+        setConfig(full);
+      }
+    } catch {
+      /* ignore */
+    }
   }, [year, month]);
 
-  const formatAmount = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const handleMonthChange = useCallback((newYear: number, newMonth: number) => {
+    router.push(`/${locale}/payroll-config?year=${newYear}&month=${newMonth}`);
+  }, [locale, router]);
+
+  const handleApprove = useCallback(async () => {
+    setApproving(true);
+    try {
+      const res = await fetch("/api/payroll-config/approve-month", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year, month }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody?.message ?? t("payrollConfig.toastApproveError"));
+      }
+
+      const monthLabel = `${year}-${String(month).padStart(2, "0")}`;
+      pushToast(t("payrollConfig.toastApproveSuccess", { month: monthLabel }), "success");
+      await refreshConfig();
+      router.refresh();
+    } catch (error) {
+      pushToast(error instanceof Error ? error.message : t("payrollConfig.toastApproveError"), "error");
+    } finally {
+      setApproving(false);
+      setShowApproveDialog(false);
+    }
+  }, [year, month, t, router, pushToast, refreshConfig]);
+
+  const buildPatchPayload = useCallback(
+    (cardName: string): Record<string, unknown> => {
+      switch (cardName) {
+        case "general": {
+          const countOn = editData.count_bonus_enabled ?? false;
+          const revOn = editData.revenue_bonus_enabled ?? false;
+          return {
+            minimum_salary: editData.minimum_salary ?? null,
+            tip_recipient: editData.tip_recipient ?? "REPRESENTATIVE",
+            count_bonus_enabled: countOn,
+            count_bonus_amount: countOn ? editData.count_bonus_amount ?? null : null,
+            revenue_bonus_enabled: revOn,
+            revenue_bonus_amount: revOn ? editData.revenue_bonus_amount ?? null : null,
+          };
+        }
+        case "fixed":
+          return { deduction_per_order: editData.deduction_per_order ?? null };
+        case "orders":
+          return {
+            orders_deduction_tiers: normalizeOrdersTiers(editData.orders_deduction_tiers),
+          };
+        case "revenue": {
+          const unit = editData.revenue_unit_amount;
+          if (unit == null || unit <= 0) {
+            return { revenue_unit_amount: null, revenue_deduction_tiers: null };
+          }
+          return {
+            revenue_unit_amount: unit,
+            revenue_deduction_tiers: normalizeRevenueTiers(editData.revenue_deduction_tiers, unit),
+          };
+        }
+        default:
+          return {};
+      }
+    },
+    [editData],
+  );
+
+  const handleSaveCard = useCallback(
+    async (cardName: string) => {
+      try {
+        const payload = buildPatchPayload(cardName);
+        const res = await fetch("/api/payroll-config/config", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => null);
+          throw new Error(errBody?.message ?? "Save failed");
+        }
+
+        await res.json();
+        await refreshConfig();
+        setEditingCards((prev) => ({ ...prev, [cardName]: false }));
+        setEditData({});
+        setShowSaveDialog(null);
+        pushToast(t("payrollConfig.toastSaveSuccess"), "success");
+        router.refresh();
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : t("payrollConfig.toastSaveError");
+        pushToast(msg, "error");
+      }
+    },
+    [buildPatchPayload, t, router, refreshConfig, pushToast],
+  );
+
+  const startEdit = (cardName: keyof typeof editingCards) => {
+    setOpenCards((prev) => ({ ...prev, [cardName]: true }));
+    setEditingCards((prev) => ({ ...prev, [cardName]: true }));
+    if (cardName === "general") {
+      setEditData({
+        minimum_salary: config.minimum_salary,
+        tip_recipient: config.tip_recipient ?? "REPRESENTATIVE",
+        count_bonus_enabled: config.count_bonus_enabled ?? false,
+        count_bonus_amount: config.count_bonus_amount,
+        revenue_bonus_enabled: config.revenue_bonus_enabled ?? false,
+        revenue_bonus_amount: config.revenue_bonus_amount,
+      });
+    } else if (cardName === "fixed") {
+      setEditData({ deduction_per_order: config.deduction_per_order });
+    } else if (cardName === "orders") {
+      setEditData({
+        orders_deduction_tiers: normalizeOrdersTiers(config.orders_deduction_tiers),
+      });
+    } else if (cardName === "revenue") {
+      const unit = config.revenue_unit_amount ?? 0;
+      setEditData({
+        revenue_unit_amount: config.revenue_unit_amount,
+        revenue_deduction_tiers: normalizeRevenueTiers(config.revenue_deduction_tiers, unit),
+      });
+    }
+  };
+
+  const cancelEdit = (cardName: keyof typeof editingCards) => {
+    setEditingCards((prev) => ({ ...prev, [cardName]: false }));
+    setEditData({});
+  };
+
+  const isReadOnly = config.metadata?.isReadOnly || false;
+  const configStatus = config.metadata?.configurationStatus;
+  const canApprove = configStatus?.general === "COMPLETE" &&
+    configStatus?.fixed === "COMPLETE" &&
+    configStatus?.ordersTiers === "COMPLETE" &&
+    configStatus?.revenueTiers === "COMPLETE";
+
+  const getMissingConfig = () => {
+    const missing = [];
+    if (configStatus?.general !== "COMPLETE") missing.push(t("payrollConfig.generalSettings"));
+    if (configStatus?.fixed !== "COMPLETE") missing.push(t("payrollConfig.fixedDeduction"));
+    if (configStatus?.ordersTiers !== "COMPLETE") missing.push(t("payrollConfig.ordersDeductionTiersLabel"));
+    if (configStatus?.revenueTiers !== "COMPLETE") missing.push(t("payrollConfig.revenueDeductionTiersLabel"));
+    return missing;
+  };
+
+  const suffixSar = t("payrollConfig.suffixSar");
+  const suffixOrders = t("payrollConfig.suffixOrders");
+  const numDir: "ltr" | "rtl" = locale === "ar" ? "rtl" : "ltr";
+  const incompleteHint = t("payrollConfig.badgeIncompleteHelp");
+
+  const fixedRateForExample =
+    editingCards.fixed ? editData.deduction_per_order : config.deduction_per_order;
+  const exampleMissingOrders = 12;
+  const fixedExampleTotal =
+    fixedRateForExample != null && fixedRateForExample > 0
+      ? exampleMissingOrders * fixedRateForExample
+      : 0;
+
+  const ordersTiersForExample = normalizeOrdersTiers(
+    editingCards.orders ? editData.orders_deduction_tiers : config.orders_deduction_tiers,
+  );
+  const ordersDeficitExample = 165;
+  const ordersExampleTotal = computeProgressiveTotal(ordersDeficitExample, ordersTiersForExample);
+
+  const revenueUnitForExample =
+    (editingCards.revenue ? editData.revenue_unit_amount : config.revenue_unit_amount) || 800;
+  const revenueTiersForExample = normalizeRevenueTiers(
+    editingCards.revenue ? editData.revenue_deduction_tiers : config.revenue_deduction_tiers,
+    revenueUnitForExample,
+  );
+  const revenueDeficitExample = 3000;
+  const revenueFlatExample = computeRevenueFlatBandLines(
+    revenueDeficitExample,
+    revenueTiersForExample,
+    revenueUnitForExample,
+  );
+  const revenueExampleTotal = revenueFlatExample.total;
+
+  const ordersExampleBreakdown = computeProgressiveBreakdown(
+    ordersDeficitExample,
+    ordersTiersForExample,
+  );
+
+  const fmtNum = (n: number) =>
+    n.toLocaleString(locale === "ar" ? "ar-SA" : "en-US", { maximumFractionDigits: 2 });
+
+  const formatMoney = (v: number) =>
+    v.toLocaleString(locale === "ar" ? "ar-SA" : "en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   return (
-    <div className="space-y-6">
-      {/* Quick Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label={t("payrollConfig.totalEmployees")} value={stats.activeEmployees.toLocaleString()} />
-        <StatCard label={t("payrollConfig.totalCosts")} value={formatAmount(stats.totalCosts)} />
-        <StatCard label={t("payrollConfig.averageCost")} value={formatAmount(stats.averageCost)} />
-      </div>
-
-      {/* Tabs header */}
-      <div className="border-b border-zinc-200 dark:border-zinc-700">
-        <nav className="flex gap-4">
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+        <nav
+          className="flex flex-col divide-y divide-red-800 dark:divide-zinc-700 sm:flex-row sm:divide-x sm:divide-y-0"
+          role="tablist"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "payroll"}
             onClick={() => setActiveTab("payroll")}
-            className={`px-3 py-2 text-sm font-medium ${
-              activeTab === "payroll"
-                ? "border-b-2 border-primary text-primary"
-                : "text-primary/60 hover:text-primary"
-            }`}
+            className={`flex flex-1 flex-col items-stretch hover:bg-primary/40 px-4 py-3 transition ${activeTab === "payroll"
+              ? "bg-primary/20 sm:border-b-2 sm:border-primary"
+              : " dark:hover:bg-zinc-900/50 sm:border-b-2 sm:border-transparent"
+              }`}
           >
-            {t("payrollConfig.tabPayrollManagement")}
+            <span className="text-lg font-bold text-primary">
+              {t("payrollConfig.tabPayrollManagement")}
+            </span>
+            <span className="mt-1 text-sm font-semibold leading-snug text-zinc-500 dark:text-zinc-400">
+              {t("payrollConfig.tabDescPayroll")}
+            </span>
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === "costs"}
             onClick={() => setActiveTab("costs")}
-            className={`px-3 py-2 text-sm font-medium ${
-              activeTab === "costs"
-                ? "border-b-2 border-primary text-primary"
-                : "text-primary/60 hover:text-primary"
-            }`}
+            className={`flex flex-1 flex-col items-stretch hover:bg-primary/40 px-4 py-3 transition ${activeTab === "costs"
+              ? "bg-primary/20 sm:border-b-2 sm:border-primary"
+              : " dark:hover:bg-zinc-900/50 sm:border-b-2 sm:border-transparent"
+              }`}
           >
-            {t("payrollConfig.tabCostsManagement")}
+            <span className="text-lg font-bold text-primary">
+              {t("payrollConfig.tabCostsManagement")}
+            </span>
+            <span className="mt-1 text-sm font-semibold leading-snug text-zinc-500 dark:text-zinc-400">
+              {t("payrollConfig.tabDescCosts")}
+            </span>
           </button>
         </nav>
       </div>
 
       {activeTab === "payroll" ? (
         <>
-          {/* Controls Row */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-primary/60">{t("payrollConfig.dateFilter")}:</label>
-              <select
-                value={year}
-                onChange={(e) => {
-                  const newYear = Number(e.target.value) || year;
-                  setYear(newYear);
-                  router.push(`/${locale}/payroll-config?year=${newYear}&month=${month}`);
-                }}
-                className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
-              >
-                {Array.from({ length: 5 }).map((_, idx) => {
-                  const y = new Date().getFullYear() - 2 + idx;
-                  return (
+          {/* Month picker + legal info + status (single card) */}
+          <div className="space-y-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-primary">{tDashboard("controls.year")}</label>
+                <select
+                  value={year}
+                  onChange={(e) => {
+                    const newYear = Number(e.target.value);
+                    setYear(newYear);
+                    handleMonthChange(newYear, month);
+                  }}
+                  className="rounded-xl border border-primary bg-slate-50/80 px-3 py-2 text-sm font-semibold text-primary outline-none"
+                >
+                  {years.map((y) => (
                     <option key={y} value={y}>
                       {y}
                     </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-1 flex-wrap items-center gap-2">
+                {visibleMonths.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => {
+                      setMonth(m);
+                      handleMonthChange(year, m);
+                    }}
+                    className={`min-w-[3.5rem] rounded-xl px-3 py-2 text-sm font-semibold transition-all ${month === m
+                      ? "bg-primary-600 text-white shadow-md"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-zinc-700 dark:text-slate-300"
+                      }`}
+                  >
+                    {tDashboard(`controls.month${m}` as "controls.month1")}
+                  </button>
+                ))}
+              </div>
+              {!isReadOnly && !config.metadata?.runLockedForMonth && (
+                <button
+                  onClick={() => setShowApproveDialog(true)}
+                  disabled={!canApprove}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-zinc-300 disabled:cursor-not-allowed"
+                >
+                  {t("payrollConfig.approve")}
+                </button>
+              )}
+            </div>
+
+            <div className="border-t border-zinc-200 pt-4 dark:border-zinc-600">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex-1">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    <Info className="inline h-4 w-4 mr-1" />
+                    {t("payrollConfig.infoLegalText")}
+                  </p>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  {canApprove ? (
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                      <CheckCircle className="h-4 w-4" />
+                      {t("payrollConfig.configStatusAllComplete")}
+                    </span>
+                  ) : (
+                    <span
+                      className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 cursor-help"
+                      title={t("payrollConfig.configStatusMissingDetails", { items: getMissingConfig().join(", ") })}
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      {t("payrollConfig.configStatusMissing")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {config.metadata?.payrollApprovalDeadlineWarning &&
+              config.metadata?.daysUntilMonthEnd != null && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <p>
+                      {t("payrollConfig.payrollApprovalDeadlineWarning", {
+                        days: config.metadata.daysUntilMonthEnd,
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+            {config.metadata?.warningAppliesNextMonth && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <p>{t("payrollConfig.warningAppliesNextMonth")}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Cards: general + fixed side by side on large screens */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
+            {/* General Settings Card */}
+            <CollapsibleCard
+              rootClassName="h-full min-h-0 flex flex-col"
+              title={t("payrollConfig.generalSettings")}
+              description={t("payrollConfig.generalSettingsDesc")}
+              icon={Settings}
+              isConfigured={configStatus?.general === "COMPLETE"}
+              incompleteHint={incompleteHint}
+              isOpen={openCards.general}
+              onToggle={() => setOpenCards({ ...openCards, general: !openCards.general })}
+              isEditing={editingCards.general}
+              onEdit={() => startEdit("general")}
+              onSave={() => setShowSaveDialog("general")}
+              onCancel={() => cancelEdit("general")}
+              isReadOnly={isReadOnly}
+            >
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="rounded-md border border-zinc-100 p-3 dark:border-zinc-700/80">
+                  <h4 className="mb-2 flex items-center gap-2 font-medium text-primary">
+                    {t("payrollConfig.sectionGeneral")}
+                    <InfoTooltip content={t("payrollConfig.helpMinimumSalary")} />
+                  </h4>
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">{t("payrollConfig.minimumSalary")}</label>
+                  <PositiveDecimalField
+                    key={`min-sal-${editingCards.general}`}
+                    className="mt-1"
+                    dir={numDir}
+                    suffix={suffixSar}
+                    disabled={!editingCards.general}
+                    value={editingCards.general ? editData.minimum_salary : config.minimum_salary}
+                    onChange={(v) => setEditData((prev) => ({ ...prev, minimum_salary: v ?? undefined }))}
+                  />
+                </div>
+
+                <div className="rounded-md border border-zinc-100 p-3 dark:border-zinc-700/80">
+                  <h4 className="mb-2 flex items-center gap-2 font-medium text-primary">
+                    {t("payrollConfig.sectionTips")}
+                    <InfoTooltip content={t("payrollConfig.helpTipRecipient")} />
+                  </h4>
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">{t("payrollConfig.tipRecipient")}</label>
+                  <div className="mt-2 space-y-2">
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        value="REPRESENTATIVE"
+                        checked={
+                          (editingCards.general ? editData.tip_recipient : config.tip_recipient) ===
+                          "REPRESENTATIVE"
+                        }
+                        onChange={(e) => setEditData({ ...editData, tip_recipient: e.target.value })}
+                        disabled={!editingCards.general}
+                        className="mt-1"
+                      />
+                      <div>
+                        <div className="font-medium">{t("payrollConfig.tipRecipientRepresentative")}</div>
+                        <div className="text-xs text-zinc-600">{t("payrollConfig.tipRecipientRepresentativeDesc")}</div>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        value="COMPANY"
+                        checked={
+                          (editingCards.general ? editData.tip_recipient : config.tip_recipient) === "COMPANY"
+                        }
+                        onChange={(e) => setEditData({ ...editData, tip_recipient: e.target.value })}
+                        disabled={!editingCards.general}
+                        className="mt-1"
+                      />
+                      <div>
+                        <div className="font-medium">{t("payrollConfig.tipRecipientCompany")}</div>
+                        <div className="text-xs text-zinc-600">{t("payrollConfig.tipRecipientCompanyDesc")}</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-zinc-100 p-3 dark:border-zinc-700/80">
+                  <h4 className="mb-2 flex items-center gap-2 font-medium text-primary">
+                    {t("payrollConfig.sectionCountBonus")}
+                    <InfoTooltip content={t("payrollConfig.helpCountBonus")} />
+                  </h4>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={
+                        editingCards.general ? !!editData.count_bonus_enabled : !!config.count_bonus_enabled
+                      }
+                      onChange={(e) => setEditData({ ...editData, count_bonus_enabled: e.target.checked })}
+                      disabled={!editingCards.general}
+                    />
+                    <span className="text-sm">{t("payrollConfig.countBonusEnabled")}</span>
+                  </label>
+                  {(editingCards.general ? editData.count_bonus_enabled : config.count_bonus_enabled) && (
+                    <div className="mt-2">
+                      <label className="text-xs text-zinc-600">{t("payrollConfig.countBonusAmount")}</label>
+                      <PositiveDecimalField
+                        key={`cnt-bonus-${editingCards.general}`}
+                        className="mt-1"
+                        dir={numDir}
+                        suffix={suffixSar}
+                        disabled={!editingCards.general}
+                        value={editingCards.general ? editData.count_bonus_amount : config.count_bonus_amount}
+                        onChange={(v) => setEditData((prev) => ({ ...prev, count_bonus_amount: v ?? undefined }))}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-md border border-zinc-100 p-3 dark:border-zinc-700/80">
+                  <h4 className="mb-2 flex items-center gap-2 font-medium text-primary">
+                    {t("payrollConfig.sectionRevenueBonus")}
+                    <InfoTooltip content={t("payrollConfig.helpRevenueBonus")} />
+                  </h4>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={
+                        editingCards.general
+                          ? !!editData.revenue_bonus_enabled
+                          : !!config.revenue_bonus_enabled
+                      }
+                      onChange={(e) => setEditData({ ...editData, revenue_bonus_enabled: e.target.checked })}
+                      disabled={!editingCards.general}
+                    />
+                    <span className="text-sm">{t("payrollConfig.revenueBonusEnabled")}</span>
+                  </label>
+                  {(editingCards.general ? editData.revenue_bonus_enabled : config.revenue_bonus_enabled) && (
+                    <div className="mt-2">
+                      <label className="text-xs text-zinc-600">{t("payrollConfig.revenueBonusAmount")}</label>
+                      <PositiveDecimalField
+                        key={`rev-bonus-${editingCards.general}`}
+                        className="mt-1"
+                        dir={numDir}
+                        suffix={suffixSar}
+                        disabled={!editingCards.general}
+                        value={
+                          editingCards.general ? editData.revenue_bonus_amount : config.revenue_bonus_amount
+                        }
+                        onChange={(v) =>
+                          setEditData((prev) => ({ ...prev, revenue_bonus_amount: v ?? undefined }))
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CollapsibleCard>
+
+            {/* Fixed Deduction Card */}
+            <CollapsibleCard
+              rootClassName="h-full min-h-0 flex flex-col"
+              title={t("payrollConfig.fixedDeduction")}
+              description={t("payrollConfig.fixedDeductionDesc")}
+              icon={DollarSign}
+              isConfigured={configStatus?.fixed === "COMPLETE"}
+              incompleteHint={incompleteHint}
+              isOpen={openCards.fixed}
+              onToggle={() => setOpenCards({ ...openCards, fixed: !openCards.fixed })}
+              isEditing={editingCards.fixed}
+              onEdit={() => startEdit("fixed")}
+              onSave={() => setShowSaveDialog("fixed")}
+              onCancel={() => cancelEdit("fixed")}
+              isReadOnly={isReadOnly}
+            >
+              <div className="space-y-3">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("payrollConfig.fixedDeductionHelp")}</p>
+                <div>
+                  <label className="text-sm font-medium">{t("payrollConfig.deductionAmount")}</label>
+                  <PositiveDecimalField
+                    key={`fixed-ded-${editingCards.fixed}`}
+                    className="mt-1 max-w-md"
+                    dir={numDir}
+                    suffix={suffixSar}
+                    disabled={!editingCards.fixed}
+                    value={editingCards.fixed ? editData.deduction_per_order : config.deduction_per_order}
+                    onChange={(v) => setEditData((prev) => ({ ...prev, deduction_per_order: v ?? undefined }))}
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">{t("payrollConfig.tierDeductionUnit", { unit: suffixOrders })}</p>
+                </div>
+                <div className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
+                  <div className="font-medium text-primary">{t("payrollConfig.calcExampleTitle")}</div>
+                  <p className="mt-1">
+                    {t("payrollConfig.calcExampleFixed", {
+                      missing: exampleMissingOrders,
+                      rate: fixedRateForExample ?? "—",
+                      total:
+                        fixedExampleTotal > 0
+                          ? fixedExampleTotal.toLocaleString(locale === "ar" ? "ar-SA" : "en-US", {
+                            maximumFractionDigits: 2,
+                          })
+                          : "—",
+                    })}
+                  </p>
+                </div>
+              </div>
+            </CollapsibleCard>
+          </div>
+
+          <div className="space-y-4">
+            {/* Orders Tiers Card */}
+            <CollapsibleCard
+              title={t("payrollConfig.ordersDeductionTiersLabel")}
+              description={t("payrollConfig.ordersDeductionTiersDesc")}
+              icon={TrendingDown}
+              isConfigured={configStatus?.ordersTiers === "COMPLETE"}
+              incompleteHint={incompleteHint}
+              isOpen={openCards.orders}
+              onToggle={() => setOpenCards({ ...openCards, orders: !openCards.orders })}
+              isEditing={editingCards.orders}
+              onEdit={() => startEdit("orders")}
+              onSave={() => setShowSaveDialog("orders")}
+              onCancel={() => cancelEdit("orders")}
+              isReadOnly={isReadOnly}
+            >
+              <div className="space-y-3">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("payrollConfig.ordersTiersDescription")}</p>
+                <table className="w-full border-collapse ">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold ">{t("payrollConfig.tierRange")}</th>
+                      <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold ">{t("payrollConfig.tierDeductionRate")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ORDERS_TIER_RANGES.map((range, idx) => {
+                      const tiers = normalizeOrdersTiers(
+                        editingCards.orders ? editData.orders_deduction_tiers : config.orders_deduction_tiers,
+                      );
+                      const tier = tiers[idx];
+                      return (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2 text-sm font-semibold">{range.from} - {range.to} {t("payrollConfig.suffixOrders")}</td>
+                          <td className="p-2">
+                            <PositiveDecimalField
+                              key={`ord-tier-${idx}-${editingCards.orders}`}
+                              className="max-w-xs"
+                              dir={numDir}
+                              suffix={suffixSar}
+                              disabled={!editingCards.orders}
+                              value={tier?.deduction}
+                              onChange={(v) => {
+                                const next = [...tiers];
+                                next[idx] = { ...range, deduction: v ?? 0 };
+                                setEditData((prev) => ({ ...prev, orders_deduction_tiers: next }));
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
+                  <div className="font-medium text-primary">{t("payrollConfig.calcExampleTitle")}</div>
+                  <p className="mt-2">
+                    {t("payrollConfig.calcBreakdownIntroOrders", { deficit: ordersDeficitExample })}
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 ps-5" dir={numDir}>
+                    {ordersExampleBreakdown.map((line, i) => (
+                      <li key={i}>
+                        {line.kind === "tier"
+                          ? t("payrollConfig.calcTierStepOrders", {
+                            from: line.from,
+                            to: line.to,
+                            take: line.take,
+                            rate: fmtNum(line.rate),
+                            subtotal: fmtNum(line.subtotal),
+                            curr: suffixSar,
+                          })
+                          : t("payrollConfig.calcTierBeyond", {
+                            take: fmtNum(line.take),
+                            rate: fmtNum(line.rate),
+                            subtotal: fmtNum(line.subtotal),
+                            curr: suffixSar,
+                          })}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 font-medium">
+                    {t("payrollConfig.calcBreakdownTotal", {
+                      total: fmtNum(ordersExampleTotal),
+                      curr: suffixSar,
+                    })}
+                  </p>
+                </div>
+              </div>
+            </CollapsibleCard>
+
+            {/* Revenue Tiers Card */}
+            <CollapsibleCard
+              title={t("payrollConfig.revenueDeductionTiersLabel")}
+              description={t("payrollConfig.revenueDeductionTiersDesc")}
+              icon={TrendingUp}
+              isConfigured={configStatus?.revenueTiers === "COMPLETE"}
+              incompleteHint={incompleteHint}
+              isOpen={openCards.revenue}
+              onToggle={() => setOpenCards({ ...openCards, revenue: !openCards.revenue })}
+              isEditing={editingCards.revenue}
+              onEdit={() => startEdit("revenue")}
+              onSave={() => setShowSaveDialog("revenue")}
+              onCancel={() => cancelEdit("revenue")}
+              isReadOnly={isReadOnly}
+            >
+              <div className="space-y-3">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("payrollConfig.revenueTiersDescription")}</p>
+                <div>
+                  <label className="text-sm font-medium">{t("payrollConfig.revenueUnitAmount")}</label>
+                  <PositiveDecimalField
+                    key={`rev-unit-${editingCards.revenue}`}
+                    className="mt-1 max-w-md"
+                    dir={numDir}
+                    suffix={suffixSar}
+                    disabled={!editingCards.revenue}
+                    value={editingCards.revenue ? editData.revenue_unit_amount : config.revenue_unit_amount}
+                    onChange={(v) => {
+                      setEditData((prev) => {
+                        const u = v ?? 0;
+                        return {
+                          ...prev,
+                          revenue_unit_amount: v ?? undefined,
+                          revenue_deduction_tiers:
+                            u > 0 ? normalizeRevenueTiers(prev.revenue_deduction_tiers, u) : [],
+                        };
+                      });
+                    }}
+                  />
+                </div>
+                {(() => {
+                  const unit =
+                    (editingCards.revenue ? editData.revenue_unit_amount : config.revenue_unit_amount) || 0;
+                  if (!unit || unit <= 0) return null;
+                  const tiers = normalizeRevenueTiers(
+                    editingCards.revenue ? editData.revenue_deduction_tiers : config.revenue_deduction_tiers,
+                    unit,
                   );
-                })}
-              </select>
-              <select
-                value={month}
-                onChange={(e) => {
-                  const newMonth = Number(e.target.value) || month;
-                  setMonth(newMonth);
-                  router.push(`/${locale}/payroll-config?year=${year}&month=${newMonth}`);
-                }}
-                className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
-              >
-                {Array.from({ length: 12 }).map((_, idx) => {
-                  const m = idx + 1;
-                  const date = new Date(2000, m - 1, 1);
-                  const label = date.toLocaleString(locale === "ar" ? "ar" : "en", { month: "long" });
                   return (
-                    <option key={m} value={m}>
-                      {label}
-                    </option>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold">{t("payrollConfig.tierRange")}</th>
+                          <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold">
+                            {t("payrollConfig.tierDeductionFlatPerBand")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tiers.map((row, idx) => (
+                          <tr key={idx} className="border-b">
+                            <td className="p-2 text-sm font-semibold">
+                              {row.from} - {row.to} {t("payrollConfig.suffixSar")}
+                            </td>
+                            <td className="p-2">
+                              <PositiveDecimalField
+                                key={`rev-tier-${idx}-${editingCards.revenue}-${unit}`}
+                                className="max-w-xs"
+                                dir={numDir}
+                                suffix={suffixSar}
+                                disabled={!editingCards.revenue}
+                                value={row.deduction}
+                                onChange={(v) => {
+                                  const next = [...tiers];
+                                  next[idx] = { ...row, deduction: v ?? 0 };
+                                  setEditData((prev) => ({ ...prev, revenue_deduction_tiers: next }));
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   );
-                })}
-              </select>
-            </div>
-
-          </div>
-
-          {/* Company-wide settings */}
-          <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
-            <h3 className="mb-4 text-lg font-semibold text-primary flex items-center gap-2">
-              {t("payrollConfig.companyWideSettings")}
-              <InfoTooltip content={t("payrollConfig.tooltipCompanyWideSettings")} />
-            </h3>
-            
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <EditableCard
-                label={t("payrollConfig.minimumSalary")}
-                value={config.minimum_salary}
-                min={0}
-                step="0.01"
-                onChange={(val) => handleFieldChange("minimum_salary", val)}
-                saving={savingFields.has("minimum_salary")}
-                saved={savedFields.has("minimum_salary")}
-                error={fieldErrors.minimum_salary}
-                t={t}
-              />
-              <EditableCard
-                label={t("payrollConfig.bonusPerOrder")}
-                value={config.bonus_per_order}
-                min={0}
-                step="0.01"
-                onChange={(val) => handleFieldChange("bonus_per_order", val)}
-                saving={savingFields.has("bonus_per_order")}
-                saved={savedFields.has("bonus_per_order")}
-                error={fieldErrors.bonus_per_order}
-                t={t}
-              />
-              <EditableCard
-                label={t("payrollConfig.deductionPerOrder")}
-                value={config.deduction_per_order}
-                min={0}
-                step="0.01"
-                onChange={(val) => handleFieldChange("deduction_per_order", val)}
-                saving={savingFields.has("deduction_per_order")}
-                saved={savedFields.has("deduction_per_order")}
-                error={fieldErrors.deduction_per_order}
-                t={t}
-              />
-            </div>
-          </div>
-
-          {/* Orders Deduction Tiers */}
-          <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
-                {t("payrollConfig.ordersDeductionTiers")}
-                <InfoTooltip content={t("payrollConfig.tooltipOrdersDeductionTiers")} />
-              </h3>
-              <button
-                type="button"
-                onClick={() => addTier("orders")}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-              >
-                {t("payrollConfig.addTier")}
-              </button>
-            </div>
-            {renderTierTable("orders", config.orders_deduction_tiers || [])}
-          </div>
-
-          {/* Revenue Deduction Tiers */}
-          <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-800">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
-                {t("payrollConfig.revenueDeductionTiers")}
-                <InfoTooltip content={t("payrollConfig.tooltipRevenueDeductionTiers")} />
-              </h3>
-              <button
-                type="button"
-                onClick={() => addTier("revenue")}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-              >
-                {t("payrollConfig.addTier")}
-              </button>
-            </div>
-            <div className="mb-4">
-              <EditableCard
-                label={t("payrollConfig.revenueUnitAmount")}
-                value={config.revenue_unit_amount}
-                min={0}
-                step="0.01"
-                onChange={(val) => handleFieldChange("revenue_unit_amount", val)}
-                saving={savingFields.has("revenue_unit_amount")}
-                saved={savedFields.has("revenue_unit_amount")}
-                error={fieldErrors.revenue_unit_amount}
-                t={t}
-              />
-            </div>
-            {renderTierTable("revenue", config.revenue_deduction_tiers || [])}
+                })()}
+                <div className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
+                  <div className="font-medium text-primary">{t("payrollConfig.calcExampleTitle")}</div>
+                  <p className="mt-2">
+                    {t("payrollConfig.calcBreakdownIntroRevenue", {
+                      deficit: revenueDeficitExample,
+                      unit: fmtNum(revenueUnitForExample),
+                    })}
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 ps-5" dir={numDir}>
+                    {revenueFlatExample.lines.map((line, i) => (
+                      <li key={i}>
+                        {line.beyondDefined
+                          ? t("payrollConfig.calcRevenueFlatBandBeyond", {
+                              consumed: fmtNum(line.consumed),
+                              width: fmtNum(line.bandWidth),
+                              flat: fmtNum(line.flat),
+                              curr: suffixSar,
+                            })
+                          : t("payrollConfig.calcRevenueFlatBandRow", {
+                              from: line.from,
+                              to: line.to,
+                              consumed: fmtNum(line.consumed),
+                              flat: fmtNum(line.flat),
+                              curr: suffixSar,
+                            })}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 font-medium">
+                    {t("payrollConfig.calcBreakdownTotal", {
+                      total: fmtNum(revenueExampleTotal),
+                      curr: suffixSar,
+                    })}
+                  </p>
+                </div>
+              </div>
+            </CollapsibleCard>
           </div>
         </>
       ) : (
-        <CostsManagementTab locale={locale} onChanged={refreshStats} />
-      )}
-    </div>
-  );
-}
-
-function CostsManagementTab({ locale, onChanged }: { locale: string; onChanged: () => void }) {
-  const t = useTranslations();
-  const [data, setData] = useState<CostListResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [page, setPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<CostItem | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        page_size: "25",
-        ...(query ? { q: query } : {}),
-        ...(typeFilter ? { type_code: typeFilter } : {}),
-      });
-      const res = await fetch(`/api/costs?${params.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [page, query, typeFilter]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleDelete = async (id: string) => {
-    if (!confirm(t("common.confirmDelete"))) return;
-    const res = await fetch(`/api/costs/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      fetchData();
-      onChanged();
-    }
-  };
-
-  const handleSave = () => {
-    setIsModalOpen(false);
-    setEditingItem(null);
-    fetchData();
-    onChanged();
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Controls Row */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-center gap-3">
-          <select
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value);
-              setPage(1);
-            }}
-            className="w-48 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
-          >
-            <option value="">{t("costs.allTypes")}</option>
-            <option value="COST_TYPE_EMPLOYEE_SALARIES">{t("costs.type_EMPLOYEE_SALARIES")}</option>
-            <option value="COST_TYPE_HOUSING">{t("costs.type_HOUSING")}</option>
-            <option value="COST_TYPE_FUEL">{t("costs.type_FUEL")}</option>
-            <option value="COST_TYPE_MAINTENANCE">{t("costs.type_MAINTENANCE")}</option>
-            <option value="COST_TYPE_ADMIN_SALARIES">{t("costs.type_ADMIN_SALARIES")}</option>
-            <option value="COST_TYPE_GOVERNMENT_EXPENSES">{t("costs.type_GOVERNMENT_EXPENSES")}</option>
-          </select>
-          <input
-            type="text"
-            placeholder={t("costs.searchPlaceholder")}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
-            }}
-            className="flex-1 max-w-sm rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setEditingItem(null);
-            setIsModalOpen(true);
-          }}
-          className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary/90"
-        >
-          {t("costs.addCost")}
-        </button>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-md border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-zinc-50 text-xs uppercase text-primary/60 dark:bg-zinc-800/60">
-              <tr>
-                <th className="px-4 py-3 text-left">{t("costs.colName")}</th>
-                <th className="px-4 py-3 text-left">{t("costs.colType")}</th>
-                <th className="px-4 py-3 text-right">{t("costs.colAmount")}</th>
-                <th className="px-4 py-3 text-right">{t("costs.colVat")}</th>
-                <th className="px-4 py-3 text-right">{t("costs.colNet")}</th>
-                <th className="px-4 py-3 text-left">{t("costs.colRecurrence")}</th>
-                <th className="px-4 py-3 text-right">{t("common.actions")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-700">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-primary/60">
-                    {t("common.loading")}
-                  </td>
-                </tr>
-              ) : data?.items.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-primary/60">
-                    {t("common.noResults")}
-                  </td>
-                </tr>
-              ) : (
-                data?.items.map((item) => (
-                  <tr key={item.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
-                    <td className="px-4 py-3 font-medium text-primary">{item.name}</td>
-                    <td className="px-4 py-3">{t(`costs.type_${item.type_code.replace("COST_TYPE_", "")}`)}</td>
-                    <td className="px-4 py-3 text-right">{item.amount_input.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right text-primary/60">
-                      {item.vat_included ? item.vat_amount.toLocaleString() : "-"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold">{item.net_amount.toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      {t(`costs.recurrence_${item.recurrence_code}`)}
-                      {item.recurrence_code === "ONE_TIME" && item.one_time_date && (
-                        <div className="text-xs text-primary/40">
-                          {new Date(item.one_time_date).toLocaleDateString(locale === "ar" ? "ar" : "en")}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingItem(item);
-                            setIsModalOpen(true);
-                          }}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          {t("common.edit")}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="text-xs text-red-600 hover:underline"
-                        >
-                          {t("common.delete")}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCard
+              label={t("payrollConfig.totalEmployees")}
+              value={(stats?.activeEmployees ?? 0).toLocaleString(
+                locale === "ar" ? "ar-SA" : "en-US",
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            />
+            <StatCard label={t("payrollConfig.totalCosts")} value={formatMoney(stats?.totalCosts ?? 0)} />
+            <StatCard label={t("payrollConfig.averageCost")} value={formatMoney(stats?.averageCost ?? 0)} />
+          </div>
+          <PayrollConfigCostsTab
+            locale={locale}
+            onChanged={() => router.refresh()}
+            onToast={pushToast}
+          />
+        </>
+      )}
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingItem(null);
-        }}
-        title={editingItem ? t("costs.editCost") : t("costs.addCost")}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <CostForm item={editingItem} onSave={handleSave} onCancel={() => setIsModalOpen(false)} />
-      </Modal>
+        <Alert
+          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Approve Dialog */}
+      {showApproveDialog && (
+        <Modal
+          isOpen={showApproveDialog}
+          onClose={() => setShowApproveDialog(false)}
+          title={t("payrollConfig.approveConfirmTitle")}
+        >
+          <div className="space-y-4">
+            <p>{t("payrollConfig.approveConfirmMessage", { month: `${year}-${String(month).padStart(2, "0")}` })}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowApproveDialog(false)}
+                className="rounded-md border border-zinc-300 px-4 py-2 text-sm"
+              >
+                {t("payrollConfig.cancel")}
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={approving}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:bg-zinc-300"
+              >
+                {approving ? t("payrollConfig.saving") : t("payrollConfig.approve")}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Save Dialog */}
+      {showSaveDialog && (
+        <Modal
+          isOpen={!!showSaveDialog}
+          onClose={() => setShowSaveDialog(null)}
+          title={t("payrollConfig.saveConfirmTitle")}
+        >
+          <div className="space-y-4">
+            <p>{t("payrollConfig.saveConfirmMessage")}</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowSaveDialog(null)}
+                className="rounded-md border border-zinc-300 px-4 py-2 text-sm"
+              >
+                {t("payrollConfig.cancel")}
+              </button>
+              <button
+                onClick={() => handleSaveCard(showSaveDialog)}
+                className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary/90"
+              >
+                {t("payrollConfig.save")}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
-
-function CostForm({
-  item,
-  onSave,
-  onCancel,
-}: {
-  item: CostItem | null;
-  onSave: () => void;
-  onCancel: () => void;
-}) {
-  const t = useTranslations();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState({
-    name: item?.name ?? "",
-    type_code: item?.type_code ?? "COST_TYPE_EMPLOYEE_SALARIES",
-    amount_input: item?.amount_input ?? 0,
-    vat_included: item?.vat_included ?? false,
-    recurrence_code: item?.recurrence_code ?? "MONTHLY",
-    one_time_date: item?.one_time_date ? item.one_time_date.split("T")[0] : "",
-    notes: item?.notes ?? "",
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const payload = {
-        ...formData,
-        amount_input: Number(formData.amount_input),
-        one_time_date: formData.recurrence_code === "ONE_TIME" && formData.one_time_date 
-          ? new Date(formData.one_time_date).toISOString() 
-          : null,
-      };
-
-      const res = await fetch(item ? `/api/costs/${item.id}` : "/api/costs", {
-        method: item ? "PATCH" : "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Failed to save");
-      }
-
-      onSave();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-      {error && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/20 dark:text-red-200">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-primary">{t("costs.formName")}</label>
-        <input
-          required
-          type="text"
-          value={formData.name}
-          onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-          className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-primary">{t("costs.formType")}</label>
-          <select
-            required
-            value={formData.type_code}
-            onChange={(e) => setFormData((p) => ({ ...p, type_code: e.target.value as any }))}
-            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="COST_TYPE_EMPLOYEE_SALARIES">{t("costs.type_EMPLOYEE_SALARIES")}</option>
-            <option value="COST_TYPE_HOUSING">{t("costs.type_HOUSING")}</option>
-            <option value="COST_TYPE_FUEL">{t("costs.type_FUEL")}</option>
-            <option value="COST_TYPE_MAINTENANCE">{t("costs.type_MAINTENANCE")}</option>
-            <option value="COST_TYPE_ADMIN_SALARIES">{t("costs.type_ADMIN_SALARIES")}</option>
-            <option value="COST_TYPE_GOVERNMENT_EXPENSES">{t("costs.type_GOVERNMENT_EXPENSES")}</option>
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-primary">{t("costs.formAmount")}</label>
-          <input
-            required
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={formData.amount_input}
-            onChange={(e) => setFormData((p) => ({ ...p, amount_input: Number(e.target.value) }))}
-            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="vat_included"
-          checked={formData.vat_included}
-          onChange={(e) => setFormData((p) => ({ ...p, vat_included: e.target.checked }))}
-          className="h-4 w-4"
-        />
-        <label htmlFor="vat_included" className="text-sm text-primary/80">
-          {t("costs.formVatIncluded")}
-        </label>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-primary">{t("costs.formRecurrence")}</label>
-          <select
-            required
-            value={formData.recurrence_code}
-            onChange={(e) => setFormData((p) => ({ ...p, recurrence_code: e.target.value as any }))}
-            className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            <option value="ONE_TIME">{t("costs.recurrence_ONE_TIME")}</option>
-            <option value="MONTHLY">{t("costs.recurrence_MONTHLY")}</option>
-            <option value="YEARLY">{t("costs.recurrence_YEARLY")}</option>
-          </select>
-        </div>
-
-        {formData.recurrence_code === "ONE_TIME" && (
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-primary">{t("costs.formDate")}</label>
-            <input
-              required
-              type="date"
-              value={formData.one_time_date}
-              onChange={(e) => setFormData((p) => ({ ...p, one_time_date: e.target.value }))}
-              className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-primary">{t("costs.formNotes")}</label>
-        <textarea
-          value={formData.notes}
-          onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))}
-          className="w-full h-20 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        />
-      </div>
-
-      <div className="flex justify-end gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="px-4 py-2 text-sm font-medium text-primary/60 hover:text-primary"
-        >
-          {t("common.cancel")}
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
-        >
-          {loading ? t("common.saving") : t("common.save")}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-

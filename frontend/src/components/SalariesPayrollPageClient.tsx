@@ -56,6 +56,35 @@ export function SalariesPayrollPageClient({ locale, initialMonth }: SalariesPayr
 
   return (
     <div className="space-y-6">
+      {/* Needs Approval Empty State */}
+      {data?.needsApproval && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-800 dark:bg-amber-950/20">
+          <div className="mx-auto max-w-md space-y-4">
+            <div className="flex justify-center">
+              <div className="rounded-full bg-amber-100 p-4 dark:bg-amber-900/30">
+                <svg className="h-12 w-12 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-100">
+                {t("payrollConfig.needsApproval")}
+              </h3>
+              <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
+                Payroll settings for {data.month} must be approved before viewing salary calculations.
+              </p>
+            </div>
+            <button
+              onClick={() => router.push(`/${locale}/payroll-config?year=${data.month?.split('-')[0]}&month=${data.month?.split('-')[1]}`)}
+              className="rounded-lg bg-primary px-6 py-2 text-sm font-medium text-white hover:bg-primary/90"
+            >
+              Go to Payroll Settings
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* List fetch error banner */}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
@@ -73,31 +102,35 @@ export function SalariesPayrollPageClient({ locale, initialMonth }: SalariesPayr
       )}
 
       {/* Quick Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-        <StatCard
-          label={t("salariesPayroll.stats.activeEmployees")}
-          value={data?.quickStats.activeEmployeesCount.toLocaleString() ?? "0"}
-        />
-        <StatCard
-          label={t("salariesPayroll.stats.totalLoans")}
-          value={formatAmount(data?.quickStats.totalLoansAmount ?? 0)}
-        />
-        <StatCard
-          label={t("salariesPayroll.stats.totalDeductions")}
-          value={formatAmount(data?.quickStats.totalDeductionsAmount ?? 0)}
-        />
-        <StatCard
-          label={t("salariesPayroll.stats.totalSalariesDue")}
-          value={formatAmount(data?.quickStats.totalSalariesDueAmount ?? 0)}
-        />
-        <StatCard
-          label={t("salariesPayroll.stats.totalRevenue")}
-          value={formatAmount(data?.quickStats.totalRevenueAmount ?? 0)}
-        />
-      </div>
+      {!data?.needsApproval && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
+          <StatCard
+            label={t("salariesPayroll.stats.activeEmployees")}
+            value={data?.quickStats.activeEmployeesCount.toLocaleString() ?? "0"}
+          />
+          <StatCard
+            label={t("salariesPayroll.stats.totalLoans")}
+            value={formatAmount(data?.quickStats.totalLoansAmount ?? 0)}
+          />
+          <StatCard
+            label={t("salariesPayroll.stats.totalDeductions")}
+            value={formatAmount(data?.quickStats.totalDeductionsAmount ?? 0)}
+          />
+          <StatCard
+            label={t("salariesPayroll.stats.totalSalariesDue")}
+            value={formatAmount(data?.quickStats.totalSalariesDueAmount ?? 0)}
+          />
+          <StatCard
+            label={t("salariesPayroll.stats.totalRevenue")}
+            value={formatAmount(data?.quickStats.totalRevenueAmount ?? 0)}
+          />
+        </div>
+      )}
 
-      {/* Controls Row */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Controls Row + table + pagination (hidden until payroll approved for month) */}
+      {!data?.needsApproval && (
+        <>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <label className="text-sm text-primary/60">{t("salariesPayroll.month")}:</label>
@@ -299,6 +332,8 @@ export function SalariesPayrollPageClient({ locale, initialMonth }: SalariesPayr
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* View Modal */}

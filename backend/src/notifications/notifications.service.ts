@@ -4,6 +4,9 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
+/** Company reminder: approve payroll settings before month end (deduped). */
+export const PAYROLL_MONTH_APPROVAL_DEADLINE_SOON = 'PAYROLL_MONTH_APPROVAL_DEADLINE_SOON';
+
 export type NotificationItem = {
   id: string;
   company_id: string;
@@ -221,5 +224,49 @@ export class NotificationsService {
     });
     const page = Math.ceil(countNewerOrSame / page_size) || 1;
     return { page };
+  }
+
+  /**
+   * Create or refresh payroll month-end approval reminder (deduped per company/month within 24h).
+   */
+  async ensurePayrollMonthApprovalReminder(params: {
+    company_id: string;
+    year: number;
+    month: number;
+    days_remaining: number;
+  }): Promise<void> {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        company_id: params.company_id,
+        type_code: PAYROLL_MONTH_APPROVAL_DEADLINE_SOON,
+        created_at: { gte: since },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+    const payload = {
+      payroll_year: params.year,
+      payroll_month: params.month,
+      days_remaining: params.days_remaining,
+    };
+    if (existing?.payload && typeof existing.payload === 'object') {
+      const p = existing.payload as {
+        payroll_year?: number;
+        payroll_month?: number;
+      };
+      if (
+        p.payroll_year === params.year &&
+        p.payroll_month === params.month
+      ) {
+        await this.updatePayload(existing.id, params.company_id, payload);
+        return;
+      }
+    }
+    await this.create({
+      company_id: params.company_id,
+      type_code: PAYROLL_MONTH_APPROVAL_DEADLINE_SOON,
+      severity: 'WARNING',
+      payload,
+    });
   }
 }
