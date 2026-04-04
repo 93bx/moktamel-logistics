@@ -75,6 +75,23 @@ async function validateSchema() {
         table: 'CompanyMembership',
         columns: ['user_id', 'company_id'],
       },
+      {
+        table: 'PayrollConfig',
+        columns: [
+          'tip_recipient',
+          'count_bonus_enabled',
+          'count_bonus_amount',
+          'revenue_bonus_enabled',
+          'revenue_bonus_amount',
+          'orders_deduction_tiers',
+          'revenue_deduction_tiers',
+          'revenue_unit_amount',
+        ],
+      },
+      {
+        table: 'PayrollRun',
+        columns: ['config_snapshot'],
+      },
     ];
 
     for (const check of criticalChecks) {
@@ -113,6 +130,8 @@ async function validateSchema() {
     await prisma.recruitmentCandidate.findFirst({ take: 1 });
     await prisma.cashTransaction.findFirst({ take: 1 });
     await prisma.companyMembership.findFirst({ take: 1 });
+    await prisma.payrollConfig.findFirst({ take: 1 });
+    await prisma.payrollRun.findFirst({ take: 1 });
 
     console.log('✅ All Prisma queries successful');
 
