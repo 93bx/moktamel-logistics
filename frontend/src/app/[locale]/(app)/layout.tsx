@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import Image from "next/image";
 import { cookies } from "next/headers";
 import { getTranslations } from "next-intl/server";
+import { AppSidebar } from "@/components/AppSidebar";
 import { Header } from "@/components/Header";
-import { SideNav } from "@/components/SideNav";
 import { isTokenOlderThanHours } from "@/lib/jwt";
 
 export default async function AppLayout({
@@ -44,25 +43,9 @@ export default async function AppLayout({
   return (
     <div className="min-h-screen bg-white text-primary dark:bg-black dark:text-primary">
       <div className="flex">
-        <aside className="sticky top-0 self-start hidden h-screen w-64 flex-col overflow-y-auto border-r border-primary-700 bg-primary p-4 dark:border-primary-800 dark:bg-primary-900 md:flex">
-          <div className="flex flex-1 flex-col min-h-0">
-            <div className="flex-shrink-0 pb-3 text-lg font-semibold text-white truncate" title={companyName ?? t("app.title")}>
-              {companyName ?? t("app.title")}
-            </div>
-            <SideNav />
-          </div>
-          <div className="mt-auto flex-shrink-0 pt-4 flex justify-center">
-            {/* <Image
-              src="/logo.png"
-              alt="Moktamel Logistics"
-              width={200}
-              height={64}
-              className="max-w-full h-auto object-contain"
-            /> */}
-          </div>
-        </aside>
+        <AppSidebar companyName={companyName} appTitle={t("app.title")} />
 
-        <div className="flex min-h-screen flex-1 flex-col">
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <Header />
           <main className="p-4 bg-zinc-50 dark:bg-zinc-900">{children}</main>
         </div>

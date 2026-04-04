@@ -43,3 +43,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ slug?: string
   const { slug = [] } = await ctx.params;
   return forward(req, slug);
 }
+
+export async function POST(req: Request, ctx: { params: Promise<{ slug?: string[] }> }) {
+  const { slug = [] } = await ctx.params;
+  return forward(req, slug);
+}

@@ -11,11 +11,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 BACKEND_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 cd "$BACKEND_DIR"
 
-# 1. Pull latest code (if in git repository)
-if [ -d ".git" ]; then
-  echo "📥 Pulling latest changes..."
-  git pull origin master || git pull origin main || echo "⚠️  Could not pull (not a git repo or no remote)"
-fi
 
 # 2. Install dependencies
 echo "📦 Installing dependencies..."

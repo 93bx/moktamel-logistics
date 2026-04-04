@@ -1,10 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  Banknote,
+  Bell,
+  Briefcase,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  FileText,
+  LayoutDashboard,
+  Package,
+  Receipt,
+  Settings2,
+  Truck,
+  UserPlus,
+  UsersRound,
+  Wallet,
+} from "lucide-react";
 import { locales } from "@/i18n/routing";
 
 /** Strip locale prefix so path works with localePrefix "as-needed" (e.g. /ar/dashboard -> /dashboard). */
@@ -17,12 +34,17 @@ function pathWithoutLocale(path: string): string {
   return path || "/";
 }
 
-export function SideNav() {
+type NavItem = { href: string; label: string; Icon: LucideIcon };
+
+type SideNavProps = {
+  /** When false (mobile rail), only icons show until the user expands labels. */
+  showLabels?: boolean;
+};
+
+export function SideNav({ showLabels = true }: SideNavProps) {
   const pathname = usePathname();
   const locale = useLocale();
   const t = useTranslations();
-  const [isHROpen, setIsHROpen] = useState(true);
-  const [isFinanceOpen, setIsFinanceOpen] = useState(true);
 
   const currentPath = pathWithoutLocale(pathname);
   const isActive = (href: string) => {
@@ -30,83 +52,99 @@ export function SideNav() {
     return currentPath === hrefPath || currentPath.startsWith(hrefPath + "/");
   };
 
-  const financeItems = [
-    { href: `/${locale}/cash-loans`, label: t("nav.cashLoans") },
-    { href: `/${locale}/payroll-config`, label: t("nav.payrollConfig") },
-    { href: `/${locale}/salaries-payroll`, label: t("nav.salariesPayroll") },
+  const financeItems: NavItem[] = [
+    { href: `/${locale}/cash-loans`, label: t("nav.cashLoans"), Icon: Banknote },
+    { href: `/${locale}/payroll-config`, label: t("nav.payrollConfig"), Icon: Settings2 },
+    { href: `/${locale}/salaries-payroll`, label: t("nav.salariesPayroll"), Icon: Receipt },
   ];
 
   const isFinanceGroupActive = financeItems.some((item) => isActive(item.href));
 
-  const hrItems = [
-    { href: `/${locale}/recruitment`, label: t("nav.recruitment") },
-    { href: `/${locale}/employment`, label: t("nav.employment") },
-    { href: `/${locale}/documents`, label: t("nav.documents") },
-    { href: `/${locale}/assets`, label: t("nav.assets") },
-    { href: `/${locale}/fleet`, label: t("nav.fleetManagement") },
+  const hrItems: NavItem[] = [
+    { href: `/${locale}/recruitment`, label: t("nav.recruitment"), Icon: UserPlus },
+    { href: `/${locale}/employment`, label: t("nav.employment"), Icon: Briefcase },
+    { href: `/${locale}/documents`, label: t("nav.documents"), Icon: FileText },
+    { href: `/${locale}/assets`, label: t("nav.assets"), Icon: Package },
+    { href: `/${locale}/fleet`, label: t("nav.fleetManagement"), Icon: Truck },
   ];
 
   const isHRGroupActive = hrItems.some((item) => isActive(item.href));
 
+  const [isFinanceOpen, setIsFinanceOpen] = useState(isFinanceGroupActive);
+  const [isHROpen, setIsHROpen] = useState(isHRGroupActive);
+
+  useEffect(() => {
+    setIsFinanceOpen(isFinanceGroupActive);
+  }, [isFinanceGroupActive]);
+
+  useEffect(() => {
+    setIsHROpen(isHRGroupActive);
+  }, [isHRGroupActive]);
+
+  const linkRow = showLabels
+    ? "gap-3 px-3"
+    : "justify-center px-2 md:justify-start md:gap-3 md:px-3";
+  const groupRow = showLabels
+    ? "justify-between gap-3 px-3"
+    : "justify-center px-2 md:justify-between md:gap-3 md:px-3";
+  const labelCls = showLabels ? "" : "sr-only md:not-sr-only";
+  const chevronCls = showLabels ? "h-4 w-4 shrink-0" : "sr-only md:not-sr-only md:h-4 md:w-4 md:shrink-0";
+  const groupMainCls = showLabels ? "flex min-w-0 flex-1 items-center gap-3" : "flex items-center gap-3 md:min-w-0 md:flex-1";
+
+  const activeRow = (active: boolean) =>
+    active
+      ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
+      : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800";
+
+  const nestedWrap = showLabels ? "ml-4 mt-1 space-y-1" : "mt-1 space-y-1 max-md:ml-0 md:ml-4";
+
   return (
     <nav className="mt-5 space-y-1">
-      {/* Dashboard */}
       <Link
         href={`/${locale}/dashboard`}
-        className={`block rounded-md px-3 py-2 text-base transition-colors ${
-          isActive(`/${locale}/dashboard`)
-            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-        }`}
+        className={`flex items-center rounded-md py-2 text-base transition-colors ${linkRow} ${activeRow(isActive(`/${locale}/dashboard`))}`}
       >
-        {t("nav.dashboard")}
+        <LayoutDashboard className="h-5 w-5 shrink-0" aria-hidden />
+        <span className={`min-w-0 truncate ${labelCls}`}>{t("nav.dashboard")}</span>
       </Link>
 
       <div className="border-t border-primary-600 dark:border-primary-700" />
 
-      {/* Daily Operations */}
       <Link
         href={`/${locale}/daily-operations`}
-        className={`block rounded-md px-3 py-2 text-base transition-colors ${
-          isActive(`/${locale}/daily-operations`)
-            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-        }`}
+        className={`flex items-center rounded-md py-2 text-base transition-colors ${linkRow} ${activeRow(isActive(`/${locale}/daily-operations`))}`}
       >
-        {t("nav.dailyOperations")}
+        <ClipboardList className="h-5 w-5 shrink-0" aria-hidden />
+        <span className={`min-w-0 truncate ${labelCls}`}>{t("nav.dailyOperations")}</span>
       </Link>
 
-      {/* Finance Group */}
       <div>
         <button
+          type="button"
           onClick={() => setIsFinanceOpen(!isFinanceOpen)}
-          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-base transition-colors ${
-            isFinanceGroupActive
-              ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-              : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-          }`}
+          className={`flex w-full items-center rounded-md py-2 text-base transition-colors ${groupRow} ${activeRow(isFinanceGroupActive)}`}
         >
-          <span>{t("nav.finance")}</span>
+          <span className={groupMainCls}>
+            <Wallet className="h-5 w-5 shrink-0" aria-hidden />
+            <span className={`min-w-0 truncate ${labelCls}`}>{t("nav.finance")}</span>
+          </span>
           {isFinanceOpen ? (
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className={chevronCls} aria-hidden />
           ) : (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className={chevronCls} aria-hidden />
           )}
         </button>
 
         {isFinanceOpen && (
-          <div className="ml-4 mt-1 space-y-1">
-            {financeItems.map((item) => (
+          <div className={nestedWrap}>
+            {financeItems.map(({ href, label, Icon }) => (
               <Link
-                key={item.href}
-                href={item.href}
-                className={`block rounded-md px-3 py-2 text-base transition-colors ${
-                  isActive(item.href)
-                    ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-                    : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-                }`}
+                key={href}
+                href={href}
+                className={`flex items-center rounded-md py-2 text-base transition-colors ${linkRow} ${activeRow(isActive(href))}`}
               >
-                {item.label}
+                <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span className={`min-w-0 truncate ${labelCls}`}>{label}</span>
               </Link>
             ))}
           </div>
@@ -115,37 +153,33 @@ export function SideNav() {
 
       <div className="border-t border-primary-600 dark:border-primary-700" />
 
-      {/* Human Resources Group */}
       <div>
         <button
+          type="button"
           onClick={() => setIsHROpen(!isHROpen)}
-          className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-base transition-colors ${
-            isHRGroupActive
-              ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-              : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-          }`}
+          className={`flex w-full items-center rounded-md py-2 text-base transition-colors ${groupRow} ${activeRow(isHRGroupActive)}`}
         >
-          <span>{t("nav.humanResources")}</span>
+          <span className={groupMainCls}>
+            <UsersRound className="h-5 w-5 shrink-0" aria-hidden />
+            <span className={`min-w-0 truncate ${labelCls}`}>{t("nav.humanResources")}</span>
+          </span>
           {isHROpen ? (
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className={chevronCls} aria-hidden />
           ) : (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className={chevronCls} aria-hidden />
           )}
         </button>
 
         {isHROpen && (
-          <div className="ml-4 mt-1 space-y-1">
-            {hrItems.map((item) => (
+          <div className={nestedWrap}>
+            {hrItems.map(({ href, label, Icon }) => (
               <Link
-                key={item.href}
-                href={item.href}
-                className={`block rounded-md px-3 py-2 text-base transition-colors ${
-                  isActive(item.href)
-                    ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-                    : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-                }`}
+                key={href}
+                href={href}
+                className={`flex items-center rounded-md py-2 text-base transition-colors ${linkRow} ${activeRow(isActive(href))}`}
               >
-                {item.label}
+                <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span className={`min-w-0 truncate ${labelCls}`}>{label}</span>
               </Link>
             ))}
           </div>
@@ -154,19 +188,13 @@ export function SideNav() {
 
       <div className="border-t border-primary-600 dark:border-primary-700" />
 
-      {/* Notifications */}
       <Link
         href={`/${locale}/notifications`}
-        className={`block rounded-md px-3 py-2 text-base transition-colors ${
-          isActive(`/${locale}/notifications`)
-            ? "bg-white text-[#244473] dark:bg-black dark:text-[#244473]"
-            : "text-primary-50 hover:bg-primary-600 dark:text-primary-100 dark:hover:bg-primary-800"
-        }`}
+        className={`flex items-center rounded-md py-2 text-base transition-colors ${linkRow} ${activeRow(isActive(`/${locale}/notifications`))}`}
       >
-        {t("nav.notifications")}
+        <Bell className="h-5 w-5 shrink-0" aria-hidden />
+        <span className={`min-w-0 truncate ${labelCls}`}>{t("nav.notifications")}</span>
       </Link>
-
     </nav>
   );
 }
-
