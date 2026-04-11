@@ -6,6 +6,7 @@ import {
   Post,
   Query,
   Req,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -36,6 +37,23 @@ export class SalariesPayrollController {
       query,
       req.user.sub,
     );
+  }
+
+  @Get('export')
+  @Permissions('PAYROLL_VIEW')
+  async exportExcel(
+    @Req() req: Request & { user?: any },
+    @Query() query: ListSalariesQueryDto,
+  ) {
+    const { buffer, filename } =
+      await this.salariesPayrollService.exportPayrollExcel(
+        req.user.company_id,
+        query,
+      );
+    return new StreamableFile(buffer, {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   @Get(':id')

@@ -47,7 +47,7 @@ export default async function AppLayout({
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <Header />
-          <main className="p-4 bg-zinc-50 dark:bg-zinc-900">{children}</main>
+          <main className="p-1 bg-zinc-50 dark:bg-zinc-900">{children}</main>
         </div>
       </div>
     </div>

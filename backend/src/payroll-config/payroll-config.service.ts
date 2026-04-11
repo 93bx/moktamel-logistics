@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SalariesPayrollService } from '../salaries-payroll/salaries-payroll.service';
 import {
   NotificationsService,
   PAYROLL_MONTH_APPROVAL_DEADLINE_SOON,
@@ -41,6 +42,7 @@ export class PayrollConfigService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly salariesPayroll: SalariesPayrollService,
   ) {}
 
   /**
@@ -418,50 +420,15 @@ export class PayrollConfigService {
         where: { company_id, payroll_run_id: run.id },
       });
 
-      // Generate employees (simplified - full logic in salaries-payroll service)
-      // For now, just create placeholder rows; actual calculation happens in salaries service
-      const employments = await tx.employmentRecord.findMany({
-        where: {
+      const employeeCount =
+        await this.salariesPayroll.regenerateRunEmployeesInTransaction(tx, {
           company_id,
-          deleted_at: null,
-          status_code: 'EMPLOYMENT_STATUS_ACTIVE',
-        },
-        include: { recruitment_candidate: true },
-      });
-
-      for (const emp of employments) {
-        await tx.payrollRunEmployee.create({
-          data: {
-            company_id,
-            payroll_run_id: run.id,
-            employee_id: emp.id,
-            employee_code: emp.employee_code || '',
-            employee_name_ar: emp.full_name_ar || emp.recruitment_candidate?.full_name_ar || '',
-            employee_name_en: emp.full_name_en || emp.recruitment_candidate?.full_name_en || '',
-            employee_avatar_url: emp.avatar_file_id,
-            status: 'NOT_PAID',
-            base_salary: emp.salary_amount || 0,
-            monthly_target:
-              emp.target_type === 'TARGET_TYPE_ORDERS'
-                ? emp.monthly_orders_target || 0
-                : Number(emp.monthly_target_amount || 0),
-            orders_count: 0,
-            working_days: 0,
-            target_difference: 0,
-            deduction_method: emp.target_deduction_type || 'DEDUCTION_FIXED',
-            total_deductions: 0,
-            scheduled_loan_installments: 0,
-            total_outstanding_loans: 0,
-            total_unreceived_cash: 0,
-            total_bonus: 0,
-            salary_after_deductions: emp.salary_amount || 0,
-            total_revenue: 0,
-            average_cost: 0,
-            calculation_details: {},
-            created_by_user_id: user_id,
-          },
+          payroll_run_id: run.id,
+          monthStart: start,
+          monthEnd: end,
+          actor_user_id: user_id,
+          configSnapshot: snapshot as Record<string, unknown>,
         });
-      }
 
       // Audit log (using AuditService - need to inject it)
       // For now, log directly to audit table
@@ -476,7 +443,7 @@ export class PayrollConfigService {
             year,
             month,
             snapshot,
-            employeeCount: employments.length,
+            employeeCount,
           },
           ip,
           user_agent: userAgent,
@@ -494,7 +461,7 @@ export class PayrollConfigService {
         success: true,
         runId: run.id,
         month: start.toISOString(),
-        employeeCount: employments.length,
+        employeeCount,
       };
     });
   }

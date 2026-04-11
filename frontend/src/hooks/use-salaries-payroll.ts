@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ListSalariesResponse, SalariesPayrollRow, CreateSalaryReceiptInput } from '@/lib/types/salaries-payroll';
+import { ListSalariesResponse, SalariesPayrollRow, CreateSalaryReceiptInput, PayrollSortKey } from '@/lib/types/salaries-payroll';
 
 export function useSalariesPayroll(options: {
   month: string;
@@ -7,6 +7,7 @@ export function useSalariesPayroll(options: {
   search?: string;
   page?: number;
   pageSize?: number;
+  sort?: PayrollSortKey;
 }) {
   const [data, setData] = useState<ListSalariesResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +24,7 @@ export function useSalariesPayroll(options: {
       });
       if (options.status && options.status !== 'ALL') params.append('status', options.status);
       if (options.search) params.append('search', options.search);
+      if (options.sort && options.sort !== 'default') params.append('sort', options.sort);
 
       const res = await fetch(`/api/salaries-payroll?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch salaries payroll');
@@ -33,7 +35,7 @@ export function useSalariesPayroll(options: {
     } finally {
       setLoading(false);
     }
-  }, [options.month, options.status, options.search, options.page, options.pageSize]);
+  }, [options.month, options.status, options.search, options.page, options.pageSize, options.sort]);
 
   useEffect(() => {
     fetchData();
@@ -42,8 +44,14 @@ export function useSalariesPayroll(options: {
   return { data, loading, error, refresh: fetchData };
 }
 
+export type SalariesPayrollDetailRow = SalariesPayrollRow & {
+  employee?: SalariesPayrollRow['employee'];
+  payroll_run?: { month: string };
+  receipt?: unknown;
+};
+
 export function useSalariesPayrollDetail(id: string | null) {
-  const [data, setData] = useState<SalariesPayrollRow | null>(null);
+  const [data, setData] = useState<SalariesPayrollDetailRow | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -6,6 +6,7 @@ export interface SalariesPayrollQuickStats {
   totalDeductionsAmount: number;
   totalSalariesDueAmount: number;
   totalRevenueAmount: number;
+  totalUncollectedCashAmount: number;
 }
 
 export interface SalariesPayrollRow {
@@ -32,9 +33,20 @@ export interface SalariesPayrollRow {
   salary_after_deductions: number;
   total_revenue: number;
   average_cost: number;
+  operations_deductions_total?: number;
+  carryover_adjustment_sar?: number;
   calculation_details: any;
   created_at: string;
   updated_at: string;
+  employee?: {
+    assigned_platform: string | null;
+    platform_user_no: string | null;
+    target_type: string | null;
+    target_deduction_type: string | null;
+    monthly_orders_target: number | null;
+    monthly_target_amount: string | number | null;
+    salary_amount?: string | number | null;
+  };
 }
 
 export interface ListSalariesResponse {
@@ -49,10 +61,25 @@ export interface ListSalariesResponse {
   };
 }
 
+export type SalaryReceiptDifferenceProcessing =
+  | 'DEFERRAL_TO_NEXT_MONTH'
+  | 'ADMIN_EXEMPTION'
+  | 'MANUAL';
+
 export interface CreateSalaryReceiptInput {
   amount: number;
   paymentMethod: 'BANK_TRANSFER' | 'CASH' | 'OTHER';
   paymentDate: string;
   attachmentUrl?: string;
+  differenceProcessing?: SalaryReceiptDifferenceProcessing;
+  differenceManualDetail?: string;
+  notes?: string;
 }
+
+export type PayrollSortKey =
+  | 'default'
+  | 'revenue'
+  | 'salary_due'
+  | 'deductions'
+  | 'loans';
 

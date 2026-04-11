@@ -63,3 +63,35 @@ html[lang="ar"],
 html[lang="ar"] * {
   font-family: 'Droid Arabic Kufi', 'Segoe UI', Tahoma, Arial, sans-serif !important;
 }
+
+/* Payroll view modal: print only the enterprise statement (see SalariesPayrollPageClient) */
+@media print {
+  @page {
+    margin: 14mm 12mm;
+    size: A4;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #payroll-print-document,
+  #payroll-print-document * {
+    visibility: visible;
+  }
+
+  /* Static flow so the full statement prints (not clipped by modal overflow / absolute box). */
+  #payroll-print-document {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    background: #fff !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

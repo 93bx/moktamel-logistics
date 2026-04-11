@@ -19,6 +19,8 @@ interface FileUploadProps {
   wrapperClassName?: string;
   /** Optional unique suffix for the file input id (use when multiple FileUpload instances share the same purpose_code, e.g. in a table). */
   instanceId?: string;
+  /** Reject files larger than this many bytes before requesting an upload URL. */
+  maxSizeBytes?: number;
 }
 
 export function FileUpload({
@@ -32,6 +34,7 @@ export function FileUpload({
   icon,
   wrapperClassName,
   instanceId,
+  maxSizeBytes,
 }: FileUploadProps) {
   const t = useTranslations();
   const [uploading, setUploading] = useState(false);
@@ -42,6 +45,15 @@ export function FileUpload({
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    if (maxSizeBytes != null && file.size > maxSizeBytes) {
+      setError(
+        t("common.fileTooLarge", {
+          maxMb: String(Math.round((maxSizeBytes / (1024 * 1024)) * 10) / 10),
+        }),
+      );
+      return;
+    }
 
     setError(null);
     setUploading(true);

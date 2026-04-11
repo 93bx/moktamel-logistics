@@ -35,6 +35,7 @@ model Company {
   payroll_config       PayrollConfig?
   costs                Cost[]
   payroll_runs         PayrollRun[]
+  payroll_carryover_items PayrollCarryoverItem[]
   employment_documents EmploymentDocument[]
 
   @@index([slug])
@@ -435,6 +436,7 @@ model EmploymentRecord {
   vehicle_assignments      VehicleAssignment[]   @relation("VehicleAssignments")
   cash_transactions        CashTransaction[]
   payroll_run_employees    PayrollRunEmployee[]
+  payroll_carryover_items  PayrollCarryoverItem[]
   extra_documents          EmploymentDocument[]
 
   @@index([company_id, created_at])
@@ -957,6 +959,11 @@ model PayrollRunEmployee {
   total_revenue Decimal @default(0) @db.Decimal(14, 2)
   average_cost  Decimal @default(0) @db.Decimal(14, 2)
 
+  /// Sum of DailyOperation.deduction_amount for the month (not tier performance deduction).
+  operations_deductions_total Decimal @default(0) @db.Decimal(12, 2)
+  /// Net adjustment from PayrollCarryoverItem rows applied to this month (signed).
+  carryover_adjustment_sar      Decimal @default(0) @db.Decimal(12, 2)
+
   calculation_details Json? // breakdown of deductions/bonuses/inputs
 
   created_at         DateTime @default(now())
@@ -967,6 +974,7 @@ model PayrollRunEmployee {
   employee    EmploymentRecord  @relation(fields: [employee_id], references: [id], onDelete: Cascade)
   receipt     SalaryReceipt?
   documents   PayrollDocument[]
+  applied_carryover_items PayrollCarryoverItem[] @relation("CarryoverAppliedToPayrollRow")
 
   @@index([company_id, payroll_run_id])
   @@index([company_id, status])
@@ -982,15 +990,43 @@ model SalaryReceipt {
   payment_method          PaymentMethod
   payment_date            DateTime
   attachment_url          String?
+  difference_processing   SalaryReceiptDifferenceProcessing?
+  difference_manual_detail String?      @db.Text
+  notes                   String?       @db.Text
   created_at              DateTime      @default(now())
   created_by_user_id      String?       @db.Uuid
   ip_address              String?
   user_agent              String?
 
   payroll_run_employee PayrollRunEmployee @relation(fields: [payroll_run_employee_id], references: [id], onDelete: Cascade)
+  carryover_item       PayrollCarryoverItem?
 
   @@unique([company_id, payroll_run_employee_id])
   @@index([company_id, receipt_number])
+}
+
+/// Pending or applied payroll adjustment (e.g. salary difference deferred to the next month).
+model PayrollCarryoverItem {
+  id                           String                 @id @default(uuid()) @db.Uuid
+  company_id                   String                 @db.Uuid
+  employment_record_id         String                 @db.Uuid
+  /// Canonical month key (first instant of month in KSA, same as PayrollRun.month).
+  target_month                 DateTime
+  /// Applied to net pay for target month: positive = employee receives more, negative = recovery.
+  adjustment_sar               Decimal                @db.Decimal(12, 2)
+  status                       PayrollCarryoverStatus @default(PENDING)
+  source_salary_receipt_id     String?                @unique @db.Uuid
+  applied_payroll_run_employee_id String?             @db.Uuid
+  label_code                   String                 @default("CARRYOVER_FROM_PREVIOUS_MONTH")
+  created_at                   DateTime               @default(now())
+
+  company                Company              @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  employment_record      EmploymentRecord     @relation(fields: [employment_record_id], references: [id], onDelete: Cascade)
+  source_salary_receipt  SalaryReceipt?       @relation(fields: [source_salary_receipt_id], references: [id], onDelete: SetNull)
+  applied_to_row         PayrollRunEmployee?  @relation("CarryoverAppliedToPayrollRow", fields: [applied_payroll_run_employee_id], references: [id], onDelete: SetNull)
+
+  @@index([company_id, target_month, employment_record_id])
+  @@index([company_id, status])
 }
 
 model PayrollDocument {
@@ -1047,4 +1083,15 @@ enum PayrollDocumentType {
 enum DocumentSequenceType {
   SALARY_RECEIPT
   PAYROLL_DOC
+}
+
+enum SalaryReceiptDifferenceProcessing {
+  DEFERRAL_TO_NEXT_MONTH
+  ADMIN_EXEMPTION
+  MANUAL
+}
+
+enum PayrollCarryoverStatus {
+  PENDING
+  APPLIED
 }
