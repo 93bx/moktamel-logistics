@@ -967,7 +967,7 @@ function PerformanceDeductionBreakdown({
                 </div>
               );
             }
-            if (type === "REVENUE_FLAT_BANDS") {
+            if (type === "REVENUE_PROGRESSIVE_UNITS") {
               const inputs = calcDetails?.inputs as Record<string, unknown> | undefined;
               const achievedRev =
                 inputs != null ? formatAmount(num(inputs.totalRevenue ?? inputs.total_revenue)) : "—";
@@ -994,8 +994,12 @@ function PerformanceDeductionBreakdown({
                         {String((row.tier as Record<string, unknown>)?.from ?? "")} —{" "}
                         {t("salariesPayroll.breakdownTierTo")}{" "}
                         {String((row.tier as Record<string, unknown>)?.to ?? "")}:{" "}
-                        {t("salariesPayroll.breakdownApplicable")} {formatAmount(num(row.consumedDeficitSar))},{" "}
-                        {t("salariesPayroll.breakdownFlat")} {formatAmount(num(row.tierDeduction))}
+                        {t("salariesPayroll.breakdownApplicable")}{" "}
+                        {formatAmount(num(row.applicableAmount))},{" "}
+                        {t("salariesPayroll.breakdownUnits")} {formatAmount(num(row.units))},{" "}
+                        {t("salariesPayroll.breakdownDeductionPerUnit")}{" "}
+                        {formatAmount(num((row.tier as Record<string, unknown>)?.deductionPerUnit))}:{" "}
+                        {formatAmount(num(row.tierDeduction))}
                       </li>
                     ))}
                   </ul>

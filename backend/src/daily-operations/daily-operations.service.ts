@@ -17,6 +17,7 @@ type CreateInput = {
   cash_collected?: number;
   cash_received?: number;
   tips?: number;
+  work_hours?: number | null;
   deduction_amount?: number;
   deduction_reason?: string | null;
   submit_action: SubmitAction;
@@ -148,6 +149,8 @@ export class DailyOperationsService {
       cash_collected: Number(input.cash_collected ?? 0),
       cash_received: Number(input.cash_received ?? 0),
       tips: Number(input.tips ?? 0),
+      work_hours:
+        input.work_hours == null ? null : Math.max(0, Number(input.work_hours)),
       deduction_amount: Number(input.deduction_amount ?? 0),
     };
   }
@@ -351,6 +354,7 @@ export class DailyOperationsService {
           cash_received: true,
           difference_amount: true,
           tips: true,
+          work_hours: true,
           deduction_amount: true,
           deduction_reason: true,
           is_draft: true,
@@ -441,6 +445,7 @@ export class DailyOperationsService {
           orders_count: true,
           total_revenue: true,
           cash_collected: true,
+          work_hours: true,
           tips: true,
           deduction_amount: true,
           status_code: true,
@@ -456,6 +461,7 @@ export class DailyOperationsService {
         cash_collected: number;
         tips: number;
         deduction_amount: number;
+        work_hours: number;
         platforms: Set<OperatingPlatform>;
         statuses: string[];
         records_count: number;
@@ -472,6 +478,7 @@ export class DailyOperationsService {
           total_revenue: Number(r.total_revenue),
           cash_collected: Number(r.cash_collected),
           tips: Number(r.tips),
+          work_hours: Number(r.work_hours ?? 0),
           deduction_amount: Number(r.deduction_amount),
           platforms: new Set([r.platform]),
           statuses: [r.status_code],
@@ -482,6 +489,7 @@ export class DailyOperationsService {
         agg.total_revenue += Number(r.total_revenue);
         agg.cash_collected += Number(r.cash_collected);
         agg.tips += Number(r.tips);
+        agg.work_hours += Number(r.work_hours ?? 0);
         agg.deduction_amount += Number(r.deduction_amount);
         agg.platforms.add(r.platform);
         agg.statuses.push(r.status_code);
@@ -509,6 +517,7 @@ export class DailyOperationsService {
             total_revenue: 0,
             cash_collected: 0,
             tips: 0,
+            work_hours: 0,
             deduction_amount: 0,
             platform: 'NONE' as const,
             status_code: 'NONE' as const,
@@ -522,6 +531,7 @@ export class DailyOperationsService {
           total_revenue: agg.total_revenue,
           cash_collected: agg.cash_collected,
           tips: agg.tips,
+          work_hours: agg.work_hours,
           deduction_amount: agg.deduction_amount,
           platform:
             agg.platforms.size > 1 ? ('MULTIPLE' as const) : Array.from(agg.platforms)[0],
@@ -829,6 +839,7 @@ export class DailyOperationsService {
         cash_received: normalized.cash_received,
         difference_amount,
         tips: normalized.tips,
+        work_hours: normalized.work_hours,
         deduction_amount: normalized.deduction_amount,
         deduction_reason:
           normalized.deduction_amount > 0
@@ -917,6 +928,7 @@ export class DailyOperationsService {
         cash_received: normalized.cash_received,
         difference_amount,
         tips: normalized.tips,
+        work_hours: normalized.work_hours,
         deduction_amount: normalized.deduction_amount,
         deduction_reason:
           normalized.deduction_amount > 0
@@ -1010,6 +1022,7 @@ export class DailyOperationsService {
       cash_collected: number;
       cash_received: number;
       tips: number;
+      work_hours?: number | null;
       deduction_amount: number;
       deduction_reason?: string | null;
     },
@@ -1059,6 +1072,7 @@ export class DailyOperationsService {
         cash_collected: normalized.cash_collected,
         cash_received: normalized.cash_received,
         tips: normalized.tips,
+        work_hours: normalized.work_hours,
         deduction_amount: normalized.deduction_amount,
         deduction_reason:
           normalized.deduction_amount > 0

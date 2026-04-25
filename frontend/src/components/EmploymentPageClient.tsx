@@ -128,6 +128,8 @@ function employmentViewRecordToListItem(r: EmploymentRecordForView): EmploymentL
     target_deduction_type: r.target_deduction_type,
     monthly_orders_target: r.monthly_orders_target,
     monthly_target_amount: r.monthly_target_amount,
+    day_work_hours: r.day_work_hours,
+    work_days: r.work_days,
     cost_center_code: null,
     assigned_platform: r.assigned_platform,
     platform_user_no: r.platform_user_no,

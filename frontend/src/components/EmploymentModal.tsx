@@ -76,6 +76,8 @@ type Employment = {
   target_deduction_type: "DEDUCTION_FIXED" | "DEDUCTION_ORDERS_TIERS" | "DEDUCTION_REVENUE_TIERS" | null;
   monthly_orders_target: number | null;
   monthly_target_amount: string | null;
+  day_work_hours: string | null;
+  work_days: string[];
   notes?: string | null;
   assets?: Array<{ id: string; asset: { type: string; name: string } }>;
   extra_documents?: Array<{ id: string; document_name: string; expiry_at: string | null; file_id: string | null }>;
@@ -114,6 +116,8 @@ const INITIAL_RECORD: Employment = {
   target_deduction_type: null,
   monthly_orders_target: null,
   monthly_target_amount: null,
+  day_work_hours: "8",
+  work_days: ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY"],
 };
 
 const INPUT_BASE = "mt-1 w-full rounded-md px-3 py-2 text-sm text-primary placeholder:text-primary/50";
@@ -204,7 +208,16 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
       fetch(`/api/employment/${employmentId}`)
         .then((res) => res.json())
         .then((data) => {
-          const rec = { ...data, phone: phoneToNineDigits(data.phone) };
+          const rec = {
+            ...data,
+            phone: phoneToNineDigits(data.phone),
+            day_work_hours:
+              data.day_work_hours == null ? "8" : String(data.day_work_hours),
+            work_days:
+              Array.isArray(data.work_days) && data.work_days.length > 0
+                ? data.work_days
+                : ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY"],
+          };
           setRecord(rec);
           setExtraDocuments(
             (data.extra_documents ?? []).map((d: { id: string; document_name: string; expiry_at: string | null; file_id: string | null }) => ({
@@ -350,6 +363,11 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
       monthly_target_amount: record.target_type === "TARGET_TYPE_REVENUE"
         ? (record.monthly_target_amount ? Number(record.monthly_target_amount) : null)
         : null,
+      day_work_hours: record.day_work_hours ? Number(record.day_work_hours) : 8,
+      work_days:
+        Array.isArray(record.work_days) && record.work_days.length > 0
+          ? record.work_days
+          : ["SATURDAY", "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY"],
       extra_documents: extraDocuments.slice(0, 2).map((d) => ({
         document_name: d.document_name,
         expiry_at: d.expiry_at || null,
@@ -942,6 +960,55 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
               onChange={(e) => setRecord({ ...record, platform_user_no: e.target.value })}
               className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
             />
+          </div>
+        </div>
+
+        {/* R1.5: Work schedule */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-sm font-medium text-primary">{t("employment.dayWorkHours")}</label>
+            <input
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              value={record.day_work_hours ?? "8"}
+              onChange={(e) => {
+                const s = sanitizeDecimalDigits(e.target.value);
+                setRecord({ ...record, day_work_hours: s === "" ? null : s });
+              }}
+              className="mt-1 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-primary">{t("employment.workDays")}</label>
+            <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+              {[
+                "SATURDAY",
+                "SUNDAY",
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+              ].map((day) => {
+                const selected = record.work_days.includes(day);
+                return (
+                  <label key={day} className="flex items-center gap-2 text-sm text-primary">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...record.work_days, day]
+                          : record.work_days.filter((d) => d !== day);
+                        setRecord({ ...record, work_days: next });
+                      }}
+                    />
+                    <span>{t(`employment.weekday.${day}` as any)}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
         </div>
 

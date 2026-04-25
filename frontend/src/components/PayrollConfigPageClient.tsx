@@ -22,13 +22,29 @@ import {
   Pencil,
   Check,
   X,
+  Plus,
+  Trash2,
 } from "lucide-react";
-
-type DeductionTier = {
-  from: number;
-  to: number;
-  deduction: number;
-};
+import type { DeductionTier } from "@/lib/payroll-tier-validation";
+import {
+  appendTierAfter,
+  computeRevenueProgressiveUnitLines,
+  ensureOrdersTiers,
+  ensureRevenueTiers,
+  getDefaultRevenueTiers,
+  MAX_DEDUCTION_TIERS,
+  MIN_DEDUCTION_TIERS,
+  MIN_REVENUE_DEDUCTION_TIERS,
+  removeTierAtAscendingIndex,
+  sortTiersAscending,
+  sortTiersDescending,
+  getOrdersTierCellErrors,
+  getOrdersTierStructureIssues,
+  getRevenueTierStructureIssues,
+  getRevenueTiersCellErrors,
+  validateOrdersTiersStructure,
+  validateRevenueTiersStructure,
+} from "@/lib/payroll-tier-validation";
 
 type PayrollConfigData = {
   minimum_salary?: number | null;
@@ -71,37 +87,6 @@ type PayrollConfigPageClientProps = {
   initialYear: number;
   initialMonth: number;
 };
-
-const ORDERS_TIER_RANGES = [
-  { from: 1, to: 50 },
-  { from: 51, to: 100 },
-  { from: 101, to: 150 },
-  { from: 151, to: 200 },
-  { from: 201, to: 250 },
-];
-
-function normalizeOrdersTiers(tiers: DeductionTier[] | null | undefined): DeductionTier[] {
-  return ORDERS_TIER_RANGES.map((range, i) => ({
-    ...range,
-    deduction: tiers?.[i]?.deduction ?? 0,
-  }));
-}
-
-const REVENUE_TIER_COUNT = 9;
-
-function normalizeRevenueTiers(
-  tiers: DeductionTier[] | null | undefined,
-  unitAmount: number,
-): DeductionTier[] {
-  if (!unitAmount || unitAmount <= 0) {
-    return [];
-  }
-  return Array.from({ length: REVENUE_TIER_COUNT }, (_, i) => ({
-    from: i * unitAmount + 1,
-    to: (i + 1) * unitAmount,
-    deduction: tiers?.[i]?.deduction ?? 0,
-  }));
-}
 
 function filterPositiveDecimalRaw(raw: string): string {
   let s = raw.replace(/[^\d.]/g, "");
@@ -172,52 +157,6 @@ function computeProgressiveBreakdown(deficit: number, tiers: DeductionTier[]): P
   return lines;
 }
 
-type RevenueFlatBandLine = {
-  from: number;
-  to: number;
-  flat: number;
-  consumed: number;
-  beyondDefined: boolean;
-  bandWidth: number;
-};
-
-/** Matches backend: one flat SAR charge per deficit band crossed (then last tier flat per unit slice). */
-function computeRevenueFlatBandLines(
-  deficit: number,
-  tiers: DeductionTier[],
-  unitAmount: number,
-): { total: number; lines: RevenueFlatBandLine[] } {
-  if (deficit <= 0 || tiers.length === 0 || unitAmount <= 0) {
-    return { total: 0, lines: [] };
-  }
-  let remaining = deficit;
-  let total = 0;
-  const lines: RevenueFlatBandLine[] = [];
-  let tierIdx = 0;
-
-  while (remaining > 0) {
-    const tier = tierIdx < tiers.length ? tiers[tierIdx] : tiers[tiers.length - 1];
-    const bandWidth =
-      tierIdx < tiers.length ? tier.to - tier.from + 1 : unitAmount;
-    const consumed = Math.min(remaining, bandWidth);
-
-    total += tier.deduction;
-    lines.push({
-      from: tier.from,
-      to: tier.to,
-      flat: tier.deduction,
-      consumed,
-      beyondDefined: tierIdx >= tiers.length,
-      bandWidth,
-    });
-
-    remaining -= consumed;
-    tierIdx++;
-  }
-
-  return { total, lines };
-}
-
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
@@ -234,6 +173,7 @@ function PositiveDecimalField({
   className,
   suffix,
   dir,
+  invalid,
 }: {
   value: number | null | undefined;
   onChange: (v: number | null) => void;
@@ -241,6 +181,7 @@ function PositiveDecimalField({
   className?: string;
   suffix?: string;
   dir?: "ltr" | "rtl";
+  invalid?: boolean;
 }) {
   const [text, setText] = useState(() =>
     value != null && Number.isFinite(value) ? String(value) : "",
@@ -270,9 +211,79 @@ function PositiveDecimalField({
           if (n == null) setText("");
           else setText(String(n));
         }}
-        className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 disabled:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-900"
+        aria-invalid={invalid || undefined}
+        className={`min-w-0 flex-1 rounded-md border bg-white px-3 py-2 disabled:bg-zinc-100 dark:bg-zinc-900 ${
+          invalid
+            ? "border-red-500 ring-2 ring-red-500/35 dark:border-red-500"
+            : "border-zinc-300 dark:border-zinc-600"
+        }`}
       />
       {suffix ? <span className="shrink-0 text-xs text-zinc-500">{suffix}</span> : null}
+    </div>
+  );
+}
+
+function filterPositiveIntegerRaw(raw: string): string {
+  return raw.replace(/\D/g, "").slice(0, 12);
+}
+
+function parseOptionalPositiveInt(s: string): number | null {
+  if (s === "") return null;
+  const n = parseInt(s, 10);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return n;
+}
+
+function TierIntegerField({
+  value,
+  onChange,
+  disabled,
+  className,
+  dir,
+  invalid,
+}: {
+  value: number | null | undefined;
+  onChange: (v: number | null) => void;
+  disabled?: boolean;
+  className?: string;
+  dir?: "ltr" | "rtl";
+  invalid?: boolean;
+}) {
+  const [text, setText] = useState(() =>
+    value != null && Number.isFinite(value) ? String(value) : "",
+  );
+
+  const displayValue = disabled
+    ? value != null && Number.isFinite(value)
+      ? String(value)
+      : ""
+    : text;
+
+  return (
+    <div className={`flex items-center gap-2 ${className ?? ""}`} dir={dir}>
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        disabled={disabled}
+        value={displayValue}
+        onChange={(e) => {
+          const next = filterPositiveIntegerRaw(e.target.value);
+          setText(next);
+          onChange(parseOptionalPositiveInt(next));
+        }}
+        onBlur={() => {
+          const n = parseOptionalPositiveInt(text);
+          if (n == null) setText("");
+          else setText(String(n));
+        }}
+        aria-invalid={invalid || undefined}
+        className={`min-w-0 flex-1 rounded-md border bg-white px-3 py-2 disabled:bg-zinc-100 dark:bg-zinc-900 ${
+          invalid
+            ? "border-red-500 ring-2 ring-red-500/35 dark:border-red-500"
+            : "border-zinc-300 dark:border-zinc-600"
+        }`}
+      />
     </div>
   );
 }
@@ -292,6 +303,8 @@ function CollapsibleCard({
   isReadOnly,
   rootClassName = "",
   children,
+  saveDisabled,
+  saveDisabledTitle,
 }: {
   title: string;
   description: string;
@@ -307,6 +320,8 @@ function CollapsibleCard({
   isReadOnly: boolean;
   rootClassName?: string;
   children: React.ReactNode;
+  saveDisabled?: boolean;
+  saveDisabledTitle?: string;
 }) {
   const t = useTranslations();
 
@@ -350,9 +365,14 @@ function CollapsibleCard({
                   <button
                     type="button"
                     onClick={onSave}
-                    title={t("payrollConfig.ariaSaveCard")}
+                    disabled={saveDisabled}
+                    title={
+                      saveDisabled
+                        ? saveDisabledTitle ?? t("payrollConfig.saveDisabledFixValidation")
+                        : t("payrollConfig.ariaSaveCard")
+                    }
                     aria-label={t("payrollConfig.ariaSaveCard")}
-                    className="rounded-md p-2 text-white bg-primary hover:bg-primary/90"
+                    className="rounded-md p-2 text-white bg-primary hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-zinc-400 disabled:opacity-70 dark:disabled:bg-zinc-600"
                   >
                     <Check className="h-5 w-5" />
                   </button>
@@ -551,7 +571,9 @@ export function PayrollConfigPageClient({
           return { deduction_per_order: editData.deduction_per_order ?? null };
         case "orders":
           return {
-            orders_deduction_tiers: normalizeOrdersTiers(editData.orders_deduction_tiers),
+            orders_deduction_tiers: sortTiersAscending(
+              (editData.orders_deduction_tiers ?? []) as DeductionTier[],
+            ),
           };
         case "revenue": {
           const unit = editData.revenue_unit_amount;
@@ -560,7 +582,9 @@ export function PayrollConfigPageClient({
           }
           return {
             revenue_unit_amount: unit,
-            revenue_deduction_tiers: normalizeRevenueTiers(editData.revenue_deduction_tiers, unit),
+            revenue_deduction_tiers: sortTiersAscending(
+              (editData.revenue_deduction_tiers ?? []) as DeductionTier[],
+            ),
           };
         }
         default:
@@ -572,6 +596,29 @@ export function PayrollConfigPageClient({
 
   const handleSaveCard = useCallback(
     async (cardName: string) => {
+      if (cardName === "orders") {
+        const tiers = sortTiersAscending(
+          (editData.orders_deduction_tiers ?? []) as DeductionTier[],
+        );
+        if (!validateOrdersTiersStructure(tiers)) {
+          pushToast(t("payrollConfig.validationTiersInvalid"), "error");
+          return;
+        }
+      }
+      if (cardName === "revenue") {
+        const unit = editData.revenue_unit_amount;
+        const tiers = sortTiersAscending(
+          (editData.revenue_deduction_tiers ?? []) as DeductionTier[],
+        );
+        if (
+          unit != null &&
+          unit > 0 &&
+          !validateRevenueTiersStructure(tiers, unit)
+        ) {
+          pushToast(t("payrollConfig.validationTiersInvalid"), "error");
+          return;
+        }
+      }
       try {
         const payload = buildPatchPayload(cardName);
         const res = await fetch("/api/payroll-config/config", {
@@ -597,7 +644,7 @@ export function PayrollConfigPageClient({
         pushToast(msg, "error");
       }
     },
-    [buildPatchPayload, t, router, refreshConfig, pushToast],
+    [buildPatchPayload, t, router, refreshConfig, pushToast, editData],
   );
 
   const startEdit = (cardName: keyof typeof editingCards) => {
@@ -616,13 +663,16 @@ export function PayrollConfigPageClient({
       setEditData({ deduction_per_order: config.deduction_per_order });
     } else if (cardName === "orders") {
       setEditData({
-        orders_deduction_tiers: normalizeOrdersTiers(config.orders_deduction_tiers),
+        orders_deduction_tiers: ensureOrdersTiers(config.orders_deduction_tiers),
       });
     } else if (cardName === "revenue") {
       const unit = config.revenue_unit_amount ?? 0;
       setEditData({
         revenue_unit_amount: config.revenue_unit_amount,
-        revenue_deduction_tiers: normalizeRevenueTiers(config.revenue_deduction_tiers, unit),
+        revenue_deduction_tiers: ensureRevenueTiers(
+          config.revenue_deduction_tiers,
+          unit,
+        ),
       });
     }
   };
@@ -653,6 +703,59 @@ export function PayrollConfigPageClient({
   const numDir: "ltr" | "rtl" = locale === "ar" ? "rtl" : "ltr";
   const incompleteHint = t("payrollConfig.badgeIncompleteHelp");
 
+  const ordersAscForValidation = useMemo(
+    () =>
+      ensureOrdersTiers(
+        editingCards.orders ? editData.orders_deduction_tiers : config.orders_deduction_tiers,
+      ),
+    [editingCards.orders, editData.orders_deduction_tiers, config.orders_deduction_tiers],
+  );
+
+  const ordersTierValidation = useMemo(
+    () => getOrdersTierCellErrors(ordersAscForValidation),
+    [ordersAscForValidation],
+  );
+  const ordersStructureIssues = useMemo(
+    () => getOrdersTierStructureIssues(ordersAscForValidation),
+    [ordersAscForValidation],
+  );
+
+  const revenueUnitForTierValidation = editingCards.revenue
+    ? editData.revenue_unit_amount ?? config.revenue_unit_amount
+    : config.revenue_unit_amount;
+
+  const revenueAscForValidation = useMemo(() => {
+    const u = (editingCards.revenue ? editData.revenue_unit_amount : config.revenue_unit_amount) || 0;
+    if (!Number.isFinite(u) || u <= 0) return [] as DeductionTier[];
+    return ensureRevenueTiers(
+      editingCards.revenue ? editData.revenue_deduction_tiers : config.revenue_deduction_tiers,
+      u,
+    );
+  }, [
+    editingCards.revenue,
+    editData.revenue_deduction_tiers,
+    editData.revenue_unit_amount,
+    config.revenue_deduction_tiers,
+    config.revenue_unit_amount,
+  ]);
+
+  const revenueTierValidation = useMemo(
+    () =>
+      getRevenueTiersCellErrors(revenueAscForValidation, revenueUnitForTierValidation ?? null),
+    [revenueAscForValidation, revenueUnitForTierValidation],
+  );
+  const revenueStructureIssues = useMemo(
+    () => getRevenueTierStructureIssues(revenueAscForValidation),
+    [revenueAscForValidation],
+  );
+
+  const isSaveDialogPayloadInvalid =
+    showSaveDialog === "orders"
+      ? !ordersTierValidation.isValid
+      : showSaveDialog === "revenue"
+        ? !revenueTierValidation.isValid
+        : false;
+
   const fixedRateForExample =
     editingCards.fixed ? editData.deduction_per_order : config.deduction_per_order;
   const exampleMissingOrders = 12;
@@ -661,25 +764,25 @@ export function PayrollConfigPageClient({
       ? exampleMissingOrders * fixedRateForExample
       : 0;
 
-  const ordersTiersForExample = normalizeOrdersTiers(
-    editingCards.orders ? editData.orders_deduction_tiers : config.orders_deduction_tiers,
-  );
+  const ordersTiersForExample = ordersAscForValidation;
   const ordersDeficitExample = 165;
   const ordersExampleTotal = computeProgressiveTotal(ordersDeficitExample, ordersTiersForExample);
 
+  const revenueUnitRaw =
+    editingCards.revenue ? editData.revenue_unit_amount : config.revenue_unit_amount;
   const revenueUnitForExample =
-    (editingCards.revenue ? editData.revenue_unit_amount : config.revenue_unit_amount) || 800;
-  const revenueTiersForExample = normalizeRevenueTiers(
+    revenueUnitRaw != null && revenueUnitRaw > 0 ? revenueUnitRaw : 16;
+  const revenueTiersForExample = ensureRevenueTiers(
     editingCards.revenue ? editData.revenue_deduction_tiers : config.revenue_deduction_tiers,
     revenueUnitForExample,
   );
   const revenueDeficitExample = 3000;
-  const revenueFlatExample = computeRevenueFlatBandLines(
+  const revenueProgressiveExample = computeRevenueProgressiveUnitLines(
     revenueDeficitExample,
     revenueTiersForExample,
     revenueUnitForExample,
   );
-  const revenueExampleTotal = revenueFlatExample.total;
+  const revenueExampleTotal = revenueProgressiveExample.total;
 
   const ordersExampleBreakdown = computeProgressiveBreakdown(
     ordersDeficitExample,
@@ -688,6 +791,21 @@ export function PayrollConfigPageClient({
 
   const fmtNum = (n: number) =>
     n.toLocaleString(locale === "ar" ? "ar-SA" : "en-US", { maximumFractionDigits: 2 });
+
+  const mapTierIssueToText = useCallback(
+    (code: "count" | "startAtOne" | "bound" | "range" | "gapOrOverlap", isRevenue: boolean) => {
+      if (code === "count") {
+        return isRevenue
+          ? t("payrollConfig.validationRevenueCountRange")
+          : t("payrollConfig.validationOrdersCountRange");
+      }
+      if (code === "startAtOne") return t("payrollConfig.validationStartAtOne");
+      if (code === "bound") return t("payrollConfig.validationBoundIntegerPositive");
+      if (code === "range") return t("payrollConfig.validationFromTo");
+      return t("payrollConfig.validationGapOrOverlap");
+    },
+    [t],
+  );
 
   const formatMoney = (v: number) =>
     v.toLocaleString(locale === "ar" ? "ar-SA" : "en-US", {
@@ -1058,43 +1176,182 @@ export function PayrollConfigPageClient({
               onSave={() => setShowSaveDialog("orders")}
               onCancel={() => cancelEdit("orders")}
               isReadOnly={isReadOnly}
+              saveDisabled={editingCards.orders && !ordersTierValidation.isValid}
+              saveDisabledTitle={t("payrollConfig.saveDisabledFixValidation")}
             >
               <div className="space-y-3">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("payrollConfig.ordersTiersDescription")}</p>
+                {editingCards.orders ? (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={
+                        ensureOrdersTiers(editData.orders_deduction_tiers).length >= MAX_DEDUCTION_TIERS
+                      }
+                      onClick={() => {
+                        setEditData((prev) => {
+                          const asc = ensureOrdersTiers(prev.orders_deduction_tiers);
+                          const next = appendTierAfter(asc);
+                          if (!next) return prev;
+                          return { ...prev, orders_deduction_tiers: next };
+                        });
+                      }}
+                      className="inline-flex rounded-md border border-zinc-300 p-2 text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      aria-label={t("payrollConfig.addTier")}
+                      title={t("payrollConfig.addTier")}
+                    >
+                      <Plus className="h-5 w-5" aria-hidden />
+                    </button>
+                  </div>
+                ) : null}
+                {editingCards.orders && !ordersTierValidation.isValid ? (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+                    <p className="font-medium">{t("payrollConfig.validationFixTitle")}</p>
+                    <ul className="mt-2 list-disc ps-5">
+                      {Array.from(
+                        new Set(
+                          ordersStructureIssues.map((i) =>
+                            mapTierIssueToText(i.code, false),
+                          ),
+                        ),
+                      ).map((msg) => (
+                        <li key={msg}>{msg}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <table className="w-full border-collapse ">
                   <thead>
                     <tr className="border-b">
-                      <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold ">{t("payrollConfig.tierRange")}</th>
-                      <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold ">{t("payrollConfig.tierDeductionRate")}</th>
+                      <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold ">
+                        {t("payrollConfig.tierFrom")}
+                      </th>
+                      <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold ">
+                        {t("payrollConfig.tierTo")}
+                      </th>
+                      <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold ">
+                        {t("payrollConfig.tierDeductionRate")}
+                      </th>
+                      {editingCards.orders ? (
+                        <th className="w-12 p-2 text-center text-sm font-semibold" aria-hidden />
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
-                    {ORDERS_TIER_RANGES.map((range, idx) => {
-                      const tiers = normalizeOrdersTiers(
-                        editingCards.orders ? editData.orders_deduction_tiers : config.orders_deduction_tiers,
-                      );
-                      const tier = tiers[idx];
-                      return (
-                        <tr key={idx} className="border-b">
-                          <td className="p-2 text-sm font-semibold">{range.from} - {range.to} {t("payrollConfig.suffixOrders")}</td>
-                          <td className="p-2">
-                            <PositiveDecimalField
-                              key={`ord-tier-${idx}-${editingCards.orders}`}
-                              className="max-w-xs"
-                              dir={numDir}
-                              suffix={suffixSar}
-                              disabled={!editingCards.orders}
-                              value={tier?.deduction}
-                              onChange={(v) => {
-                                const next = [...tiers];
-                                next[idx] = { ...range, deduction: v ?? 0 };
-                                setEditData((prev) => ({ ...prev, orders_deduction_tiers: next }));
-                              }}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {(() => {
+                      const ordersAsc = ordersAscForValidation;
+                      const ordersDesc = sortTiersDescending(ordersAsc);
+                      const canDeleteOrderTier = ordersAsc.length > MIN_DEDUCTION_TIERS;
+                      const oe = ordersTierValidation.cells;
+                      return ordersDesc.map((row, displayIndex) => {
+                        const ascIndex = ordersAsc.length - 1 - displayIndex;
+                        return (
+                          <tr key={`ord-tier-${ascIndex}`} className="border-b">
+                            <td className="p-2">
+                              <TierIntegerField
+                                key={`ord-from-${ascIndex}-${editingCards.orders}`}
+                                className="max-w-[8rem]"
+                                dir={numDir}
+                                disabled={!editingCards.orders || ascIndex === 0}
+                                invalid={!!oe[ascIndex]?.from}
+                                value={row.from}
+                                onChange={(v) => {
+                                  if (v == null || ascIndex === 0) return;
+                                  setEditData((prev) => {
+                                    const asc = sortTiersAscending(
+                                      (prev.orders_deduction_tiers ?? []) as DeductionTier[],
+                                    );
+                                    if (ascIndex < 0 || ascIndex >= asc.length) return prev;
+                                    const copy = [...asc];
+                                    copy[ascIndex] = { ...copy[ascIndex], from: v };
+                                    return {
+                                      ...prev,
+                                      orders_deduction_tiers: copy,
+                                    };
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td className="p-2">
+                              <TierIntegerField
+                                key={`ord-to-${ascIndex}-${editingCards.orders}`}
+                                className="max-w-[8rem]"
+                                dir={numDir}
+                                disabled={!editingCards.orders}
+                                invalid={!!oe[ascIndex]?.to}
+                                value={row.to}
+                                onChange={(v) => {
+                                  setEditData((prev) => {
+                                    const asc = sortTiersAscending(
+                                      (prev.orders_deduction_tiers ?? []) as DeductionTier[],
+                                    );
+                                    if (ascIndex < 0 || ascIndex >= asc.length || v == null) return prev;
+                                    const copy = [...asc];
+                                    copy[ascIndex] = { ...copy[ascIndex], to: v };
+                                    return {
+                                      ...prev,
+                                      orders_deduction_tiers: copy,
+                                    };
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td className="p-2">
+                              <PositiveDecimalField
+                                key={`ord-ded-${ascIndex}-${editingCards.orders}`}
+                                className="max-w-xs"
+                                dir={numDir}
+                                suffix={suffixSar}
+                                disabled={!editingCards.orders}
+                                invalid={!!oe[ascIndex]?.deduction}
+                                value={row.deduction}
+                                onChange={(v) => {
+                                  setEditData((prev) => {
+                                    const asc = sortTiersAscending(
+                                      (prev.orders_deduction_tiers ?? []) as DeductionTier[],
+                                    );
+                                    if (ascIndex < 0 || ascIndex >= asc.length) return prev;
+                                    const copy = [...asc];
+                                    copy[ascIndex] = { ...copy[ascIndex], deduction: v ?? 0 };
+                                    return {
+                                      ...prev,
+                                      orders_deduction_tiers: copy,
+                                    };
+                                  });
+                                }}
+                              />
+                            </td>
+                            {editingCards.orders ? (
+                              <td className="p-2 align-middle">
+                                <button
+                                  type="button"
+                                  disabled={!canDeleteOrderTier}
+                                  onClick={() => {
+                                    setEditData((prev) => {
+                                      const asc = sortTiersAscending(
+                                        (prev.orders_deduction_tiers ?? []) as DeductionTier[],
+                                      );
+                                      const next = removeTierAtAscendingIndex(asc, ascIndex);
+                                      if (!next) return prev;
+                                      return { ...prev, orders_deduction_tiers: next };
+                                    });
+                                  }}
+                                  className="inline-flex rounded-md border border-zinc-300 p-1.5 text-zinc-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                                  aria-label={t("payrollConfig.deleteTier")}
+                                  title={
+                                    canDeleteOrderTier
+                                      ? t("payrollConfig.deleteTier")
+                                      : t("payrollConfig.tierDeleteDisabledMin")
+                                  }
+                                >
+                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                </button>
+                              </td>
+                            ) : null}
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
                 <div className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
@@ -1147,6 +1404,8 @@ export function PayrollConfigPageClient({
               onSave={() => setShowSaveDialog("revenue")}
               onCancel={() => cancelEdit("revenue")}
               isReadOnly={isReadOnly}
+              saveDisabled={editingCards.revenue && !revenueTierValidation.isValid}
+              saveDisabledTitle={t("payrollConfig.saveDisabledFixValidation")}
             >
               <div className="space-y-3">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("payrollConfig.revenueTiersDescription")}</p>
@@ -1158,16 +1417,23 @@ export function PayrollConfigPageClient({
                     dir={numDir}
                     suffix={suffixSar}
                     disabled={!editingCards.revenue}
+                    invalid={editingCards.revenue && revenueTierValidation.unitFieldInvalid}
                     value={editingCards.revenue ? editData.revenue_unit_amount : config.revenue_unit_amount}
                     onChange={(v) => {
                       setEditData((prev) => {
                         const u = v ?? 0;
-                        return {
+                        const next: Partial<PayrollConfigData> = {
                           ...prev,
                           revenue_unit_amount: v ?? undefined,
-                          revenue_deduction_tiers:
-                            u > 0 ? normalizeRevenueTiers(prev.revenue_deduction_tiers, u) : [],
                         };
+                        if (
+                          u > 0 &&
+                          (!prev.revenue_deduction_tiers ||
+                            prev.revenue_deduction_tiers.length === 0)
+                        ) {
+                          next.revenue_deduction_tiers = getDefaultRevenueTiers();
+                        }
+                        return next;
                       });
                     }}
                   />
@@ -1176,45 +1442,159 @@ export function PayrollConfigPageClient({
                   const unit =
                     (editingCards.revenue ? editData.revenue_unit_amount : config.revenue_unit_amount) || 0;
                   if (!unit || unit <= 0) return null;
-                  const tiers = normalizeRevenueTiers(
-                    editingCards.revenue ? editData.revenue_deduction_tiers : config.revenue_deduction_tiers,
-                    unit,
-                  );
+                  const revenueAsc = revenueAscForValidation;
+                  const revenueDesc = sortTiersDescending(revenueAsc);
+                  const canDeleteRevenueTier = revenueAsc.length > MIN_REVENUE_DEDUCTION_TIERS;
+                  const re = revenueTierValidation.cells;
                   return (
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold">{t("payrollConfig.tierRange")}</th>
-                          <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold">
-                            {t("payrollConfig.tierDeductionFlatPerBand")}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tiers.map((row, idx) => (
-                          <tr key={idx} className="border-b">
-                            <td className="p-2 text-sm font-semibold">
-                              {row.from} - {row.to} {t("payrollConfig.suffixSar")}
-                            </td>
-                            <td className="p-2">
-                              <PositiveDecimalField
-                                key={`rev-tier-${idx}-${editingCards.revenue}-${unit}`}
-                                className="max-w-xs"
-                                dir={numDir}
-                                suffix={suffixSar}
-                                disabled={!editingCards.revenue}
-                                value={row.deduction}
-                                onChange={(v) => {
-                                  const next = [...tiers];
-                                  next[idx] = { ...row, deduction: v ?? 0 };
-                                  setEditData((prev) => ({ ...prev, revenue_deduction_tiers: next }));
-                                }}
-                              />
-                            </td>
+                    <>
+                      {editingCards.revenue && !revenueTierValidation.isValid ? (
+                        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+                          <p className="font-medium">{t("payrollConfig.validationFixTitle")}</p>
+                          <ul className="mt-2 list-disc ps-5">
+                            {Array.from(
+                              new Set(
+                                revenueStructureIssues.map((i) =>
+                                  mapTierIssueToText(i.code, true),
+                                ),
+                              ),
+                            ).map((msg) => (
+                              <li key={msg}>{msg}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold">
+                              {t("payrollConfig.tierFrom")}
+                            </th>
+                            <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold">
+                              {t("payrollConfig.tierTo")}
+                            </th>
+                            <th className="p-2 ltr:text-left rtl:text-right text-sm font-semibold">
+                              {t("payrollConfig.tierDeductionPerUnit")}
+                            </th>
+                            {editingCards.revenue ? (
+                              <th className="w-12 p-2 text-center text-sm font-semibold" aria-hidden />
+                            ) : null}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {revenueDesc.map((row, displayIndex) => {
+                            const ascIndex = revenueAsc.length - 1 - displayIndex;
+                            return (
+                              <tr key={`rev-tier-${ascIndex}`} className="border-b">
+                                <td className="p-2">
+                                <TierIntegerField
+                                  key={`rev-from-${ascIndex}-${editingCards.revenue}-${unit}`}
+                                  className="max-w-[8rem]"
+                                  dir={numDir}
+                                  disabled={!editingCards.revenue || ascIndex === 0}
+                                  invalid={!!re[ascIndex]?.from}
+                                  value={row.from}
+                                  onChange={(v) => {
+                                    if (v == null || ascIndex === 0) return;
+                                    setEditData((prev) => {
+                                      const asc = sortTiersAscending(
+                                        (prev.revenue_deduction_tiers ?? []) as DeductionTier[],
+                                      );
+                                      if (ascIndex < 0 || ascIndex >= asc.length) return prev;
+                                      const copy = [...asc];
+                                      copy[ascIndex] = { ...copy[ascIndex], from: v };
+                                      return {
+                                        ...prev,
+                                        revenue_deduction_tiers: copy,
+                                      };
+                                    });
+                                  }}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <TierIntegerField
+                                  key={`rev-to-${ascIndex}-${editingCards.revenue}-${unit}`}
+                                  className="max-w-[8rem]"
+                                  dir={numDir}
+                                  disabled={!editingCards.revenue}
+                                  invalid={!!re[ascIndex]?.to}
+                                  value={row.to}
+                                  onChange={(v) => {
+                                    setEditData((prev) => {
+                                      const asc = sortTiersAscending(
+                                        (prev.revenue_deduction_tiers ?? []) as DeductionTier[],
+                                      );
+                                      if (ascIndex < 0 || ascIndex >= asc.length || v == null) return prev;
+                                      const copy = [...asc];
+                                      copy[ascIndex] = { ...copy[ascIndex], to: v };
+                                      return {
+                                        ...prev,
+                                        revenue_deduction_tiers: copy,
+                                      };
+                                    });
+                                  }}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <PositiveDecimalField
+                                  key={`rev-ded-${ascIndex}-${editingCards.revenue}-${unit}`}
+                                  className="max-w-xs"
+                                  dir={numDir}
+                                  suffix={suffixSar}
+                                  disabled={!editingCards.revenue}
+                                  invalid={!!re[ascIndex]?.deduction}
+                                  value={row.deduction}
+                                  onChange={(v) => {
+                                    setEditData((prev) => {
+                                      const asc = sortTiersAscending(
+                                        (prev.revenue_deduction_tiers ?? []) as DeductionTier[],
+                                      );
+                                      if (ascIndex < 0 || ascIndex >= asc.length) return prev;
+                                      const copy = [...asc];
+                                      copy[ascIndex] = { ...copy[ascIndex], deduction: v ?? 0 };
+                                      return {
+                                        ...prev,
+                                        revenue_deduction_tiers: copy,
+                                      };
+                                    });
+                                  }}
+                                />
+                              </td>
+                              {editingCards.revenue ? (
+                                <td className="p-2 align-middle">
+                                  <button
+                                    type="button"
+                                    disabled={!canDeleteRevenueTier}
+                                    onClick={() => {
+                                      setEditData((prev) => {
+                                        const u = prev.revenue_unit_amount ?? config.revenue_unit_amount ?? 0;
+                                        if (u <= 0) return prev;
+                                        const asc = sortTiersAscending(
+                                          (prev.revenue_deduction_tiers ?? []) as DeductionTier[],
+                                        );
+                                        const next = removeTierAtAscendingIndex(asc, ascIndex);
+                                        if (!next) return prev;
+                                        return { ...prev, revenue_deduction_tiers: next };
+                                      });
+                                    }}
+                                    className="inline-flex rounded-md border border-zinc-300 p-1.5 text-zinc-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                                    aria-label={t("payrollConfig.deleteTier")}
+                                    title={
+                                      canDeleteRevenueTier
+                                        ? t("payrollConfig.deleteTier")
+                                        : t("payrollConfig.tierDeleteDisabledMin")
+                                    }
+                                  >
+                                    <Trash2 className="h-4 w-4" aria-hidden />
+                                  </button>
+                                </td>
+                              ) : null}
+                            </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </>
                   );
                 })()}
                 <div className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
@@ -1226,21 +1606,26 @@ export function PayrollConfigPageClient({
                     })}
                   </p>
                   <ul className="mt-2 list-disc space-y-1 ps-5" dir={numDir}>
-                    {revenueFlatExample.lines.map((line, i) => (
+                    {revenueProgressiveExample.lines.map((line, i) => (
                       <li key={i}>
                         {line.beyondDefined
-                          ? t("payrollConfig.calcRevenueFlatBandBeyond", {
-                              consumed: fmtNum(line.consumed),
-                              width: fmtNum(line.bandWidth),
-                              flat: fmtNum(line.flat),
+                          ? t("payrollConfig.calcRevenueProgressiveBeyond", {
+                              applicable: fmtNum(line.applicableAmount),
+                              units: fmtNum(line.units),
+                              rate: fmtNum(line.deductionPerUnit),
+                              subtotal: fmtNum(line.tierDeduction),
                               curr: suffixSar,
+                              unit: fmtNum(line.unitAmount),
                             })
-                          : t("payrollConfig.calcRevenueFlatBandRow", {
+                          : t("payrollConfig.calcRevenueProgressiveRow", {
                               from: line.from,
                               to: line.to,
-                              consumed: fmtNum(line.consumed),
-                              flat: fmtNum(line.flat),
+                              applicable: fmtNum(line.applicableAmount),
+                              units: fmtNum(line.units),
+                              rate: fmtNum(line.deductionPerUnit),
+                              subtotal: fmtNum(line.tierDeduction),
                               curr: suffixSar,
+                              unit: fmtNum(line.unitAmount),
                             })}
                       </li>
                     ))}
@@ -1338,7 +1723,13 @@ export function PayrollConfigPageClient({
               </button>
               <button
                 onClick={() => handleSaveCard(showSaveDialog)}
-                className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary/90"
+                disabled={isSaveDialogPayloadInvalid}
+                title={
+                  isSaveDialogPayloadInvalid
+                    ? t("payrollConfig.saveDisabledFixValidation")
+                    : undefined
+                }
+                className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-zinc-400 disabled:opacity-70 dark:disabled:bg-zinc-600"
               >
                 {t("payrollConfig.save")}
               </button>

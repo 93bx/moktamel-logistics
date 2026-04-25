@@ -75,6 +75,7 @@ const CreateSchema = z.object({
   cash_collected: z.number().min(0).optional(),
   cash_received: z.number().min(0).default(0),
   tips: z.number().min(0).default(0),
+  work_hours: z.number().min(0).optional().nullable(),
   deduction_amount: z.number().min(0).default(0),
   deduction_reason: z.string().min(2).max(200).optional().nullable(),
   submit_action: SubmitActionSchema,
@@ -92,6 +93,7 @@ const BulkCreateSchema = z.object({
         cash_collected: z.number().min(0).optional(),
         cash_received: z.number().min(0).default(0),
         tips: z.number().min(0).default(0),
+        work_hours: z.number().min(0).optional().nullable(),
         deduction_amount: z.number().min(0).default(0),
         deduction_reason: z.string().min(2).max(200).optional().nullable(),
       }),
@@ -109,6 +111,7 @@ const UpdateRecordSchema = z.object({
   cash_collected: z.number().min(0),
   cash_received: z.number().min(0),
   tips: z.number().min(0),
+  work_hours: z.number().min(0).optional().nullable(),
   deduction_amount: z.number().min(0),
   deduction_reason: z.string().min(2).max(200).optional().nullable(),
 });

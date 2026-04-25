@@ -55,6 +55,7 @@ type DailyOperationListItem = {
   cash_received?: string | number;
   difference_amount?: string | number;
   tips: string | number;
+  work_hours?: string | number | null;
   deduction_amount: string | number;
   deduction_reason: string | null;
   is_draft?: boolean;
@@ -86,6 +87,7 @@ type DailyOperationByEmployeeItem = {
   total_revenue: number;
   cash_collected: number;
   tips: number;
+  work_hours?: number;
   deduction_amount: number;
   platform: OperatingPlatform | "MULTIPLE";
   status_code: string;
@@ -597,6 +599,7 @@ export function DailyOperationsPageClient({
                 <th className="px-3 py-2">{t("dailyOps.tableRevenue")}</th>
                 <th className="px-3 py-2">{t("dailyOps.tableCash")}</th>
                 <th className="px-3 py-2">{t("dailyOps.tableTips")}</th>
+                <th className="px-3 py-2">{t("dailyOps.workHours")}</th>
                 <th className="px-3 py-2">{t("dailyOps.tableDeductions")}</th>
                 <th className="px-3 py-2">{t("dailyOps.tableStatus")}</th>
                 <th className="px-3 py-2 text-right">{t("dailyOps.tableActions")}</th>
@@ -662,6 +665,7 @@ export function DailyOperationsPageClient({
                     <td className="px-3 py-2">{formatAmount(row.total_revenue)}</td>
                     <td className="px-3 py-2">{formatAmount(row.cash_collected)}</td>
                     <td className="px-3 py-2">{formatAmount(row.tips)}</td>
+                    <td className="px-3 py-2">{Number(row.work_hours ?? 0).toLocaleString()}</td>
                     <td className="px-3 py-2">{formatAmount(row.deduction_amount)}</td>
                     <td className="px-3 py-2">
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusTone(row.status_code)}`}>
@@ -713,7 +717,7 @@ export function DailyOperationsPageClient({
               })}
               {data.items.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-6 text-center text-primary/60" colSpan={9}>
+                  <td className="px-3 py-6 text-center text-primary/60" colSpan={10}>
                     {t("dailyOps.noResults")}
                   </td>
                 </tr>
@@ -791,6 +795,7 @@ function DailyOperationEditModal({
   const [deductionAmount, setDeductionAmount] = useState<string>("0");
   const [deductionReason, setDeductionReason] = useState<string>("");
   const [tipsAmount, setTipsAmount] = useState<string>("0");
+  const [workHours, setWorkHours] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -803,6 +808,7 @@ function DailyOperationEditModal({
       setDeductionAmount(String(record.deduction_amount ?? "0"));
       setDeductionReason(record.deduction_reason ?? "");
       setTipsAmount(String(record.tips ?? "0"));
+      setWorkHours(String(record.work_hours ?? ""));
       setError(null);
     }
   }, [record, isOpen]);
@@ -835,6 +841,7 @@ function DailyOperationEditModal({
         cash_collected: Number(cashCollected || 0),
         cash_received: Number(cashReceived || 0),
         tips: Number(tipsAmount || 0),
+        work_hours: workHours === "" ? null : Number(workHours),
         deduction_amount: Number(deductionAmount || 0),
         deduction_reason: Number(deductionAmount || 0) > 0 ? deductionReason || null : null,
       };
@@ -921,6 +928,14 @@ function DailyOperationEditModal({
             min={0}
             step="0.01"
           />
+          <Field
+            label={t("dailyOps.workHours")}
+            value={workHours}
+            onChange={setWorkHours}
+            type="number"
+            min={0}
+            step="0.25"
+          />
           <div className="sm:col-span-2">
             <label className="text-sm text-primary">{t("dailyOps.difference")}</label>
             <div className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900">
@@ -984,6 +999,7 @@ function DailyOperationSingleModal({
   const [deductionAmount, setDeductionAmount] = useState<string>("0");
   const [deductionReason, setDeductionReason] = useState<string>("");
   const [tipsAmount, setTipsAmount] = useState<string>("0");
+  const [workHours, setWorkHours] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [checkingEntry, setCheckingEntry] = useState(false);
@@ -1003,6 +1019,7 @@ function DailyOperationSingleModal({
     setDeductionAmount("0");
     setDeductionReason("");
     setTipsAmount("0");
+    setWorkHours("");
     setError(null);
     setSaving(false);
     setCheckingEntry(false);
@@ -1036,6 +1053,7 @@ function DailyOperationSingleModal({
         cash_collected: Number(cashCollected || 0),
         cash_received: Number(cashReceived || 0),
         tips: Number(tipsAmount || 0),
+        work_hours: workHours === "" ? null : Number(workHours),
         deduction_amount: Number(deductionAmount || 0),
         deduction_reason: Number(deductionAmount || 0) > 0 ? deductionReason || undefined : undefined,
         submit_action: action,
@@ -1198,6 +1216,14 @@ function DailyOperationSingleModal({
                 min={0}
                 step="0.01"
               />
+              <Field
+                label={t("dailyOps.workHours")}
+                value={workHours}
+                onChange={setWorkHours}
+                type="number"
+                min={0}
+                step="0.25"
+              />
               <div className="sm:col-span-2">
                 <label className="text-sm text-primary">{t("dailyOps.difference")}</label>
                 <div className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900">
@@ -1322,6 +1348,7 @@ function DailyOperationBulkModal({
       deduction_amount: string;
       deduction_reason: string;
       tips: string;
+      work_hours: string;
     }>
   >([
     {
@@ -1334,6 +1361,7 @@ function DailyOperationBulkModal({
       deduction_amount: "0",
       deduction_reason: "",
       tips: "0",
+      work_hours: "",
     },
   ]);
   const [error, setError] = useState<string | null>(null);
@@ -1355,6 +1383,7 @@ function DailyOperationBulkModal({
         deduction_amount: "0",
         deduction_reason: "",
         tips: "0",
+        work_hours: "",
       },
     ]);
 
@@ -1372,6 +1401,7 @@ function DailyOperationBulkModal({
     cash_received_num: Number(row.cash_received || 0),
     deduction_amount_num: Number(row.deduction_amount || 0),
     tips_num: Number(row.tips || 0),
+    work_hours_num: row.work_hours === "" ? null : Number(row.work_hours),
   }));
 
   const validRowsForSummary = parsedRows.filter(
@@ -1391,9 +1421,10 @@ function DailyOperationBulkModal({
       acc.cashReceived += row.cash_received_num;
       acc.deductions += row.deduction_amount_num;
       acc.tips += row.tips_num;
+      acc.workHours += row.work_hours_num ?? 0;
       return acc;
     },
-    { orders: 0, revenue: 0, cashCollected: 0, cashReceived: 0, deductions: 0, tips: 0 },
+    { orders: 0, revenue: 0, cashCollected: 0, cashReceived: 0, deductions: 0, tips: 0, workHours: 0 },
   );
 
   const handleSelectEmployee = (idx: number, option: EmployeeOption) => {
@@ -1463,6 +1494,7 @@ function DailyOperationBulkModal({
       deduction_amount: row.deduction_amount_num,
       deduction_reason: row.deduction_amount_num > 0 ? row.deduction_reason || undefined : undefined,
       tips: row.tips_num,
+      work_hours: row.work_hours_num,
     }));
   };
 
@@ -1515,7 +1547,8 @@ function DailyOperationBulkModal({
         row.cash_received ||
         row.deduction_amount ||
         row.deduction_reason ||
-        row.tips,
+        row.tips ||
+        row.work_hours,
     );
 
   return (
@@ -1589,6 +1622,7 @@ function DailyOperationBulkModal({
                   <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.cashReceived")}</th>
                   <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.deductions")}</th>
                   <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.tips")}</th>
+                  <th className={`px-3 py-2 ${thAlign(locale)}`}>{t("dailyOps.workHours")}</th>
                   <th className={`px-3 py-2 ${thAlign(locale, true)}`}>{t("dailyOps.tableActions")}</th>
                 </tr>
               </thead>
@@ -1714,6 +1748,16 @@ function DailyOperationBulkModal({
                           className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
                         />
                       </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={row.work_hours}
+                          onChange={(e) => updateRow(idx, { work_hours: allowNonNegativeDecimal(e.target.value, true) })}
+                          onKeyDown={onKeyDownRow(idx)}
+                          className="w-24 rounded-md border border-zinc-200 bg-white px-2 py-2 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-900"
+                        />
+                      </td>
                       <td className={`px-3 py-2 ${thAlign(locale, true)}`}>
                         {rows.length > 1 ? (
                           <button
@@ -1747,7 +1791,7 @@ function DailyOperationBulkModal({
             <div className="text-xs text-primary/60">{t("dailyOps.keyboardHelp")}</div>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 rounded-md border border-zinc-200 bg-white p-3 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-2 rounded-md border border-zinc-200 bg-white p-3 text-sm text-primary dark:border-zinc-700 dark:bg-zinc-800 sm:grid-cols-3 lg:grid-cols-7">
             <div>
               <div className="text-xs text-primary/60">{t("dailyOps.summaryOrders")}</div>
               <div className="font-semibold">{summary.orders.toLocaleString()}</div>
@@ -1771,6 +1815,10 @@ function DailyOperationBulkModal({
             <div>
               <div className="text-xs text-primary/60">{t("dailyOps.summaryTips")}</div>
               <div className="font-semibold">{formatAmount(summary.tips)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-primary/60">{t("dailyOps.workHours")}</div>
+              <div className="font-semibold">{summary.workHours.toLocaleString()}</div>
             </div>
           </div>
 

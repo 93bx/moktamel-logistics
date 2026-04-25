@@ -1,6 +1,8 @@
 /**
- * Fixed tier ranges for progressive deduction calculations.
- * These are global constants used across the system.
+ * Deduction tiers for progressive payroll calculations.
+ * Tiers use deficit coordinates: the first missing order/SAR of shortfall is 1, then 2, …
+ * Revenue shortfall is consumed sequentially from the highest band (largest `from`) downward;
+ * overflow beyond defined bands uses the strictest band (starts at 1).
  */
 
 export type DeductionTier = {
@@ -9,11 +11,21 @@ export type DeductionTier = {
   deduction: number;
 };
 
-/**
- * Fixed orders deficit tier ranges (missing orders from target).
- * User can only edit the deduction amount per tier.
- * Progressive stacking: each tier applies its rate to orders within its range.
- */
+/** Maximum configurable tiers for orders and revenue deduction. */
+export const MAX_DEDUCTION_TIERS = 9;
+
+/** Minimum configurable tiers (product rule). */
+export const MIN_DEDUCTION_TIERS = 3;
+
+/** Revenue deduction uses 1..8 contiguous bands. */
+export const MIN_REVENUE_DEDUCTION_TIERS = 1;
+
+export const MAX_REVENUE_DEDUCTION_TIERS = 8;
+
+/** Default SAR per unit block for revenue tier deduction (configurable). */
+export const DEFAULT_REVENUE_UNIT_AMOUNT = 16;
+
+/** @deprecated Legacy preset; use custom contiguous tiers (1–9) in config. */
 export const ORDERS_TIER_RANGES: Array<{ from: number; to: number }> = [
   { from: 1, to: 50 },
   { from: 51, to: 100 },
@@ -22,35 +34,47 @@ export const ORDERS_TIER_RANGES: Array<{ from: number; to: number }> = [
   { from: 201, to: 250 },
 ];
 
-/**
- * Get default orders deduction tiers with zero deductions.
- * Used for initialization and validation.
- */
-export function getDefaultOrdersTiers(): DeductionTier[] {
-  return ORDERS_TIER_RANGES.map((range) => ({
-    ...range,
-    deduction: 0,
-  }));
+export function sortTiersAscending(tiers: DeductionTier[]): DeductionTier[] {
+  return [...tiers].sort((a, b) => a.from - b.from);
+}
+
+export function sortTiersDescending(tiers: DeductionTier[]): DeductionTier[] {
+  return [...tiers].sort((a, b) => b.from - a.from);
+}
+
+function isValidIntegerBound(n: number): boolean {
+  return Number.isFinite(n) && Number.isInteger(n) && n >= 1;
 }
 
 /**
- * Validate that orders tiers match the expected structure.
- * Returns true if valid, false otherwise.
+ * Validates contiguous deficit bands: sorted ascending by `from`, starting at 1, no gaps or overlaps.
  */
-export function validateOrdersTiersStructure(
+export function validateDeficitTiersStructure(
   tiers: DeductionTier[] | null | undefined,
 ): boolean {
-  if (!tiers || tiers.length !== ORDERS_TIER_RANGES.length) {
+  if (
+    !tiers ||
+    tiers.length < MIN_DEDUCTION_TIERS ||
+    tiers.length > MAX_DEDUCTION_TIERS
+  ) {
     return false;
   }
 
-  for (let i = 0; i < tiers.length; i++) {
-    const tier = tiers[i];
-    const expected = ORDERS_TIER_RANGES[i];
-    if (tier.from !== expected.from || tier.to !== expected.to) {
+  const sorted = sortTiersAscending(tiers);
+
+  if (sorted[0].from !== 1) {
+    return false;
+  }
+
+  for (let i = 0; i < sorted.length; i++) {
+    const t = sorted[i];
+    if (!isValidIntegerBound(t.from) || !isValidIntegerBound(t.to)) {
       return false;
     }
-    if (tier.deduction < 0) {
+    if (t.from > t.to) {
+      return false;
+    }
+    if (i > 0 && sorted[i].from !== sorted[i - 1].to + 1) {
       return false;
     }
   }
@@ -58,62 +82,102 @@ export function validateOrdersTiersStructure(
   return true;
 }
 
-/** Number of configurable revenue deficit bands (flat deduction each). */
-export const REVENUE_TIER_COUNT = 9;
-
 /**
- * Generate revenue deduction tiers from a unit amount.
- * Each tier is a SAR band of the revenue deficit; deduction is a flat amount per band crossed.
- *
- * @param unitAmount - Band width in SAR (e.g., 800)
- * @param tierDeductions - Exactly REVENUE_TIER_COUNT flat deduction amounts (SAR) per band
+ * Orders: contiguous tiers + non-negative deduction per missing order in each band.
  */
-export function generateRevenueTiers(
-  unitAmount: number,
-  tierDeductions: number[],
-): DeductionTier[] {
-  if (tierDeductions.length !== REVENUE_TIER_COUNT) {
-    throw new Error(
-      `Revenue tiers must have exactly ${REVENUE_TIER_COUNT} deduction amounts`,
-    );
+export function validateOrdersTiersStructure(
+  tiers: DeductionTier[] | null | undefined,
+): boolean {
+  if (!validateDeficitTiersStructure(tiers)) {
+    return false;
   }
-
-  return tierDeductions.map((deduction, index) => ({
-    from: index * unitAmount + 1,
-    to: (index + 1) * unitAmount,
-    deduction,
-  }));
+  const sorted = sortTiersAscending(tiers!);
+  for (const t of sorted) {
+    if (t.deduction < 0 || !Number.isFinite(t.deduction)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
- * Validate revenue tiers structure.
- * Checks that tiers are consecutive and based on a consistent unit amount.
+ * Contiguous deficit bands for revenue: exactly eight rows, from 1, no gaps or overlaps.
+ */
+export function validateRevenueBandsStructure(
+  tiers: DeductionTier[] | null | undefined,
+): boolean {
+  if (
+    !tiers ||
+    tiers.length < MIN_REVENUE_DEDUCTION_TIERS ||
+    tiers.length > MAX_REVENUE_DEDUCTION_TIERS
+  ) {
+    return false;
+  }
+
+  const sorted = sortTiersAscending(tiers);
+
+  if (sorted[0].from !== 1) {
+    return false;
+  }
+
+  for (let i = 0; i < sorted.length; i++) {
+    const t = sorted[i];
+    if (!isValidIntegerBound(t.from) || !isValidIntegerBound(t.to)) {
+      return false;
+    }
+    if (t.from > t.to) {
+      return false;
+    }
+    if (i > 0 && sorted[i].from !== sorted[i - 1].to + 1) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Revenue: eight contiguous tiers + positive unit amount + non-negative deduction (SAR per unit SAR of shortfall in band).
  */
 export function validateRevenueTiersStructure(
   tiers: DeductionTier[] | null | undefined,
   unitAmount: number | null | undefined,
 ): boolean {
   if (
-    !tiers ||
-    tiers.length !== REVENUE_TIER_COUNT ||
-    !unitAmount ||
+    unitAmount == null ||
+    !Number.isFinite(unitAmount) ||
     unitAmount <= 0
   ) {
     return false;
   }
-
-  for (let i = 0; i < tiers.length; i++) {
-    const tier = tiers[i];
-    const expectedFrom = i * unitAmount + 1;
-    const expectedTo = (i + 1) * unitAmount;
-
-    if (tier.from !== expectedFrom || tier.to !== expectedTo) {
-      return false;
-    }
-    if (tier.deduction < 0) {
+  if (!validateRevenueBandsStructure(tiers)) {
+    return false;
+  }
+  const sorted = sortTiersAscending(tiers!);
+  for (const t of sorted) {
+    if (t.deduction < 0 || !Number.isFinite(t.deduction)) {
       return false;
     }
   }
-
   return true;
+}
+
+/** Default orders tiers for empty config (meets minimum tier count). */
+export function getDefaultOrdersTiers(): DeductionTier[] {
+  return [
+    { from: 1, to: 1, deduction: 0 },
+    { from: 2, to: 2, deduction: 0 },
+    { from: 3, to: 3, deduction: 0 },
+  ];
+}
+
+/** Default revenue shortfall bands (1–6399 SAR); higher bands use lower per-unit deduction. */
+export function getDefaultRevenueTiers(): DeductionTier[] {
+  return [
+    { from: 1, to: 800, deduction: 9 },
+    { from: 801, to: 1600, deduction: 8 },
+    { from: 1601, to: 2400, deduction: 7 },
+    { from: 2401, to: 3200, deduction: 6 },
+    { from: 3201, to: 4000, deduction: 5 },
+  ];
 }

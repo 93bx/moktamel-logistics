@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { DeductionTier } from '../common/payroll-tier-constants';
+import {
+  DeductionTier,
+  sortTiersAscending,
+  sortTiersDescending,
+} from '../common/payroll-tier-constants';
 
 export interface CalculationInput {
   baseSalary: number;
@@ -13,7 +16,7 @@ export interface CalculationInput {
   deductionType: string; // 'DEDUCTION_FIXED' | 'DEDUCTION_ORDERS_TIERS' | 'DEDUCTION_REVENUE_TIERS'
   ordersTiers: DeductionTier[];
   revenueTiers: DeductionTier[];
-  /** SAR band width for revenue deficit tiers (used beyond the 9th band). */
+  /** SAR width for one “unit” of revenue shortfall (divisor for progressive deduction). */
   revenueUnitAmount?: number;
   deductionPerOrder: number;
   scheduledLoanInstallments: number;
@@ -44,13 +47,13 @@ export class SalariesPayrollCalculationService {
   private computeProgressiveDeduction(
     deficit: number,
     tiers: DeductionTier[],
-    isRevenue: boolean,
   ): { amount: number; breakdown: any[] } {
+    const sorted = sortTiersAscending(tiers);
     let totalDeduction = 0;
     let remainingDeficit = deficit;
     const breakdown: any[] = [];
 
-    for (const tier of tiers) {
+    for (const tier of sorted) {
       if (remainingDeficit <= 0) break;
 
       const tierWidth = tier.to - tier.from + 1;
@@ -70,8 +73,8 @@ export class SalariesPayrollCalculationService {
     }
 
     // If deficit exceeds all tiers, continue applying the last tier's rate
-    if (remainingDeficit > 0 && tiers.length > 0) {
-      const lastTier = tiers[tiers.length - 1];
+    if (remainingDeficit > 0 && sorted.length > 0) {
+      const lastTier = sorted[sorted.length - 1];
       const excessDeduction = remainingDeficit * lastTier.deduction;
       totalDeduction += excessDeduction;
 
@@ -87,11 +90,11 @@ export class SalariesPayrollCalculationService {
   }
 
   /**
-   * Revenue deficit: each band of width `unitAmount` (SAR) crossed applies that tier's
-   * flat deduction once (not rate × amount). Partial last band still applies full flat for that tier.
-   * Beyond all defined tiers, each further unit-wide slice uses the last tier's flat amount.
+   * Revenue shortfall: consume `deficit` SAR sequentially from the highest band (`from`) downward;
+   * each band takes min(remaining, band width); deduction = (applicable / unitAmount) × tier.deduction.
+   * Breakdown rows follow descending `from`. Overflow beyond all bands uses the strictest band (from === 1).
    */
-  private computeRevenueFlatBandDeduction(
+  private computeRevenueProgressiveUnitDeduction(
     deficit: number,
     tiers: DeductionTier[],
     unitAmount: number,
@@ -100,30 +103,53 @@ export class SalariesPayrollCalculationService {
       return { amount: 0, breakdown: [] };
     }
 
+    const sortedAsc = sortTiersAscending(tiers);
+    const sortedDesc = sortTiersDescending(tiers);
+    const strictest = sortedAsc[0];
     let remaining = deficit;
     let totalDeduction = 0;
     const breakdown: any[] = [];
-    let tierIdx = 0;
 
-    while (remaining > 0) {
-      const tier =
-        tierIdx < tiers.length ? tiers[tierIdx] : tiers[tiers.length - 1];
-      const bandWidth =
-        tierIdx < tiers.length
-          ? tier.to - tier.from + 1
-          : unitAmount;
-      const consumed = Math.min(remaining, bandWidth);
+    for (const tier of sortedDesc) {
+      if (remaining <= 0) break;
 
-      totalDeduction += tier.deduction;
+      const tierWidth = tier.to - tier.from + 1;
+      const applicableAmount = Math.min(remaining, tierWidth);
+      const units = applicableAmount / unitAmount;
+      const tierDeduction = units * tier.deduction;
+      totalDeduction += tierDeduction;
+      remaining -= applicableAmount;
+
       breakdown.push({
-        tier: { from: tier.from, to: tier.to, flat: tier.deduction },
-        consumedDeficitSar: consumed,
-        tierDeduction: tier.deduction,
-        beyondDefinedTiers: tierIdx >= tiers.length,
+        tier: {
+          from: tier.from,
+          to: tier.to,
+          deductionPerUnit: tier.deduction,
+        },
+        applicableAmount,
+        unitAmount,
+        units,
+        tierDeduction,
       });
+    }
 
-      remaining -= consumed;
-      tierIdx++;
+    if (remaining > 0 && strictest) {
+      const excessUnits = remaining / unitAmount;
+      const excessDeduction = excessUnits * strictest.deduction;
+      totalDeduction += excessDeduction;
+
+      breakdown.push({
+        tier: {
+          from: strictest.from,
+          to: 'infinity',
+          deductionPerUnit: strictest.deduction,
+        },
+        applicableAmount: remaining,
+        unitAmount,
+        units: excessUnits,
+        tierDeduction: excessDeduction,
+        note: 'Excess beyond defined tiers',
+      });
     }
 
     return { amount: totalDeduction, breakdown };
@@ -162,11 +188,7 @@ export class SalariesPayrollCalculationService {
         // Progressive stacking for orders
         const tiers = input.ordersTiers || [];
         if (tiers.length > 0) {
-          const result = this.computeProgressiveDeduction(
-            missingAmount,
-            tiers,
-            false,
-          );
+          const result = this.computeProgressiveDeduction(missingAmount, tiers);
           performanceDeduction = result.amount;
           details.performanceDeductionBreakdown.push({
             type: 'ORDERS_PROGRESSIVE',
@@ -180,18 +202,16 @@ export class SalariesPayrollCalculationService {
         const unitFromInput =
           input.revenueUnitAmount != null && input.revenueUnitAmount > 0
             ? input.revenueUnitAmount
-            : tiers[0]
-              ? tiers[0].to - tiers[0].from + 1
-              : 0;
+            : 0;
         if (tiers.length > 0 && unitFromInput > 0) {
-          const result = this.computeRevenueFlatBandDeduction(
+          const result = this.computeRevenueProgressiveUnitDeduction(
             missingAmount,
             tiers,
             unitFromInput,
           );
           performanceDeduction = result.amount;
           details.performanceDeductionBreakdown.push({
-            type: 'REVENUE_FLAT_BANDS',
+            type: 'REVENUE_PROGRESSIVE_UNITS',
             missingRevenue: missingAmount,
             unitAmount: unitFromInput,
             breakdown: result.breakdown,

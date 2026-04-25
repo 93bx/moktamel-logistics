@@ -1,3 +1,4 @@
+import { getDefaultRevenueTiers } from '../common/payroll-tier-constants';
 import { SalariesPayrollCalculationService } from './salaries-payroll.calculation.service';
 import { CalculationInput } from './salaries-payroll.calculation.service';
 
@@ -217,11 +218,8 @@ describe('SalariesPayrollCalculationService', () => {
   });
 
   describe('Revenue-based target with Revenue Tiers', () => {
-    const revenueTiers = [
-      { from: 1, to: 500, deduction: 50 },
-      { from: 501, to: 1000, deduction: 100 },
-      { from: 1001, to: 2000, deduction: 150 },
-    ];
+    const revenueUnitAmount = 16;
+    const revenueTiers = getDefaultRevenueTiers();
 
     it('should apply no deduction when revenue target is met', () => {
       const input: CalculationInput = {
@@ -235,6 +233,7 @@ describe('SalariesPayrollCalculationService', () => {
         deductionType: 'DEDUCTION_REVENUE_TIERS',
         ordersTiers: [],
         revenueTiers,
+        revenueUnitAmount,
         deductionPerOrder: 0,
         scheduledLoanInstallments: 0,
         totalBonus: 0,
@@ -247,18 +246,19 @@ describe('SalariesPayrollCalculationService', () => {
       expect(result.salaryAfterDeductions).toBe(3000);
     });
 
-    it('should apply tier 1 deduction for small revenue gap', () => {
+    it('should apply sequential top-down deduction for 3000 SAR shortfall (default tiers, unit 16)', () => {
       const input: CalculationInput = {
-        baseSalary: 3000,
+        baseSalary: 5000,
         targetType: 'TARGET_TYPE_REVENUE',
         monthlyOrdersTarget: 0,
-        monthlyRevenueTarget: 5000,
+        monthlyRevenueTarget: 8000,
         ordersCount: 0,
-        totalRevenue: 4700,
+        totalRevenue: 5000,
         workingDays: 30,
         deductionType: 'DEDUCTION_REVENUE_TIERS',
         ordersTiers: [],
         revenueTiers,
+        revenueUnitAmount,
         deductionPerOrder: 0,
         scheduledLoanInstallments: 0,
         totalBonus: 0,
@@ -267,84 +267,67 @@ describe('SalariesPayrollCalculationService', () => {
 
       const result = service.calculate(input);
 
-      // Missing 300 SAR, falls in tier 1 (1-500): 50 SAR deduction
-      expect(result.totalDeductions).toBe(50);
-      expect(result.salaryAfterDeductions).toBe(2950);
-    });
-
-    it('should apply tier 2 deduction for medium revenue gap', () => {
-      const input: CalculationInput = {
-        baseSalary: 3000,
-        targetType: 'TARGET_TYPE_REVENUE',
-        monthlyOrdersTarget: 0,
-        monthlyRevenueTarget: 5000,
-        ordersCount: 0,
-        totalRevenue: 4200,
-        workingDays: 30,
-        deductionType: 'DEDUCTION_REVENUE_TIERS',
-        ordersTiers: [],
-        revenueTiers,
-        deductionPerOrder: 0,
-        scheduledLoanInstallments: 0,
-        totalBonus: 0,
-        averageCost: 0,
-      };
-
-      const result = service.calculate(input);
-
-      // Flat bands (unit 500): first band 50 + second band (partial) 100 = 150
-      expect(result.totalDeductions).toBe(150);
-      expect(result.salaryAfterDeductions).toBe(2850);
-    });
-
-    it('should apply tier 3 deduction for large revenue gap', () => {
-      const input: CalculationInput = {
-        baseSalary: 3000,
-        targetType: 'TARGET_TYPE_REVENUE',
-        monthlyOrdersTarget: 0,
-        monthlyRevenueTarget: 5000,
-        ordersCount: 0,
-        totalRevenue: 3500,
-        workingDays: 30,
-        deductionType: 'DEDUCTION_REVENUE_TIERS',
-        ordersTiers: [],
-        revenueTiers,
-        deductionPerOrder: 0,
-        scheduledLoanInstallments: 0,
-        totalBonus: 0,
-        averageCost: 0,
-      };
-
-      const result = service.calculate(input);
-
-      // Flat bands: 500→50 + 500→100 + 500→150 = 300
-      expect(result.totalDeductions).toBe(300);
-      expect(result.salaryAfterDeductions).toBe(2700);
-    });
-
-    it('should apply highest tier for revenue gap beyond tiers', () => {
-      const input: CalculationInput = {
-        baseSalary: 3000,
-        targetType: 'TARGET_TYPE_REVENUE',
-        monthlyOrdersTarget: 0,
-        monthlyRevenueTarget: 5000,
-        ordersCount: 0,
-        totalRevenue: 0,
-        workingDays: 30,
-        deductionType: 'DEDUCTION_REVENUE_TIERS',
-        ordersTiers: [],
-        revenueTiers,
-        deductionPerOrder: 0,
-        scheduledLoanInstallments: 0,
-        totalBonus: 0,
-        averageCost: 0,
-      };
-
-      const result = service.calculate(input);
-
-      // Flat bands: 500+500+1000 of defined tiers then 6×500 at last flat 150 → 1200
       expect(result.totalDeductions).toBe(1200);
-      expect(result.salaryAfterDeductions).toBe(1800);
+      const br = result.calculationDetails.performanceDeductionBreakdown[0];
+      expect(br.type).toBe('REVENUE_PROGRESSIVE_UNITS');
+      expect(br.breakdown).toHaveLength(4);
+      expect(br.breakdown[0].tier.from).toBe(3201);
+      expect(br.breakdown[0].applicableAmount).toBe(800);
+      expect(br.breakdown[1].tier.from).toBe(2401);
+      expect(br.breakdown[2].tier.from).toBe(1601);
+      expect(br.breakdown[3].tier.from).toBe(801);
+      expect(br.breakdown[3].applicableAmount).toBe(600);
+    });
+
+    it('should apply only top bands for small shortfall', () => {
+      const input: CalculationInput = {
+        baseSalary: 3000,
+        targetType: 'TARGET_TYPE_REVENUE',
+        monthlyOrdersTarget: 0,
+        monthlyRevenueTarget: 6000,
+        ordersCount: 0,
+        totalRevenue: 5900,
+        workingDays: 30,
+        deductionType: 'DEDUCTION_REVENUE_TIERS',
+        ordersTiers: [],
+        revenueTiers,
+        revenueUnitAmount,
+        deductionPerOrder: 0,
+        scheduledLoanInstallments: 0,
+        totalBonus: 0,
+        averageCost: 0,
+      };
+
+      const result = service.calculate(input);
+      // 100 SAR from top band only: (100/16)*5
+      expect(result.totalDeductions).toBeCloseTo(31.25, 5);
+    });
+
+    it('should use strictest band rate for shortfall beyond defined span', () => {
+      const input: CalculationInput = {
+        baseSalary: 20000,
+        targetType: 'TARGET_TYPE_REVENUE',
+        monthlyOrdersTarget: 0,
+        monthlyRevenueTarget: 20000,
+        ordersCount: 0,
+        totalRevenue: 10000,
+        workingDays: 30,
+        deductionType: 'DEDUCTION_REVENUE_TIERS',
+        ordersTiers: [],
+        revenueTiers,
+        revenueUnitAmount,
+        deductionPerOrder: 0,
+        scheduledLoanInstallments: 0,
+        totalBonus: 0,
+        averageCost: 0,
+      };
+
+      const result = service.calculate(input);
+      expect(result.totalDeductions).toBe(5125);
+      const br = result.calculationDetails.performanceDeductionBreakdown[0].breakdown;
+      const last = br[br.length - 1];
+      expect(last.tier.to).toBe('infinity');
+      expect(last.tier.from).toBe(1);
     });
   });
 
@@ -512,7 +495,8 @@ describe('SalariesPayrollCalculationService', () => {
         workingDays: 30,
         deductionType: 'DEDUCTION_REVENUE_TIERS',
         ordersTiers: [],
-        revenueTiers: [{ from: 1, to: 2000, deduction: 200 }],
+        revenueTiers: getDefaultRevenueTiers(),
+        revenueUnitAmount: 16,
         deductionPerOrder: 0,
         scheduledLoanInstallments: 0,
         totalBonus: 0,
@@ -521,8 +505,8 @@ describe('SalariesPayrollCalculationService', () => {
 
       const result = service.calculate(input);
 
-      // Should use revenue (4000 vs 5000), not orders (120 vs 100)
-      expect(result.totalDeductions).toBe(200);
+      // Shortfall 1000 SAR: 800@5 + 200@6 per unit block
+      expect(result.totalDeductions).toBe((800 / 16) * 5 + (200 / 16) * 6);
     });
   });
 
@@ -586,7 +570,8 @@ describe('SalariesPayrollCalculationService', () => {
         workingDays: 30,
         deductionType: 'DEDUCTION_REVENUE_TIERS',
         ordersTiers: [],
-        revenueTiers: [{ from: 1, to: 2000, deduction: 200 }],
+        revenueTiers: getDefaultRevenueTiers(),
+        revenueUnitAmount: 16,
         deductionPerOrder: 10,
         scheduledLoanInstallments: 0,
         totalBonus: 0,
@@ -595,8 +580,7 @@ describe('SalariesPayrollCalculationService', () => {
 
       const result = service.calculate(input);
 
-      // Should use revenue tiers (200), not fixed
-      expect(result.totalDeductions).toBe(200);
+      expect(result.totalDeductions).toBe((800 / 16) * 5 + (200 / 16) * 6);
     });
   });
 
@@ -723,21 +707,17 @@ describe('SalariesPayrollCalculationService', () => {
     });
   });
 
-  describe('Revenue deficit — flat deduction per SAR band crossed (9 tiers)', () => {
-    const unit = 800;
-    const nineTiersExample = [
-      { from: 1, to: 800, deduction: 100 },
-      { from: 801, to: 1600, deduction: 150 },
-      { from: 1601, to: 2400, deduction: 200 },
-      { from: 2401, to: 3200, deduction: 250 },
-      { from: 3201, to: 4000, deduction: 300 },
-      { from: 4001, to: 4800, deduction: 350 },
-      { from: 4801, to: 5600, deduction: 400 },
-      { from: 5601, to: 6400, deduction: 450 },
-      { from: 6401, to: 7200, deduction: 500 },
+  describe('Revenue deficit — progressive units (SAR per unitAmount of shortfall)', () => {
+    const unit = 16;
+    /** Four top bands only (calc accepts any contiguous slice; config enforces eight). */
+    const fourBandExample = [
+      { from: 3200, to: 3999, deduction: 8 },
+      { from: 4000, to: 4799, deduction: 7 },
+      { from: 4800, to: 5599, deduction: 6 },
+      { from: 5600, to: 6399, deduction: 5 },
     ];
 
-    it('matches product example (3000 SAR deficit → 700)', () => {
+    it('matches spreadsheet example (3000 SAR deficit → 1200)', () => {
       const input: CalculationInput = {
         baseSalary: 5000,
         targetType: 'TARGET_TYPE_REVENUE',
@@ -748,7 +728,7 @@ describe('SalariesPayrollCalculationService', () => {
         workingDays: 30,
         deductionType: 'DEDUCTION_REVENUE_TIERS',
         ordersTiers: [],
-        revenueTiers: nineTiersExample,
+        revenueTiers: fourBandExample,
         revenueUnitAmount: unit,
         deductionPerOrder: 0,
         scheduledLoanInstallments: 0,
@@ -757,10 +737,17 @@ describe('SalariesPayrollCalculationService', () => {
       };
 
       const result = service.calculate(input);
-      expect(result.totalDeductions).toBe(700);
+      // 800/16×5 + 800/16×6 + 800/16×7 + 600/16×8 = 250+300+350+300
+      expect(result.totalDeductions).toBe(1200);
+
+      const br = result.calculationDetails.performanceDeductionBreakdown[0] as {
+        breakdown: { tier: { from: number } }[];
+      };
+      const fromOrder = br.breakdown.map((r) => r.tier.from);
+      expect(fromOrder).toEqual([5600, 4800, 4000, 3200]);
     });
 
-    it('applies first band flat only for partial first band (350 SAR deficit)', () => {
+    it('applies proportional deduction for partial top band (350 SAR deficit)', () => {
       const input: CalculationInput = {
         baseSalary: 3000,
         targetType: 'TARGET_TYPE_REVENUE',
@@ -771,7 +758,7 @@ describe('SalariesPayrollCalculationService', () => {
         workingDays: 30,
         deductionType: 'DEDUCTION_REVENUE_TIERS',
         ordersTiers: [],
-        revenueTiers: nineTiersExample,
+        revenueTiers: fourBandExample,
         revenueUnitAmount: unit,
         deductionPerOrder: 0,
         scheduledLoanInstallments: 0,
@@ -780,10 +767,10 @@ describe('SalariesPayrollCalculationService', () => {
       };
 
       const result = service.calculate(input);
-      expect(result.totalDeductions).toBe(100);
+      expect(result.totalDeductions).toBe((350 / 16) * 5);
     });
 
-    it('sums flat amounts across multiple bands (1200 deficit, 500 SAR unit, 9 tiers)', () => {
+    it('sums progressive units across multiple bands (1200 deficit, unit 500)', () => {
       const u = 500;
       const tiers = Array.from({ length: 9 }, (_, i) => ({
         from: i * u + 1,
@@ -809,11 +796,17 @@ describe('SalariesPayrollCalculationService', () => {
       };
 
       const result = service.calculate(input);
-      // 1200 deficit: 500+500+200 → tiers 10+20+30 = 60
-      expect(result.totalDeductions).toBe(60);
+      // Sequential top-down: 500@90 + 500@80 + 200@70
+      expect(result.totalDeductions).toBe(90 + 80 + 28);
     });
 
-    it('uses last tier flat for each extra band after the 9th', () => {
+    it('uses strictest band rate for shortfall beyond defined tiers', () => {
+      const u = 800;
+      const nineTiers = Array.from({ length: 9 }, (_, i) => ({
+        from: i * u + 1,
+        to: (i + 1) * u,
+        deduction: 100 * (i + 1),
+      }));
       const input: CalculationInput = {
         baseSalary: 20000,
         targetType: 'TARGET_TYPE_REVENUE',
@@ -824,8 +817,8 @@ describe('SalariesPayrollCalculationService', () => {
         workingDays: 30,
         deductionType: 'DEDUCTION_REVENUE_TIERS',
         ordersTiers: [],
-        revenueTiers: nineTiersExample,
-        revenueUnitAmount: unit,
+        revenueTiers: nineTiers,
+        revenueUnitAmount: u,
         deductionPerOrder: 0,
         scheduledLoanInstallments: 0,
         totalBonus: 0,
@@ -833,8 +826,13 @@ describe('SalariesPayrollCalculationService', () => {
       };
 
       const result = service.calculate(input);
-      // deficit 10000: nine bands 2700 + four last-tier 500 = 4700
-      expect(result.totalDeductions).toBe(4700);
+      // deficit 10000: nine full bands + 2800 overflow at strictest (100 per u)
+      let expected = 0;
+      for (let i = 0; i < 9; i++) {
+        expected += (800 / u) * (100 * (i + 1));
+      }
+      expected += (2800 / u) * 100;
+      expect(result.totalDeductions).toBe(expected);
     });
   });
 });

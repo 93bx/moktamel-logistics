@@ -24,6 +24,7 @@ import { CostsModule } from './costs/costs.module';
 import { SalariesPayrollModule } from './salaries-payroll/salaries-payroll.module';
 import { DocumentsModule } from './documents/documents.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     SalariesPayrollModule,
     DocumentsModule,
     DashboardModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

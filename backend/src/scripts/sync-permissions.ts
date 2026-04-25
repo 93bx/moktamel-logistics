@@ -102,6 +102,7 @@ async function bootstrap() {
     { key: 'PAYROLL_EDIT', module: 'SALARIES_PAYROLL', action: 'UPDATE' },
     { key: 'COSTS_READ', module: 'COSTS', action: 'READ' },
     { key: 'COSTS_MANAGE', module: 'COSTS', action: 'MANAGE' },
+    { key: 'REPORTS_READ', module: 'REPORTS', action: 'READ' },
   ];
 
   for (const p of perms) {

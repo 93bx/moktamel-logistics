@@ -424,6 +424,8 @@ model EmploymentRecord {
   target_deduction_type    String? // "DEDUCTION_FIXED" | "DEDUCTION_ORDERS_TIERS" | "DEDUCTION_REVENUE_TIERS"
   monthly_orders_target    Int? // For ORDERS_COUNT / FIXED_DEDUCTION
   monthly_target_amount    Decimal?              @db.Decimal(14, 2) // For REVENUE
+  day_work_hours           Decimal               @default(8) @db.Decimal(5, 2)
+  work_days                Json                  @default("[\"SATURDAY\",\"SUNDAY\",\"MONDAY\",\"TUESDAY\",\"WEDNESDAY\",\"THURSDAY\"]")
   deleted_at               DateTime?
   created_at               DateTime              @default(now())
   updated_at               DateTime              @updatedAt
@@ -476,6 +478,7 @@ model DailyOperation {
   cash_received        Decimal           @default(0) @db.Decimal(14, 2)
   difference_amount    Decimal           @default(0) @db.Decimal(14, 2)
   tips                 Decimal           @default(0) @db.Decimal(12, 2)
+  work_hours           Decimal?          @db.Decimal(5, 2)
   deduction_amount     Decimal           @default(0) @db.Decimal(12, 2)
   deduction_reason     String?
   is_draft             Boolean           @default(false)

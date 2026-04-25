@@ -66,6 +66,8 @@ export type EmploymentRecordForView = {
   target_deduction_type: string | null;
   monthly_orders_target: number | null;
   monthly_target_amount: string | null;
+  day_work_hours?: string | null;
+  work_days?: string[] | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -578,6 +580,24 @@ export function EmploymentViewModal({
                         <Activity className="h-4 w-4 shrink-0 text-primary/50" />
                         <span className="text-primary/60">{t("common.status")}:</span>
                         <StatusBadge status={record.status_code} />
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar className="h-4 w-4 shrink-0 text-primary/50" />
+                        <span className="text-primary/60">{t("employment.dayWorkHours")}:</span>
+                        <span className="font-medium text-primary">
+                          {record.day_work_hours ?? "8"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm sm:col-span-2">
+                        <Calendar className="h-4 w-4 shrink-0 text-primary/50" />
+                        <span className="text-primary/60">{t("employment.workDays")}:</span>
+                        <span className="font-medium text-primary">
+                          {Array.isArray(record.work_days) && record.work_days.length > 0
+                            ? record.work_days
+                                .map((d) => t(`employment.weekday.${d}` as any))
+                                .join(", ")
+                            : "—"}
+                        </span>
                       </div>
                     </div>
                     <hr />

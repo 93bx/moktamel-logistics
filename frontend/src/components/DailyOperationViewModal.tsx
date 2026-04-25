@@ -18,6 +18,7 @@ export type DailyOperationListItem = {
   cash_received?: string | number;
   difference_amount?: string | number;
   tips: string | number;
+  work_hours?: string | number | null;
   deduction_amount: string | number;
   deduction_reason: string | null;
   is_draft?: boolean;
@@ -283,6 +284,7 @@ export function DailyOperationViewModal({
                           <th className="px-4 py-3 font-semibold">{t("dailyOps.tableRevenue")}</th>
                           <th className="px-4 py-3 font-semibold">{t("dailyOps.tableCash")}</th>
                           <th className="px-4 py-3 font-semibold">{t("dailyOps.tableTips")}</th>
+                          <th className="px-4 py-3 font-semibold">{t("dailyOps.workHours")}</th>
                           <th className="px-4 py-3 font-semibold">{t("dailyOps.tableDeductions")}</th>
                           <th className="px-4 py-3 font-semibold">{t("dailyOps.tableStatus")}</th>
                           {onEditRecord ? (
@@ -306,6 +308,7 @@ export function DailyOperationViewModal({
                             <td className="px-4 py-3">{formatAmount(record.total_revenue)}</td>
                             <td className="px-4 py-3">{formatAmount(record.cash_collected)}</td>
                             <td className="px-4 py-3">{formatAmount(record.tips)}</td>
+                            <td className="px-4 py-3">{Number(record.work_hours ?? 0).toLocaleString()}</td>
                             <td className="px-4 py-3">
                               <div className="flex flex-col gap-0.5">
                                 <span>{formatAmount(record.deduction_amount)}</span>

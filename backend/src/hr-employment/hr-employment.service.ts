@@ -97,6 +97,8 @@ export class HrEmploymentService {
           target_deduction_type: true,
           monthly_orders_target: true,
           monthly_target_amount: true,
+          day_work_hours: true,
+          work_days: true,
           assigned_platform: true,
           platform_user_no: true,
           job_type: true,
@@ -566,6 +568,11 @@ export class HrEmploymentService {
         target_deduction_type: data.target_deduction_type ?? null,
         monthly_orders_target: data.monthly_orders_target ?? null,
         monthly_target_amount: data.monthly_target_amount ?? null,
+        day_work_hours: data.day_work_hours ?? 8,
+        work_days:
+          Array.isArray(data.work_days) && data.work_days.length > 0
+            ? data.work_days
+            : ['SATURDAY', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY'],
       },
     });
 
@@ -719,6 +726,8 @@ export class HrEmploymentService {
       target_deduction_type: data.target_deduction_type ?? undefined,
       monthly_orders_target: data.monthly_orders_target ?? undefined,
       monthly_target_amount: data.monthly_target_amount ?? undefined,
+      day_work_hours: data.day_work_hours ?? undefined,
+      work_days: data.work_days ?? undefined,
     };
     Object.keys(updatePayload).forEach((k) => {
       if (updatePayload[k] === undefined) delete updatePayload[k];

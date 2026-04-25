@@ -44,6 +44,16 @@ const ExtraDocumentSchema = z.object({
   file_id: z.string().uuid().optional().nullable(),
 });
 
+const WorkDaySchema = z.enum([
+  'SATURDAY',
+  'SUNDAY',
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+]);
+
 const EmploymentCreateSchema = z.object({
   recruitment_candidate_id: z.string().uuid().optional().nullable(),
   employee_no: z.string().min(1).optional().nullable(),
@@ -83,6 +93,8 @@ const EmploymentCreateSchema = z.object({
   target_deduction_type: z.enum(['DEDUCTION_FIXED', 'DEDUCTION_ORDERS_TIERS', 'DEDUCTION_REVENUE_TIERS']).optional().nullable(),
   monthly_orders_target: z.number().int().min(0).optional().nullable(),
   monthly_target_amount: z.number().min(0).optional().nullable(),
+  day_work_hours: z.number().min(0).max(24).optional(),
+  work_days: z.array(WorkDaySchema).min(1).max(7).optional(),
   extra_documents: z.array(ExtraDocumentSchema).max(2).optional(),
 });
 

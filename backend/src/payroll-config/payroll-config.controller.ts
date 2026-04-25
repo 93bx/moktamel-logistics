@@ -13,6 +13,12 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Permissions } from '../rbac/permissions.decorator';
 import { PermissionsGuard } from '../rbac/permissions.guard';
+import {
+  MAX_DEDUCTION_TIERS,
+  MAX_REVENUE_DEDUCTION_TIERS,
+  MIN_DEDUCTION_TIERS,
+  MIN_REVENUE_DEDUCTION_TIERS,
+} from '../common/payroll-tier-constants';
 import { PayrollConfigService } from './payroll-config.service';
 
 const ConfigQuerySchema = z.object({
@@ -22,8 +28,8 @@ const ConfigQuerySchema = z.object({
 
 const DeductionTierSchema = z
   .object({
-    from: z.number().int().min(0),
-    to: z.number().int().min(0),
+    from: z.number().int().min(1),
+    to: z.number().int().min(1),
     deduction: z.number().min(0),
   })
   .refine((data) => data.from <= data.to, {
@@ -38,8 +44,18 @@ const UpdateConfigSchema = z.object({
   revenue_bonus_enabled: z.boolean().optional().nullable(),
   revenue_bonus_amount: z.number().min(0).optional().nullable(),
   deduction_per_order: z.number().min(0).optional().nullable(),
-  orders_deduction_tiers: z.array(DeductionTierSchema).optional().nullable(),
-  revenue_deduction_tiers: z.array(DeductionTierSchema).optional().nullable(),
+  orders_deduction_tiers: z
+    .array(DeductionTierSchema)
+    .min(MIN_DEDUCTION_TIERS)
+    .max(MAX_DEDUCTION_TIERS)
+    .optional()
+    .nullable(),
+  revenue_deduction_tiers: z
+    .array(DeductionTierSchema)
+    .min(MIN_REVENUE_DEDUCTION_TIERS)
+    .max(MAX_REVENUE_DEDUCTION_TIERS)
+    .optional()
+    .nullable(),
   revenue_unit_amount: z.number().positive().optional().nullable(),
 });
 

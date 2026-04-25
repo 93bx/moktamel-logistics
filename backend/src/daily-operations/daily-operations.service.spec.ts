@@ -7,6 +7,9 @@ const futureIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
 describe('DailyOperationsService', () => {
   const prisma: any = {
+    company: {
+      findUnique: jest.fn(),
+    },
     employmentRecord: {
       findFirst: jest.fn(),
       count: jest.fn(),
@@ -28,7 +31,9 @@ describe('DailyOperationsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.company.findUnique.mockResolvedValue({ timezone: 'Asia/Riyadh' });
     prisma.employmentRecord.findFirst.mockResolvedValue({ id: 'emp1' });
+    prisma.dailyOperation.findFirst.mockResolvedValue(null);
     prisma.dailyOperation.create.mockResolvedValue({
       id: 'op1',
       company_id: 'c1',
@@ -56,6 +61,7 @@ describe('DailyOperationsService', () => {
         cash_collected: 10,
         tips: 0,
         deduction_amount: 0,
+        submit_action: 'approve',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -71,6 +77,7 @@ describe('DailyOperationsService', () => {
       tips: 5,
       deduction_amount: 10,
       deduction_reason: 'late',
+      submit_action: 'approve',
     });
 
     expect(prisma.dailyOperation.create).toHaveBeenCalled();

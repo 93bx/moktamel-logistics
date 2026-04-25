@@ -21,6 +21,8 @@ export type EmploymentListItem = {
   target_deduction_type: string | null;
   monthly_orders_target: number | null;
   monthly_target_amount: string | null;
+  day_work_hours?: string | null;
+  work_days?: string[] | null;
   cost_center_code: string | null;
   assigned_platform: string | null;
   platform_user_no: string | null;

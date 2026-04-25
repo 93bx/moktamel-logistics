@@ -13,6 +13,8 @@ import { Prisma } from '@prisma/client';
 import { getKSAMonthBounds, getCurrentKSAMonth } from '../common/ksa-month';
 import {
   DeductionTier,
+  getDefaultRevenueTiers,
+  DEFAULT_REVENUE_UNIT_AMOUNT,
   validateOrdersTiersStructure,
   validateRevenueTiersStructure,
 } from '../common/payroll-tier-constants';
@@ -51,7 +53,7 @@ export class PayrollConfigService {
    */
   private buildConfigSnapshot(config: any): any {
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       minimum_salary: config.minimum_salary ? Number(config.minimum_salary) : null,
       tip_recipient: config.tip_recipient || 'REPRESENTATIVE',
       count_bonus_enabled: config.count_bonus_enabled || false,
@@ -84,9 +86,14 @@ export class PayrollConfigService {
       ? 'COMPLETE'
       : 'INCOMPLETE';
 
+    const revenueUnitAmount =
+      config.revenue_unit_amount != null
+        ? Number(config.revenue_unit_amount)
+        : null;
+
     const revenueTiers = validateRevenueTiersStructure(
       config.revenue_deduction_tiers,
-      config.revenue_unit_amount,
+      revenueUnitAmount,
     )
       ? 'COMPLETE'
       : 'INCOMPLETE';
@@ -224,8 +231,8 @@ export class PayrollConfigService {
       revenue_bonus_amount: null,
       deduction_per_order: null,
       orders_deduction_tiers: null,
-      revenue_deduction_tiers: null,
-      revenue_unit_amount: null,
+      revenue_deduction_tiers: getDefaultRevenueTiers(),
+      revenue_unit_amount: DEFAULT_REVENUE_UNIT_AMOUNT,
     };
   }
 
@@ -238,7 +245,7 @@ export class PayrollConfigService {
     if (data.orders_deduction_tiers !== undefined && data.orders_deduction_tiers !== null) {
       if (!validateOrdersTiersStructure(data.orders_deduction_tiers)) {
         throw new BadRequestException(
-          'PAYROLL_CONFIG_001: Orders tiers must match the fixed structure (5 tiers: 1-50, 51-100, 101-150, 151-200, 201-250)',
+          'PAYROLL_CONFIG_ORDERS_TIERS_INVALID: Orders tiers must be 1–9 contiguous bands from deficit 1, no gaps or overlaps, with non-negative deductions.',
         );
       }
     }
@@ -247,7 +254,7 @@ export class PayrollConfigService {
     if (data.revenue_deduction_tiers !== undefined && data.revenue_deduction_tiers !== null) {
       if (!validateRevenueTiersStructure(data.revenue_deduction_tiers, data.revenue_unit_amount)) {
         throw new BadRequestException(
-          'PAYROLL_CONFIG_001: Revenue tiers must match the unit amount structure (5 consecutive tiers)',
+          'PAYROLL_CONFIG_REVENUE_TIERS_INVALID: Revenue tiers require a positive unit amount and 1-8 contiguous bands from deficit 1, no gaps or overlaps, with non-negative per-unit deductions.',
         );
       }
     }

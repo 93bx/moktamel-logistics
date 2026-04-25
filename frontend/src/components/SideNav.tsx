@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ClipboardList,
   FileText,
+  FileBarChart,
   LayoutDashboard,
   Package,
   Receipt,
@@ -116,6 +117,13 @@ export function SideNav({ showLabels = true }: SideNavProps) {
       >
         <ClipboardList className="h-5 w-5 shrink-0" aria-hidden />
         <span className={`min-w-0 truncate ${labelCls}`}>{t("nav.dailyOperations")}</span>
+      </Link>
+      <Link
+        href={`/${locale}/reports`}
+        className={`flex items-center rounded-md py-2 text-base transition-colors ${linkRow} ${activeRow(isActive(`/${locale}/reports`))}`}
+      >
+        <FileBarChart className="h-5 w-5 shrink-0" aria-hidden />
+        <span className={`min-w-0 truncate ${labelCls}`}>{t("nav.reports")}</span>
       </Link>
 
       <div>
