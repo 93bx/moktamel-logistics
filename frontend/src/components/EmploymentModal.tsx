@@ -12,6 +12,7 @@ import { Modal } from "./Modal";
 import { FileUpload } from "./FileUpload";
 import { NationalitySearchDropdown } from "./NationalitySearchDropdown";
 import { InfoTooltip } from "./InfoTooltip";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 import { FileImage } from "lucide-react";
 
 function getAgeFromDateOfBirth(dob: string | null): number | null {
@@ -1135,7 +1136,8 @@ export function EmploymentModal({ isOpen, onClose, locale, employmentId, recruit
             />
             {payrollConfig && payrollConfig.minimum_salary > 0 && (
               <p className="mt-0.5 text-xs text-primary/60">
-                {t("employment.minimumSalary")}: {payrollConfig.minimum_salary} SAR
+                {t("employment.minimumSalary")}:{" "}
+                <CurrencyWithRiyal amount={payrollConfig.minimum_salary} symbolSize="sm" />
               </p>
             )}
           </div>

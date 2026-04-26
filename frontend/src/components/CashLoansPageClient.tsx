@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
 import { FileUpload } from "./FileUpload";
 import { EmployeeSearchBox } from "./EmployeeSearchBox";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 type EmployeeRow = {
   id: string;
@@ -104,10 +105,10 @@ export function CashLoansPageClient({ locale, list, stats, searchParams, page, d
     <>
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={t("cashLoans.stats.myWallet")} value={formatAmount(stats.myWallet)} />
-        <StatCard label={t("cashLoans.stats.cashNotCollected")} value={formatAmount(stats.cashNotCollected)} />
-        <StatCard label={t("cashLoans.stats.totalLoans")} value={formatAmount(stats.totalLoans)} />
-        <StatCard label={t("cashLoans.stats.cashCollected")} value={formatAmount(stats.cashCollected)} />
+        <StatCard label={t("cashLoans.stats.myWallet")} value={<CurrencyWithRiyal amount={stats.myWallet} formattedAmount={formatAmount(stats.myWallet)} symbolSize="lg" />} />
+        <StatCard label={t("cashLoans.stats.cashNotCollected")} value={<CurrencyWithRiyal amount={stats.cashNotCollected} formattedAmount={formatAmount(stats.cashNotCollected)} symbolSize="lg" />} />
+        <StatCard label={t("cashLoans.stats.totalLoans")} value={<CurrencyWithRiyal amount={stats.totalLoans} formattedAmount={formatAmount(stats.totalLoans)} symbolSize="lg" />} />
+        <StatCard label={t("cashLoans.stats.cashCollected")} value={<CurrencyWithRiyal amount={stats.cashCollected} formattedAmount={formatAmount(stats.cashCollected)} symbolSize="lg" />} />
       </div>
 
       {/* Controls */}
@@ -233,11 +234,11 @@ export function CashLoansPageClient({ locale, list, stats, searchParams, page, d
                       {row.status === "BALANCED" ? t("cashLoans.statusBalanced") : t("cashLoans.statusUnbalanced")}
                     </span>
                   </td>
-                  <td className="px-3 py-2">{formatAmount(row.total_revenue)}</td>
-                  <td className="px-3 py-2">{formatAmount(row.total_cash_collected)}</td>
-                  <td className="px-3 py-2">{formatAmount(row.total_cash_not_collected)}</td>
-                  <td className="px-3 py-2">{formatAmount(row.total_loans)}</td>
-                  <td className="px-3 py-2">{formatAmount(row.total_deductions)}</td>
+                  <td className="px-3 py-2"><CurrencyWithRiyal amount={row.total_revenue} formattedAmount={formatAmount(row.total_revenue)} symbolSize="sm" /></td>
+                  <td className="px-3 py-2"><CurrencyWithRiyal amount={row.total_cash_collected} formattedAmount={formatAmount(row.total_cash_collected)} symbolSize="sm" /></td>
+                  <td className="px-3 py-2"><CurrencyWithRiyal amount={row.total_cash_not_collected} formattedAmount={formatAmount(row.total_cash_not_collected)} symbolSize="sm" /></td>
+                  <td className="px-3 py-2"><CurrencyWithRiyal amount={row.total_loans} formattedAmount={formatAmount(row.total_loans)} symbolSize="sm" /></td>
+                  <td className="px-3 py-2"><CurrencyWithRiyal amount={row.total_deductions} formattedAmount={formatAmount(row.total_deductions)} symbolSize="sm" /></td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-2">
                       <button
@@ -318,7 +319,7 @@ export function CashLoansPageClient({ locale, list, stats, searchParams, page, d
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
       <div className="text-sm text-primary/60">{label}</div>
@@ -336,10 +337,10 @@ function ViewModal({ isOpen, onClose, data, loading }: { isOpen: boolean; onClos
       ) : data ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <SummaryItem label={t("cashLoans.summaryRevenue")} value={formatAmount(data.summary.total_revenue)} />
-            <SummaryItem label={t("cashLoans.summaryCash")} value={formatAmount(data.summary.total_cash)} />
-            <SummaryItem label={t("cashLoans.summaryLoan")} value={formatAmount(data.summary.total_loan)} />
-            <SummaryItem label={t("cashLoans.summaryDeductions")} value={formatAmount(data.summary.total_deductions)} />
+            <SummaryItem label={t("cashLoans.summaryRevenue")} value={<CurrencyWithRiyal amount={data.summary.total_revenue} formattedAmount={formatAmount(data.summary.total_revenue)} symbolSize="sm" />} />
+            <SummaryItem label={t("cashLoans.summaryCash")} value={<CurrencyWithRiyal amount={data.summary.total_cash} formattedAmount={formatAmount(data.summary.total_cash)} symbolSize="sm" />} />
+            <SummaryItem label={t("cashLoans.summaryLoan")} value={<CurrencyWithRiyal amount={data.summary.total_loan} formattedAmount={formatAmount(data.summary.total_loan)} symbolSize="sm" />} />
+            <SummaryItem label={t("cashLoans.summaryDeductions")} value={<CurrencyWithRiyal amount={data.summary.total_deductions} formattedAmount={formatAmount(data.summary.total_deductions)} symbolSize="sm" />} />
           </div>
           <div className="max-h-80 overflow-auto rounded-md border border-zinc-200 dark:border-zinc-700">
             <table className="min-w-full text-sm">
@@ -357,8 +358,14 @@ function ViewModal({ isOpen, onClose, data, loading }: { isOpen: boolean; onClos
                   <tr key={trow.id} className="border-t border-zinc-100 dark:border-zinc-700">
                     <td className="px-3 py-2">{new Date(trow.date).toLocaleDateString()}</td>
                     <td className="px-3 py-2">{trow.type}</td>
-                    <td className="px-3 py-2">{formatAmount(trow.amount)}</td>
-                    <td className="px-3 py-2">{trow.balance_after !== null ? formatAmount(trow.balance_after) : "-"}</td>
+                    <td className="px-3 py-2">
+                      <CurrencyWithRiyal amount={trow.amount} formattedAmount={formatAmount(trow.amount)} symbolSize="sm" />
+                    </td>
+                    <td className="px-3 py-2">
+                      {trow.balance_after !== null ? (
+                        <CurrencyWithRiyal amount={trow.balance_after} formattedAmount={formatAmount(trow.balance_after)} symbolSize="sm" />
+                      ) : "-"}
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs">{trow.receipt_no ?? "-"}</td>
                   </tr>
                 ))}
@@ -380,7 +387,7 @@ function ViewModal({ isOpen, onClose, data, loading }: { isOpen: boolean; onClos
   );
 }
 
-function SummaryItem({ label, value }: { label: string; value: string }) {
+function SummaryItem({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
       <div className="text-xs text-primary/60">{label}</div>
@@ -847,9 +854,13 @@ function HandoverModal({ isOpen, onClose, wallet, defaultDate }: { isOpen: boole
           </button>
           <div className="flex flex-col gap-1 text-right">
             <div className="text-xs text-primary/60">{t("cashLoans.expensesTotal")}</div>
-            <div className="text-lg font-semibold text-primary">{formatAmount(expensesTotal)}</div>
+            <div className="text-lg font-semibold text-primary">
+              <CurrencyWithRiyal amount={expensesTotal} formattedAmount={formatAmount(expensesTotal)} symbolSize="lg" />
+            </div>
             <div className="text-xs text-primary/60">{t("cashLoans.handedOverAmount")}</div>
-            <div className="text-lg font-semibold text-primary">{formatAmount(handedOver)}</div>
+            <div className="text-lg font-semibold text-primary">
+              <CurrencyWithRiyal amount={handedOver} formattedAmount={formatAmount(handedOver)} symbolSize="lg" />
+            </div>
           </div>
         </div>
 

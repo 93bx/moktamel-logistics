@@ -11,6 +11,7 @@ import { VehicleAssignModal } from "./VehicleAssignModal";
 import { VehicleTransferModal } from "./VehicleTransferModal";
 import { VehicleMaintenanceModal } from "./VehicleMaintenanceModal";
 import { GasFormModal } from "./GasFormModal";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 import { useRouter } from "next/navigation";
 
 export function FleetPageClient({
@@ -93,12 +94,14 @@ export function FleetPageClient({
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
           <div className="text-sm text-primary/60">{t("fleet.maintenanceCostThisMonth")}</div>
           <div className="mt-1 text-2xl font-semibold text-primary">
-            {new Intl.NumberFormat(locale === "ar" ? "ar-SA" : "en", {
-              style: "currency",
-              currency: "SAR",
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            }).format(stats.maintenanceCostThisMonth)}
+            <CurrencyWithRiyal
+              amount={stats.maintenanceCostThisMonth}
+              formattedAmount={new Intl.NumberFormat(locale === "ar" ? "ar-SA" : "en", {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(stats.maintenanceCostThisMonth)}
+              symbolSize="lg"
+            />
           </div>
         </div>
       </div>

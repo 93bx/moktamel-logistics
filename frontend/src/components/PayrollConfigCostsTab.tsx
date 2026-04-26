@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 type CostTypeCode =
   | "COST_TYPE_EMPLOYEE_SALARIES"
@@ -173,11 +174,17 @@ export function PayrollConfigCostsTab({
                   <tr key={item.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                     <td className="px-4 py-3 font-medium text-primary">{item.name}</td>
                     <td className="px-4 py-3">{t(`costs.type_${item.type_code.replace("COST_TYPE_", "")}`)}</td>
-                    <td className="px-4 py-3 text-right">{item.amount_input.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right text-primary/60">
-                      {item.vat_included ? item.vat_amount.toLocaleString() : "-"}
+                    <td className="px-4 py-3 text-right">
+                      <CurrencyWithRiyal amount={item.amount_input} formattedAmount={item.amount_input.toLocaleString()} symbolSize="sm" />
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold">{item.net_amount.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right text-primary/60">
+                      {item.vat_included ? (
+                        <CurrencyWithRiyal amount={item.vat_amount} formattedAmount={item.vat_amount.toLocaleString()} symbolSize="sm" />
+                      ) : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold">
+                      <CurrencyWithRiyal amount={item.net_amount} formattedAmount={item.net_amount.toLocaleString()} symbolSize="sm" />
+                    </td>
                     <td className="px-4 py-3">
                       {t(`costs.recurrence_${item.recurrence_code}`)}
                       {item.recurrence_code === "ONE_TIME" && item.one_time_date && (

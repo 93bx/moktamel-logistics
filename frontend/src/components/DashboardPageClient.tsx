@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
@@ -29,6 +29,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import type { DashboardOverviewPayload } from "@/app/[locale]/(app)/dashboard/page";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 type Props = {
   locale: string;
@@ -58,7 +59,7 @@ function StatCard({
   accentIndex = 0,
 }: {
   label: string;
-  value: string | number;
+  value: ReactNode;
   previousText?: string;
   trend?: "up" | "down" | "neutral";
   pctText?: string | null;
@@ -116,7 +117,7 @@ type StatCardWithPopoverProps = {
   onMouseEnter: (e: React.MouseEvent<HTMLElement>) => void;
   onMouseLeave: () => void;
   label: string;
-  value: string | number;
+  value: ReactNode;
   previousText?: string;
   trend?: "up" | "down" | "neutral";
   pctText?: string | null;
@@ -493,7 +494,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
                       {getPlatformLabel(p.platform)}
                     </span>
                     <span className="tabular-nums text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                      {formatAmount(p.revenue)}
+                      <CurrencyWithRiyal amount={p.revenue} formattedAmount={formatAmount(p.revenue)} symbolSize="sm" />
                     </span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-700">
@@ -546,7 +547,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
                     {locale === "ar" ? row.full_name_ar : row.full_name_en ?? row.full_name_ar}
                   </span>
                   <span className="shrink-0 tabular-nums text-sm font-bold text-amber-700 dark:text-amber-400">
-                    {formatAmount(row.amount)}
+                    <CurrencyWithRiyal amount={row.amount} formattedAmount={formatAmount(row.amount)} symbolSize="sm" />
                   </span>
                 </li>
               ))}
@@ -587,7 +588,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
                       </p>
                     </div>
                     <span className="shrink-0 rounded-lg bg-rose-100 px-2 py-1 text-xs font-bold tabular-nums text-rose-700 dark:bg-rose-900/40 dark:text-rose-400">
-                      −{formatAmount(row.amount)}
+                      <CurrencyWithRiyal amount={row.amount} formattedAmount={`-${formatAmount(row.amount)}`} symbolSize="sm" />
                     </span>
                   </div>
                   {row.reason && (
@@ -625,7 +626,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
                     {t("popovers.gasConsumption")}
                   </span>
                   <span className="mt-0.5 text-sm font-bold tabular-nums text-sky-800 dark:text-sky-200">
-                    {formatAmount(gas_summary.total_consumption)}
+                    <CurrencyWithRiyal amount={gas_summary.total_consumption} formattedAmount={formatAmount(gas_summary.total_consumption)} symbolSize="sm" />
                   </span>
                 </div>
                 <div className="flex flex-col items-center rounded-xl bg-indigo-50 p-2 dark:bg-indigo-950/30">
@@ -641,7 +642,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
                     avg
                   </span>
                   <span className="mt-0.5 text-sm font-bold tabular-nums text-teal-800 dark:text-teal-200">
-                    {formatAmount(gas_summary.avg_per_order)}
+                    <CurrencyWithRiyal amount={gas_summary.avg_per_order} formattedAmount={formatAmount(gas_summary.avg_per_order)} symbolSize="sm" />
                   </span>
                 </div>
               </div>
@@ -777,7 +778,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
           onMouseLeave={handlePopoverLeave}
           accentIndex={2}
           label={t("cards.totalRevenue")}
-          value={formatAmount(kpis.total_revenue.current)}
+          value={<CurrencyWithRiyal amount={kpis.total_revenue.current} formattedAmount={formatAmount(kpis.total_revenue.current)} symbolSize="lg" />}
           previousText={kpiPrevious("total_revenue")}
           trend={kpis.total_revenue.trend}
           pctText={kpiPct("total_revenue")}
@@ -789,7 +790,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
           onMouseLeave={handlePopoverLeave}
           accentIndex={3}
           label={t("cards.totalCashCollected")}
-          value={formatAmount(kpis.total_cash_collected.current)}
+          value={<CurrencyWithRiyal amount={kpis.total_cash_collected.current} formattedAmount={formatAmount(kpis.total_cash_collected.current)} symbolSize="lg" />}
           previousText={kpiPrevious("total_cash_collected")}
           trend={kpis.total_cash_collected.trend}
           pctText={kpiPct("total_cash_collected")}
@@ -801,7 +802,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
           onMouseLeave={handlePopoverLeave}
           accentIndex={4}
           label={t("cards.totalDeductions")}
-          value={formatAmount(kpis.total_deductions.current)}
+          value={<CurrencyWithRiyal amount={kpis.total_deductions.current} formattedAmount={formatAmount(kpis.total_deductions.current)} symbolSize="lg" />}
           previousText={kpiPrevious("total_deductions")}
           trend={kpis.total_deductions.trend}
           pctText={kpiPct("total_deductions")}
@@ -813,7 +814,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
           onMouseLeave={handlePopoverLeave}
           accentIndex={5}
           label={t("cards.gasPerOrder")}
-          value={formatAmount(kpis.gas_per_order.current)}
+          value={<CurrencyWithRiyal amount={kpis.gas_per_order.current} formattedAmount={formatAmount(kpis.gas_per_order.current)} symbolSize="lg" />}
           previousText={kpiPrevious("gas_per_order")}
           trend={kpis.gas_per_order.trend}
           pctText={kpiPct("gas_per_order")}
@@ -913,7 +914,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
                           {row.orders.toLocaleString()}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-800 dark:text-slate-200">
-                          {formatAmount(row.revenue)}
+                          <CurrencyWithRiyal amount={row.revenue} formattedAmount={formatAmount(row.revenue)} symbolSize="sm" />
                         </td>
                       </tr>
                     ))}
@@ -1057,7 +1058,7 @@ export function DashboardPageClient({ locale, payload }: Props) {
                           {locale === "ar" ? row.full_name_ar : row.full_name_en ?? row.full_name_ar}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-amber-700 dark:text-amber-400">
-                          {formatAmount(row.amount)}
+                          <CurrencyWithRiyal amount={row.amount} formattedAmount={formatAmount(row.amount)} symbolSize="sm" />
                         </td>
                       </tr>
                     ))}

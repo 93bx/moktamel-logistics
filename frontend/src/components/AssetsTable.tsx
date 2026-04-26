@@ -2,6 +2,7 @@ import { Eye, ArrowDownToLine, ShieldAlert, Smartphone, HardHat, Shirt, Shopping
 import { useTranslations } from "next-intl";
 import { format } from "date-fns";
 import { LicensePlate } from "./LicensePlate";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 type AssetListItem = {
   id: string;
@@ -129,7 +130,9 @@ export function AssetsTable({
                       </div>
                     ) : "-"}
                   </td>
-                  <td className="px-3 py-2">{totalValue.toLocaleString()}</td>
+                  <td className="px-3 py-2">
+                    <CurrencyWithRiyal amount={totalValue} formattedAmount={totalValue.toLocaleString()} symbolSize="sm" />
+                  </td>
                   <td className="px-3 py-2">
                     {lastActionDate ? format(lastActionDate, "yyyy-MM-dd") : "-"}
                   </td>

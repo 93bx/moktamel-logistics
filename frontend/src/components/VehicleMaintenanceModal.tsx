@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
+import { RiyalSymbol } from "./RiyalSymbol";
 import { FileUpload } from "./FileUpload";
 import { LicensePlate } from "./LicensePlate";
 import { useRouter } from "next/navigation";
@@ -261,7 +262,9 @@ export function VehicleMaintenanceModal({ isOpen, onClose, locale, vehicleId }: 
               </div>
             )}
             <div>
-              <label className="text-sm font-medium text-primary">{t("fleet.cost")} (SAR)</label>
+              <label className="text-sm font-medium text-primary inline-flex items-center gap-1">
+                {t("fleet.cost")} <RiyalSymbol size={12} />
+              </label>
               <input
                 type="text"
                 inputMode="decimal"

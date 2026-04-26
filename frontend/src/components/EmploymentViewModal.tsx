@@ -31,6 +31,7 @@ import { PlatformIcon } from "./PlatformIcon";
 import { NationalityDisplay } from "./NationalityDisplay";
 import { CandidateImageCard } from "./CandidateImageCard";
 import { ImageViewerModal } from "./ImageViewerModal";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 export type EmploymentRecordForView = {
   id: string;
@@ -620,7 +621,7 @@ export function EmploymentViewModal({
                           <span className="text-primary/60">{t("common.salaryAmount")}:</span>
                           <span className="font-medium text-primary">
                             {record.salary_amount != null
-                              ? `${record.salary_amount} ${record.salary_currency_code || "SAR"}`
+                              ? <CurrencyWithRiyal amount={record.salary_amount} formattedAmount={record.salary_amount} symbolSize="sm" />
                               : "-"}
                           </span>
                         </div>
@@ -650,7 +651,7 @@ export function EmploymentViewModal({
                               ? (record.monthly_orders_target ?? "-")
                               : record.target_type === "TARGET_TYPE_REVENUE"
                                 ? record.monthly_target_amount
-                                  ? `${record.monthly_target_amount} ${t("employment.sar")}`
+                                  ? <CurrencyWithRiyal amount={record.monthly_target_amount} formattedAmount={record.monthly_target_amount} symbolSize="sm" />
                                   : "-"
                                 : "-"}
                           </span>
@@ -694,7 +695,7 @@ export function EmploymentViewModal({
                               <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
                               <span className="text-primary/60">{t("payrollConfig.countBonusEnabled")}:</span>
                               <span className="font-medium text-primary">
-                                {payrollPolicy.count_bonus_amount} SAR
+                                <CurrencyWithRiyal amount={payrollPolicy.count_bonus_amount} formattedAmount={String(payrollPolicy.count_bonus_amount)} symbolSize="sm" />
                               </span>
                             </div>
                           )}
@@ -703,7 +704,7 @@ export function EmploymentViewModal({
                               <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
                               <span className="text-primary/60">{t("payrollConfig.revenueBonusEnabled")}:</span>
                               <span className="font-medium text-primary">
-                                {payrollPolicy.revenue_bonus_amount} SAR
+                                <CurrencyWithRiyal amount={payrollPolicy.revenue_bonus_amount} formattedAmount={String(payrollPolicy.revenue_bonus_amount)} symbolSize="sm" />
                               </span>
                             </div>
                           )}

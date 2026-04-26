@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -34,6 +34,7 @@ import type { PayrollSortKey } from "@/lib/types/salaries-payroll";
 import { Modal } from "./Modal";
 import { PlatformIcon } from "./PlatformIcon";
 import { FileUpload } from "./FileUpload";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 import { downloadSalariesPayrollExport } from "@/lib/salaries-payroll-export";
 
 function num(v: unknown): number {
@@ -337,7 +338,13 @@ export function SalariesPayrollPageClient({ locale, month, sort }: SalariesPayro
                 {
                   key: "revenue" as const,
                   label: t("salariesPayroll.stats.totalRevenue"),
-                  value: formatAmount(data?.quickStats.totalRevenueAmount ?? 0),
+                  value: (
+                    <CurrencyWithRiyal
+                      amount={data?.quickStats.totalRevenueAmount ?? 0}
+                      formattedAmount={formatAmount(data?.quickStats.totalRevenueAmount ?? 0)}
+                      symbolSize="lg"
+                    />
+                  ),
                   tip: t("salariesPayroll.statsTip.totalRevenue"),
                   href: buildSalariesPayrollHref(locale, { month, sort: "revenue" }),
                   icon: TrendingUp,
@@ -345,7 +352,13 @@ export function SalariesPayrollPageClient({ locale, month, sort }: SalariesPayro
                 {
                   key: "salary_due" as const,
                   label: t("salariesPayroll.stats.totalSalariesDue"),
-                  value: formatAmount(data?.quickStats.totalSalariesDueAmount ?? 0),
+                  value: (
+                    <CurrencyWithRiyal
+                      amount={data?.quickStats.totalSalariesDueAmount ?? 0}
+                      formattedAmount={formatAmount(data?.quickStats.totalSalariesDueAmount ?? 0)}
+                      symbolSize="lg"
+                    />
+                  ),
                   tip: t("salariesPayroll.statsTip.totalSalariesDue"),
                   href: buildSalariesPayrollHref(locale, { month, sort: "salary_due" }),
                   icon: Banknote,
@@ -353,7 +366,13 @@ export function SalariesPayrollPageClient({ locale, month, sort }: SalariesPayro
                 {
                   key: "deductions" as const,
                   label: t("salariesPayroll.stats.totalDeductions"),
-                  value: formatAmount(data?.quickStats.totalDeductionsAmount ?? 0),
+                  value: (
+                    <CurrencyWithRiyal
+                      amount={data?.quickStats.totalDeductionsAmount ?? 0}
+                      formattedAmount={formatAmount(data?.quickStats.totalDeductionsAmount ?? 0)}
+                      symbolSize="lg"
+                    />
+                  ),
                   tip: t("salariesPayroll.statsTip.totalDeductions"),
                   href: buildSalariesPayrollHref(locale, { month, sort: "deductions" }),
                   icon: TrendingDown,
@@ -361,7 +380,13 @@ export function SalariesPayrollPageClient({ locale, month, sort }: SalariesPayro
                 {
                   key: "loans" as const,
                   label: t("salariesPayroll.stats.totalLoans"),
-                  value: formatAmount(data?.quickStats.totalLoansAmount ?? 0),
+                  value: (
+                    <CurrencyWithRiyal
+                      amount={data?.quickStats.totalLoansAmount ?? 0}
+                      formattedAmount={formatAmount(data?.quickStats.totalLoansAmount ?? 0)}
+                      symbolSize="lg"
+                    />
+                  ),
                   tip: t("salariesPayroll.statsTip.totalLoans"),
                   href: buildSalariesPayrollHref(locale, { month, sort: "loans" }),
                   icon: PiggyBank,
@@ -369,7 +394,13 @@ export function SalariesPayrollPageClient({ locale, month, sort }: SalariesPayro
                 {
                   key: "uncollected" as const,
                   label: t("salariesPayroll.stats.totalUncollectedCash"),
-                  value: formatAmount(data?.quickStats.totalUncollectedCashAmount ?? 0),
+                  value: (
+                    <CurrencyWithRiyal
+                      amount={data?.quickStats.totalUncollectedCashAmount ?? 0}
+                      formattedAmount={formatAmount(data?.quickStats.totalUncollectedCashAmount ?? 0)}
+                      symbolSize="lg"
+                    />
+                  ),
                   tip: t("salariesPayroll.statsTip.totalUncollectedCash"),
                   href: buildSalariesPayrollHref(locale, { month, sort: "default" }),
                   icon: Wallet,
@@ -511,11 +542,23 @@ export function SalariesPayrollPageClient({ locale, month, sort }: SalariesPayro
                       const tt = targetType(row);
                       const ordersOrRev =
                         tt === "TARGET_TYPE_REVENUE"
-                          ? formatAmount(num(row.total_revenue))
+                          ? (
+                            <CurrencyWithRiyal
+                              amount={num(row.total_revenue)}
+                              formattedAmount={formatAmount(num(row.total_revenue))}
+                              symbolSize="sm"
+                            />
+                          )
                           : `${row.orders_count}`;
                       const diffDisplay =
                         tt === "TARGET_TYPE_REVENUE"
-                          ? `${row.target_difference >= 0 ? "+" : ""}${formatAmount(Math.abs(row.target_difference))} ${t("employment.sar")}`
+                          ? (
+                            <CurrencyWithRiyal
+                              amount={Math.abs(row.target_difference)}
+                              formattedAmount={`${row.target_difference >= 0 ? "+" : ""}${formatAmount(Math.abs(row.target_difference))}`}
+                              symbolSize="sm"
+                            />
+                          )
                           : `${row.target_difference >= 0 ? "+" : ""}${row.target_difference} ${t("salariesPayroll.ordersUnit")}`;
                       const dmLabel = t(`salariesPayroll.deduction_${row.deduction_method}` as "salariesPayroll.deduction_DEDUCTION_FIXED");
                       return (
@@ -558,7 +601,9 @@ export function SalariesPayrollPageClient({ locale, month, sort }: SalariesPayro
                               <span className="text-zinc-400">—</span>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-end font-medium">{formatAmount(num(row.base_salary))}</td>
+                          <td className="px-3 py-3 text-end font-medium">
+                            <CurrencyWithRiyal amount={num(row.base_salary)} formattedAmount={formatAmount(num(row.base_salary))} symbolSize="sm" />
+                          </td>
                           <td className="px-3 py-3">
                             <span
                               className="cursor-help border-b border-dotted border-primary/30"
@@ -577,24 +622,26 @@ export function SalariesPayrollPageClient({ locale, month, sort }: SalariesPayro
                               {diffDisplay}
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-end text-red-600">{formatAmount(performanceDeduction(row))}</td>
+                          <td className="px-3 py-3 text-end text-red-600">
+                            <CurrencyWithRiyal amount={performanceDeduction(row)} formattedAmount={formatAmount(performanceDeduction(row))} symbolSize="sm" />
+                          </td>
                           <td
                             className="px-3 py-3 text-end text-red-600"
                             title={t("salariesPayroll.totalDeductionsHint")}
                           >
-                            {formatAmount(grandTotalDeductions(row))}
+                            <CurrencyWithRiyal amount={grandTotalDeductions(row)} formattedAmount={formatAmount(grandTotalDeductions(row))} symbolSize="sm" />
                           </td>
                           <td
                             className="px-3 py-3 text-end text-emerald-700"
                             title={t("salariesPayroll.tipsBonusHint")}
                           >
-                            {formatAmount(num(row.total_bonus))}
+                            <CurrencyWithRiyal amount={num(row.total_bonus)} formattedAmount={formatAmount(num(row.total_bonus))} symbolSize="sm" />
                           </td>
                           <td
                             className="px-3 py-3 text-end font-semibold"
                             title={t("salariesPayroll.finalSalaryHint")}
                           >
-                            {formatAmount(num(row.salary_after_deductions))}
+                            <CurrencyWithRiyal amount={num(row.salary_after_deductions)} formattedAmount={formatAmount(num(row.salary_after_deductions))} symbolSize="sm" />
                           </td>
                           <td className="px-3 py-3 text-center">
                             <span
@@ -785,7 +832,12 @@ function PayrollEmployeeInfoCard({
           </div>
           {showFinalSalary ? (
             <div className="text-sm font-semibold text-primary">
-              {t("salariesPayroll.finalSalary")}: {formatAmount(num(d.salary_after_deductions))}
+              {t("salariesPayroll.finalSalary")}:{" "}
+              <CurrencyWithRiyal
+                amount={num(d.salary_after_deductions)}
+                formattedAmount={formatAmount(num(d.salary_after_deductions))}
+                symbolSize="sm"
+              />
             </div>
           ) : null}
         </div>
@@ -818,7 +870,13 @@ function PerformanceInputsSummary({
 
   const diffDisplay =
     tt === "TARGET_TYPE_REVENUE"
-      ? `${d.target_difference >= 0 ? "+" : ""}${formatAmount(Math.abs(d.target_difference))} ${t("employment.sar")}`
+      ? (
+        <CurrencyWithRiyal
+          amount={Math.abs(d.target_difference)}
+          formattedAmount={`${d.target_difference >= 0 ? "+" : ""}${formatAmount(Math.abs(d.target_difference))}`}
+          symbolSize="sm"
+        />
+      )
       : `${d.target_difference >= 0 ? "+" : ""}${d.target_difference} ${t("salariesPayroll.ordersUnit")}`;
 
   return (
@@ -846,11 +904,11 @@ function PerformanceInputsSummary({
           <>
             <li>
               <span className="text-primary/55">{t("salariesPayroll.totalRevenue")}: </span>
-              {formatAmount(revenueAchieved)} {t("employment.sar")}
+              <CurrencyWithRiyal amount={revenueAchieved} formattedAmount={formatAmount(revenueAchieved)} symbolSize="sm" />
             </li>
             <li>
               <span className="text-primary/55">{t("salariesPayroll.monthlyTarget")}: </span>
-              {formatAmount(monthlyRevenueTarget)} {t("employment.sar")}
+              <CurrencyWithRiyal amount={monthlyRevenueTarget} formattedAmount={formatAmount(monthlyRevenueTarget)} symbolSize="sm" />
             </li>
           </>
         )}
@@ -866,7 +924,7 @@ function PerformanceInputsSummary({
         </li>
         <li className="font-semibold text-primary">
           <span className="text-primary/55 font-normal">{t("salariesPayroll.colTargetDeduction")}: </span>
-          {formatAmount(performanceDeduction(d))} {t("employment.sar")}
+          <CurrencyWithRiyal amount={performanceDeduction(d)} formattedAmount={formatAmount(performanceDeduction(d))} symbolSize="sm" />
         </li>
       </ul>
     </div>
@@ -921,11 +979,12 @@ function PerformanceDeductionBreakdown({
                     {t("salariesPayroll.breakdownMissingOrders")}: {String(b.missingOrders ?? "—")}
                   </li>
                   <li>
-                    {t("salariesPayroll.breakdownRatePerOrder")}: {formatAmount(num(b.rate))}
+                    {t("salariesPayroll.breakdownRatePerOrder")}:{" "}
+                    <CurrencyWithRiyal amount={num(b.rate)} formattedAmount={formatAmount(num(b.rate))} symbolSize="sm" />
                   </li>
                   <li className="font-medium text-primary">
-                    {t("salariesPayroll.breakdownTotalFixedDeduction")}: {formatAmount(num(b.amount))}{" "}
-                    {t("employment.sar")}
+                    {t("salariesPayroll.breakdownTotalFixedDeduction")}:{" "}
+                    <CurrencyWithRiyal amount={num(b.amount)} formattedAmount={formatAmount(num(b.amount))} symbolSize="sm" />
                   </li>
                 </ul>
               );
@@ -957,22 +1016,26 @@ function PerformanceDeductionBreakdown({
                         {t("salariesPayroll.breakdownTierTo")}{" "}
                         {String((row.tier as Record<string, unknown>)?.to ?? "")}:{" "}
                         {t("salariesPayroll.breakdownApplicable")} {String(row.applicableAmount ?? "")},{" "}
-                        {t("salariesPayroll.breakdownDeduction")} {formatAmount(num(row.tierDeduction))}
+                        {t("salariesPayroll.breakdownDeduction")}{" "}
+                        <CurrencyWithRiyal amount={num(row.tierDeduction)} formattedAmount={formatAmount(num(row.tierDeduction))} symbolSize="sm" />
                       </li>
                     ))}
                   </ul>
                   <p className="font-medium text-primary">
-                    {t("salariesPayroll.colTargetDeduction")}: {formatAmount(num(b.amount))} {t("employment.sar")}
+                    {t("salariesPayroll.colTargetDeduction")}:{" "}
+                    <CurrencyWithRiyal amount={num(b.amount)} formattedAmount={formatAmount(num(b.amount))} symbolSize="sm" />
                   </p>
                 </div>
               );
             }
             if (type === "REVENUE_PROGRESSIVE_UNITS") {
               const inputs = calcDetails?.inputs as Record<string, unknown> | undefined;
-              const achievedRev =
-                inputs != null ? formatAmount(num(inputs.totalRevenue ?? inputs.total_revenue)) : "—";
-              const targetRev =
-                inputs != null ? formatAmount(num(inputs.monthlyRevenueTarget ?? inputs.monthly_revenue_target)) : "—";
+              const achievedRevValue =
+                inputs != null ? num(inputs.totalRevenue ?? inputs.total_revenue) : 0;
+              const targetRevValue =
+                inputs != null ? num(inputs.monthlyRevenueTarget ?? inputs.monthly_revenue_target) : 0;
+              const achievedRev = formatAmount(achievedRevValue);
+              const targetRev = formatAmount(targetRevValue);
               const br = Array.isArray(b.breakdown) ? (b.breakdown as Record<string, unknown>[]) : [];
               return (
                 <div key={idx} className="space-y-2">
@@ -980,12 +1043,16 @@ function PerformanceDeductionBreakdown({
                     {t("salariesPayroll.targetType")}: {t("employment.targetTypeRevenue")}
                   </p>
                   <p className="text-primary/70">
-                    {t("salariesPayroll.breakdownAchieved")}: {achievedRev} {t("employment.sar")} ·{" "}
-                    {t("salariesPayroll.monthlyTarget")}: {targetRev} {t("employment.sar")}
+                    {t("salariesPayroll.breakdownAchieved")}:{" "}
+                    <CurrencyWithRiyal amount={achievedRevValue} formattedAmount={achievedRev} symbolSize="sm" /> ·{" "}
+                    {t("salariesPayroll.monthlyTarget")}:{" "}
+                    <CurrencyWithRiyal amount={targetRevValue} formattedAmount={targetRev} symbolSize="sm" />
                   </p>
                   <p className="text-primary/70">
-                    {t("salariesPayroll.breakdownMissingRevenue")}: {formatAmount(num(b.missingRevenue))} ·{" "}
-                    {t("salariesPayroll.breakdownUnitBand")}: {formatAmount(num(b.unitAmount))}
+                    {t("salariesPayroll.breakdownMissingRevenue")}:{" "}
+                    <CurrencyWithRiyal amount={num(b.missingRevenue)} formattedAmount={formatAmount(num(b.missingRevenue))} symbolSize="sm" /> ·{" "}
+                    {t("salariesPayroll.breakdownUnitBand")}:{" "}
+                    <CurrencyWithRiyal amount={num(b.unitAmount)} formattedAmount={formatAmount(num(b.unitAmount))} symbolSize="sm" />
                   </p>
                   <ul className="space-y-1 rounded-md bg-zinc-50 p-2 dark:bg-zinc-900/50">
                     {br.map((row, i) => (
@@ -995,16 +1062,23 @@ function PerformanceDeductionBreakdown({
                         {t("salariesPayroll.breakdownTierTo")}{" "}
                         {String((row.tier as Record<string, unknown>)?.to ?? "")}:{" "}
                         {t("salariesPayroll.breakdownApplicable")}{" "}
-                        {formatAmount(num(row.applicableAmount))},{" "}
-                        {t("salariesPayroll.breakdownUnits")} {formatAmount(num(row.units))},{" "}
+                        <CurrencyWithRiyal amount={num(row.applicableAmount)} formattedAmount={formatAmount(num(row.applicableAmount))} symbolSize="sm" />,{" "}
+                        {t("salariesPayroll.breakdownUnits")}{" "}
+                        <CurrencyWithRiyal amount={num(row.units)} formattedAmount={formatAmount(num(row.units))} symbolSize="sm" />,{" "}
                         {t("salariesPayroll.breakdownDeductionPerUnit")}{" "}
-                        {formatAmount(num((row.tier as Record<string, unknown>)?.deductionPerUnit))}:{" "}
-                        {formatAmount(num(row.tierDeduction))}
+                        <CurrencyWithRiyal
+                          amount={num((row.tier as Record<string, unknown>)?.deductionPerUnit)}
+                          formattedAmount={formatAmount(num((row.tier as Record<string, unknown>)?.deductionPerUnit))}
+                          symbolSize="sm"
+                        />
+                        :{" "}
+                        <CurrencyWithRiyal amount={num(row.tierDeduction)} formattedAmount={formatAmount(num(row.tierDeduction))} symbolSize="sm" />
                       </li>
                     ))}
                   </ul>
                   <p className="font-medium text-primary">
-                    {t("salariesPayroll.colTargetDeduction")}: {formatAmount(num(b.amount))} {t("employment.sar")}
+                    {t("salariesPayroll.colTargetDeduction")}:{" "}
+                    <CurrencyWithRiyal amount={num(b.amount)} formattedAmount={formatAmount(num(b.amount))} symbolSize="sm" />
                   </p>
                 </div>
               );
@@ -1034,7 +1108,7 @@ function MiniTable({
 }: {
   title: string;
   columns: { key: string; label: string }[];
-  rows: Record<string, string | number>[];
+  rows: Record<string, ReactNode>[];
   emptyLabel: string;
   helpTip?: string;
   locale?: string;
@@ -1123,9 +1197,9 @@ function PayrollEnterprisePrintView({
   tt: string;
   targetTypeLabel: string;
   formatAmount: (v: number) => string;
-  loanRows: { date: string; amount: string; status: string; note: string }[];
-  otherDedRows: { date: string; amount: string; type: string; notes: string }[];
-  tipsRows: { date: string; amount: string; type: string }[];
+  loanRows: { date: string; amount: ReactNode; status: string; note: string }[];
+  otherDedRows: { date: string; amount: ReactNode; type: string; notes: string }[];
+  tipsRows: { date: string; amount: ReactNode; type: string }[];
   cashCollected: number | null | undefined;
   cashReceived: number | null | undefined;
   cashDiff: number;
@@ -1223,7 +1297,7 @@ function PayrollEnterprisePrintView({
             <div className="mt-3 rounded-md border border-[#244473]/30 bg-[#f0f4fa] px-3 py-2">
               <div className="text-[10px] font-semibold uppercase text-[#244473]/80">{t("salariesPayroll.finalSalary")}</div>
               <div className="text-lg font-bold text-[#244473]">
-                {formatAmount(num(d.salary_after_deductions))} {t("employment.sar")}
+                <CurrencyWithRiyal amount={num(d.salary_after_deductions)} formattedAmount={formatAmount(num(d.salary_after_deductions))} />
               </div>
             </div>
           </div>
@@ -1245,47 +1319,59 @@ function PayrollEnterprisePrintView({
                 {tt === "TARGET_TYPE_REVENUE" ? t("salariesPayroll.totalRevenue") : t("salariesPayroll.ordersCount")}
               </td>
               <td className="border border-zinc-200 px-2 py-1.5">
-                {tt === "TARGET_TYPE_REVENUE" ? formatAmount(num(d.total_revenue)) : d.orders_count}
+                {tt === "TARGET_TYPE_REVENUE" ? (
+                  <CurrencyWithRiyal amount={num(d.total_revenue)} formattedAmount={formatAmount(num(d.total_revenue))} symbolSize="sm" />
+                ) : d.orders_count}
               </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.targetDiff")}</td>
               <td className="border border-zinc-200 px-2 py-1.5">
                 {tt === "TARGET_TYPE_REVENUE"
-                  ? `${d.target_difference >= 0 ? "+" : ""}${formatAmount(Math.abs(d.target_difference))} ${t("employment.sar")}`
+                  ? <CurrencyWithRiyal amount={Math.abs(d.target_difference)} formattedAmount={`${d.target_difference >= 0 ? "+" : ""}${formatAmount(Math.abs(d.target_difference))}`} symbolSize="sm" />
                   : `${d.target_difference >= 0 ? "+" : ""}${d.target_difference} ${t("salariesPayroll.ordersUnit")}`}
               </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.colTargetDeduction")}</td>
               <td className="border border-zinc-200 px-2 py-1.5 font-semibold text-red-800">
-                {formatAmount(performanceDeduction(d))} {t("employment.sar")}
+                <CurrencyWithRiyal amount={performanceDeduction(d)} formattedAmount={formatAmount(performanceDeduction(d))} symbolSize="sm" />
               </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.scheduledLoans")}</td>
-              <td className="border border-zinc-200 px-2 py-1.5">{formatAmount(num(d.scheduled_loan_installments))}</td>
+              <td className="border border-zinc-200 px-2 py-1.5">
+                <CurrencyWithRiyal amount={num(d.scheduled_loan_installments)} formattedAmount={formatAmount(num(d.scheduled_loan_installments))} symbolSize="sm" />
+              </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.operationsDeductions")}</td>
-              <td className="border border-zinc-200 px-2 py-1.5">{formatAmount(num(d.operations_deductions_total))}</td>
+              <td className="border border-zinc-200 px-2 py-1.5">
+                <CurrencyWithRiyal amount={num(d.operations_deductions_total)} formattedAmount={formatAmount(num(d.operations_deductions_total))} symbolSize="sm" />
+              </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.bonuses")}</td>
-              <td className="border border-zinc-200 px-2 py-1.5">{formatAmount(num(d.total_bonus))}</td>
+              <td className="border border-zinc-200 px-2 py-1.5">
+                <CurrencyWithRiyal amount={num(d.total_bonus)} formattedAmount={formatAmount(num(d.total_bonus))} symbolSize="sm" />
+              </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.carryoverAdjustment")}</td>
-              <td className="border border-zinc-200 px-2 py-1.5">{formatAmount(num(d.carryover_adjustment_sar))}</td>
+              <td className="border border-zinc-200 px-2 py-1.5">
+                <CurrencyWithRiyal amount={num(d.carryover_adjustment_sar)} formattedAmount={formatAmount(num(d.carryover_adjustment_sar))} symbolSize="sm" />
+              </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.collectedCashHint")}</td>
-              <td className="border border-zinc-200 px-2 py-1.5">{formatAmount(num(d.total_unreceived_cash))}</td>
+              <td className="border border-zinc-200 px-2 py-1.5">
+                <CurrencyWithRiyal amount={num(d.total_unreceived_cash)} formattedAmount={formatAmount(num(d.total_unreceived_cash))} symbolSize="sm" />
+              </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-base font-bold">{t("salariesPayroll.finalSalary")}</td>
               <td className="border border-zinc-200 bg-[#f0f4fa] px-2 py-2 text-lg font-bold text-[#244473]">
-                {formatAmount(num(d.salary_after_deductions))} {t("employment.sar")}
+                <CurrencyWithRiyal amount={num(d.salary_after_deductions)} formattedAmount={formatAmount(num(d.salary_after_deductions))} />
               </td>
             </tr>
           </tbody>
@@ -1344,10 +1430,22 @@ function PayrollEnterprisePrintView({
           </thead>
           <tbody>
             <tr>
-              <td className="border border-zinc-300 px-2 py-1">{cashCollected != null ? formatAmount(cashCollected) : "—"}</td>
-              <td className="border border-zinc-300 px-2 py-1">{cashReceived != null ? formatAmount(cashReceived) : "—"}</td>
               <td className="border border-zinc-300 px-2 py-1">
-                {`${cashDiff < 0 ? "" : "+"}${formatAmount(Math.abs(cashDiff))}`}
+                {cashCollected != null ? (
+                  <CurrencyWithRiyal amount={cashCollected} formattedAmount={formatAmount(cashCollected)} symbolSize="sm" />
+                ) : "—"}
+              </td>
+              <td className="border border-zinc-300 px-2 py-1">
+                {cashReceived != null ? (
+                  <CurrencyWithRiyal amount={cashReceived} formattedAmount={formatAmount(cashReceived)} symbolSize="sm" />
+                ) : "—"}
+              </td>
+              <td className="border border-zinc-300 px-2 py-1">
+                <CurrencyWithRiyal
+                  amount={Math.abs(cashDiff)}
+                  formattedAmount={`${cashDiff < 0 ? "" : "+"}${formatAmount(Math.abs(cashDiff))}`}
+                  symbolSize="sm"
+                />
               </td>
               <td className="border border-zinc-300 px-2 py-1 text-[11px]">
                 {cashDiff < 0 ? t("salariesPayroll.cashDifferenceDeducted") : "—"}
@@ -1429,7 +1527,9 @@ function PayrollEnterprisePrintView({
           <tbody>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.basicSalary")}</td>
-              <td className="border border-zinc-200 px-2 py-1.5">{formatAmount(num(d.base_salary))}</td>
+              <td className="border border-zinc-200 px-2 py-1.5">
+                <CurrencyWithRiyal amount={num(d.base_salary)} formattedAmount={formatAmount(num(d.base_salary))} symbolSize="sm" />
+              </td>
             </tr>
             <tr>
               <td className="border border-zinc-200 bg-zinc-50 px-2 py-1.5 font-medium">{t("salariesPayroll.targetType")}</td>
@@ -1440,7 +1540,13 @@ function PayrollEnterprisePrintView({
               <td className="border border-zinc-200 px-2 py-1.5">
                 {tt === "TARGET_TYPE_ORDERS"
                   ? String(d.employee?.monthly_orders_target ?? d.monthly_target)
-                  : formatAmount(num(d.employee?.monthly_target_amount ?? d.monthly_target))}
+                  : (
+                    <CurrencyWithRiyal
+                      amount={num(d.employee?.monthly_target_amount ?? d.monthly_target)}
+                      formattedAmount={formatAmount(num(d.employee?.monthly_target_amount ?? d.monthly_target))}
+                      symbolSize="sm"
+                    />
+                  )}
               </td>
             </tr>
             <tr>
@@ -1525,7 +1631,7 @@ function EmployeePayrollDetailView({
     loanRowsRaw && loanRowsRaw.length > 0
       ? loanRowsRaw.map((r) => ({
         date: formatDay(r.date),
-        amount: formatAmount(num(r.amount)),
+        amount: <CurrencyWithRiyal amount={num(r.amount)} formattedAmount={formatAmount(num(r.amount))} symbolSize="sm" />,
         status: r.status,
         note: r.note || "—",
       }))
@@ -1533,7 +1639,7 @@ function EmployeePayrollDetailView({
         ? [
           {
             date: month,
-            amount: formatAmount(num(d.scheduled_loan_installments)),
+            amount: <CurrencyWithRiyal amount={num(d.scheduled_loan_installments)} formattedAmount={formatAmount(num(d.scheduled_loan_installments))} symbolSize="sm" />,
             status: "—",
             note: t("salariesPayroll.scheduledLoans"),
           },
@@ -1543,19 +1649,19 @@ function EmployeePayrollDetailView({
   const opDed = (details?.operationsDeductionRows as { date: string; amount: number; type?: string; notes?: string }[]) ?? [];
   const otherDedRows = opDed.map((r) => ({
     date: formatDay(r.date),
-    amount: formatAmount(num(r.amount)),
+    amount: <CurrencyWithRiyal amount={num(r.amount)} formattedAmount={formatAmount(num(r.amount))} symbolSize="sm" />,
     type: t("salariesPayroll.deductionTypeDailyOps"),
     notes: r.notes || "—",
   }));
 
   const tipsRowsRaw = details?.tipsFromOperationsRows as { date: string; amount: number; type?: string }[] | undefined;
   const cfgBonus = num((details?.configBonuses as { amount?: number } | undefined)?.amount);
-  const tipsRows: { date: string; amount: string; type: string }[] = [];
+  const tipsRows: { date: string; amount: ReactNode; type: string }[] = [];
   if (tipsRowsRaw && tipsRowsRaw.length > 0) {
     for (const r of tipsRowsRaw) {
       tipsRows.push({
         date: formatDay(r.date),
-        amount: formatAmount(num(r.amount)),
+        amount: <CurrencyWithRiyal amount={num(r.amount)} formattedAmount={formatAmount(num(r.amount))} symbolSize="sm" />,
         type: t("salariesPayroll.tipTypeTip"),
       });
     }
@@ -1563,7 +1669,7 @@ function EmployeePayrollDetailView({
   if (cfgBonus > 0) {
     tipsRows.push({
       date: month,
-      amount: formatAmount(cfgBonus),
+      amount: <CurrencyWithRiyal amount={cfgBonus} formattedAmount={formatAmount(cfgBonus)} symbolSize="sm" />,
       type: t("salariesPayroll.tipTypeConfigBonus"),
     });
   }
@@ -1575,7 +1681,7 @@ function EmployeePayrollDetailView({
         ? [
           {
             date: month,
-            amount: formatAmount(num(d.operations_deductions_total)),
+            amount: <CurrencyWithRiyal amount={num(d.operations_deductions_total)} formattedAmount={formatAmount(num(d.operations_deductions_total))} symbolSize="sm" />,
             type: t("salariesPayroll.deductionTypeDailyOps"),
             notes: "—",
           },
@@ -1589,7 +1695,7 @@ function EmployeePayrollDetailView({
         ? [
           {
             date: month,
-            amount: formatAmount(num(d.total_bonus)),
+            amount: <CurrencyWithRiyal amount={num(d.total_bonus)} formattedAmount={formatAmount(num(d.total_bonus))} symbolSize="sm" />,
             type: t("salariesPayroll.tipTypeTip"),
           },
         ]
@@ -1667,7 +1773,9 @@ function EmployeePayrollDetailView({
                       <ModalHelpTip tip={t("salariesPayroll.help.ordersRevenue")} locale={locale} />
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-primary">
-                      {tt === "TARGET_TYPE_REVENUE" ? formatAmount(num(d.total_revenue)) : d.orders_count}
+                      {tt === "TARGET_TYPE_REVENUE" ? (
+                        <CurrencyWithRiyal amount={num(d.total_revenue)} formattedAmount={formatAmount(num(d.total_revenue))} symbolSize="lg" />
+                      ) : d.orders_count}
                     </div>
                   </div>
                   <div className="rounded-xl border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/50">
@@ -1683,7 +1791,7 @@ function EmployeePayrollDetailView({
                         }`}
                     >
                       {tt === "TARGET_TYPE_REVENUE"
-                        ? `${d.target_difference >= 0 ? "+" : ""}${formatAmount(Math.abs(d.target_difference))} ${t("employment.sar")}`
+                        ? <CurrencyWithRiyal amount={Math.abs(d.target_difference)} formattedAmount={`${d.target_difference >= 0 ? "+" : ""}${formatAmount(Math.abs(d.target_difference))}`} symbolSize="lg" />
                         : `${d.target_difference >= 0 ? "+" : ""}${d.target_difference} ${t("salariesPayroll.ordersUnit")}`}
                     </div>
                   </div>
@@ -1695,7 +1803,7 @@ function EmployeePayrollDetailView({
                     <ModalHelpTip tip={t("salariesPayroll.help.performanceDeduction")} locale={locale} />
                   </div>
                   <div className="mt-2 text-3xl font-bold text-red-700 dark:text-red-400">
-                    {formatAmount(performanceDeduction(d))} {t("employment.sar")}
+                    <CurrencyWithRiyal amount={performanceDeduction(d)} formattedAmount={formatAmount(performanceDeduction(d))} symbolSize="lg" />
                   </div>
                   <PerformanceDeductionBreakdown d={d} formatAmount={formatAmount} />
                 </div>
@@ -1725,9 +1833,9 @@ function EmployeePayrollDetailView({
                     rows={[
                       {
                         collected:
-                          cashCollected != null ? formatAmount(cashCollected) : "—",
-                        received: cashReceived != null ? formatAmount(cashReceived) : "—",
-                        difference: `${cashDiff < 0 ? "" : "+"}${formatAmount(Math.abs(cashDiff))}`,
+                          cashCollected != null ? <CurrencyWithRiyal amount={cashCollected} formattedAmount={formatAmount(cashCollected)} symbolSize="sm" /> : "—",
+                        received: cashReceived != null ? <CurrencyWithRiyal amount={cashReceived} formattedAmount={formatAmount(cashReceived)} symbolSize="sm" /> : "—",
+                        difference: <CurrencyWithRiyal amount={Math.abs(cashDiff)} formattedAmount={`${cashDiff < 0 ? "" : "+"}${formatAmount(Math.abs(cashDiff))}`} symbolSize="sm" />,
                         note: cashDiff < 0 ? t("salariesPayroll.cashDifferenceDeducted") : "—",
                       },
                     ]}
@@ -1771,7 +1879,7 @@ function EmployeePayrollDetailView({
                   </div>
                   <div className="text-xs font-semibold uppercase text-primary/70">{t("salariesPayroll.finalSalary")}</div>
                   <div className="mt-1 text-3xl font-bold text-primary md:text-4xl">
-                    {formatAmount(num(d.salary_after_deductions))} {t("employment.sar")}
+                    <CurrencyWithRiyal amount={num(d.salary_after_deductions)} formattedAmount={formatAmount(num(d.salary_after_deductions))} symbolSize="lg" />
                   </div>
                 </div>
               </div>
@@ -1784,7 +1892,9 @@ function EmployeePayrollDetailView({
                   <div className="space-y-3 text-sm">
                     <div className="flex flex-col gap-1">
                       <span className="text-xs uppercase text-primary/50">{t("salariesPayroll.basicSalary")}</span>
-                      <span className="font-semibold text-primary">{formatAmount(num(d.base_salary))}</span>
+                      <span className="font-semibold text-primary">
+                        <CurrencyWithRiyal amount={num(d.base_salary)} formattedAmount={formatAmount(num(d.base_salary))} symbolSize="sm" />
+                      </span>
                     </div>
                     <div className="flex flex-col gap-1 border-t border-zinc-100 pt-3 dark:border-zinc-800">
                       <span className="text-xs uppercase text-primary/50">{t("salariesPayroll.targetType")}</span>
@@ -1802,7 +1912,13 @@ function EmployeePayrollDetailView({
                       <span className="font-semibold text-primary">
                         {tt === "TARGET_TYPE_ORDERS"
                           ? String(d.employee?.monthly_orders_target ?? d.monthly_target)
-                          : formatAmount(num(d.employee?.monthly_target_amount ?? d.monthly_target))}
+                          : (
+                            <CurrencyWithRiyal
+                              amount={num(d.employee?.monthly_target_amount ?? d.monthly_target)}
+                              formattedAmount={formatAmount(num(d.employee?.monthly_target_amount ?? d.monthly_target))}
+                              symbolSize="sm"
+                            />
+                          )}
                       </span>
                     </div>
                     <div className="flex flex-col gap-1 border-t border-zinc-100 pt-3 dark:border-zinc-800">

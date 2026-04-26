@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -19,18 +19,23 @@ import { PlatformIcon } from "./PlatformIcon";
 import { EmploymentModal } from "./EmploymentModal";
 import { EmploymentViewModal, type EmploymentRecordForView } from "./EmploymentViewModal";
 import { Modal } from "./Modal";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 import type { EmploymentListItem } from "@/lib/types/employment";
 
 function formatBasicSalaryCell(
   amount: string | null,
-  currency: string | null,
   locale: string,
-): string {
+): ReactNode {
   if (amount == null || amount === "") return "—";
   const n = Number(amount);
   if (Number.isNaN(n)) return "—";
-  const cur = currency?.trim() || "SAR";
-  return `${n.toLocaleString(locale)} ${cur}`;
+  return (
+    <CurrencyWithRiyal
+      amount={n}
+      formattedAmount={n.toLocaleString(locale)}
+      symbolSize="sm"
+    />
+  );
 }
 
 function deductionTooltipForCode(code: string | null, t: (key: string) => string): string {
@@ -85,10 +90,12 @@ function EmploymentDeductionMethodCell({
 function formatTargetCell(
   r: EmploymentListItem,
   t: (key: string, values?: Record<string, string | number>) => string,
-): string {
+): ReactNode {
   if (r.target_type === "TARGET_TYPE_REVENUE") {
     if (r.monthly_target_amount == null || r.monthly_target_amount === "") return "—";
-    return t("employment.tableTargetRevenue", { amount: String(r.monthly_target_amount) });
+    return (
+      <CurrencyWithRiyal amount={r.monthly_target_amount} formattedAmount={String(r.monthly_target_amount)} symbolSize="sm" />
+    );
   }
   if (r.target_type === "TARGET_TYPE_ORDERS") {
     if (r.monthly_orders_target == null) return "—";
@@ -227,7 +234,7 @@ export function EmploymentPageClient(props: EmploymentPageClientProps) {
                     <StatusBadge status={r.status_code} />
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap tabular-nums">
-                    {formatBasicSalaryCell(r.salary_amount, r.salary_currency_code, locale)}
+                    {formatBasicSalaryCell(r.salary_amount, locale)}
                   </td>
                   <td className="px-3 py-2">
                     <EmploymentDeductionMethodCell

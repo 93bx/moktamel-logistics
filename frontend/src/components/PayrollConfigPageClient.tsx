@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
 import { InfoTooltip } from "./InfoTooltip";
 import { PayrollConfigCostsTab } from "./PayrollConfigCostsTab";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 import Tooltip from "@mui/material/Tooltip";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
@@ -157,7 +158,7 @@ function computeProgressiveBreakdown(deficit: number, tiers: DeductionTier[]): P
   return lines;
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
       <div className="text-sm text-primary/60">{label}</div>
@@ -1650,8 +1651,26 @@ export function PayrollConfigPageClient({
                 locale === "ar" ? "ar-SA" : "en-US",
               )}
             />
-            <StatCard label={t("payrollConfig.totalCosts")} value={formatMoney(stats?.totalCosts ?? 0)} />
-            <StatCard label={t("payrollConfig.averageCost")} value={formatMoney(stats?.averageCost ?? 0)} />
+            <StatCard
+              label={t("payrollConfig.totalCosts")}
+              value={(
+                <CurrencyWithRiyal
+                  amount={stats?.totalCosts ?? 0}
+                  formattedAmount={formatMoney(stats?.totalCosts ?? 0)}
+                  symbolSize="lg"
+                />
+              )}
+            />
+            <StatCard
+              label={t("payrollConfig.averageCost")}
+              value={(
+                <CurrencyWithRiyal
+                  amount={stats?.averageCost ?? 0}
+                  formattedAmount={formatMoney(stats?.averageCost ?? 0)}
+                  symbolSize="lg"
+                />
+              )}
+            />
           </div>
           <PayrollConfigCostsTab
             locale={locale}

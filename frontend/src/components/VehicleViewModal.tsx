@@ -7,6 +7,7 @@ import { StatusBadge } from "./StatusBadge";
 import { LicensePlate } from "./LicensePlate";
 import { CandidateImageCard } from "./CandidateImageCard";
 import { ImageViewerModal } from "./ImageViewerModal";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 import { User, Wrench, ArrowRightLeft, UserMinus, UserPlus, FileText, Eye, Download, Printer } from "lucide-react";
 
 async function downloadFile(url: string, filename: string) {
@@ -355,7 +356,17 @@ export function VehicleViewModal({
                 </div>
                 <div className="space-y-1">
                   <div className="text-xs text-zinc-500 uppercase">{t("fleet.purchasePrice")}</div>
-                  <div className="font-medium">{vehicle.purchase_price ? `${parseFloat(vehicle.purchase_price).toLocaleString()} SAR` : "-"}</div>
+                  <div className="font-medium">
+                    {vehicle.purchase_price ? (
+                      <CurrencyWithRiyal
+                        amount={parseFloat(vehicle.purchase_price)}
+                        formattedAmount={parseFloat(vehicle.purchase_price).toLocaleString()}
+                        symbolSize="sm"
+                      />
+                    ) : (
+                      "-"
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <div className="text-xs text-zinc-500 uppercase">{t("fleet.purchaseCondition")}</div>
@@ -453,7 +464,17 @@ export function VehicleViewModal({
                           <td className="px-3 py-2 whitespace-nowrap">{log.start_date.split("T")[0]}</td>
                           <td className="px-3 py-2 whitespace-nowrap">{log.end_date?.split("T")[0] || t("fleet.inWorkshop")}</td>
                           <td className="px-3 py-2">{log.workshop_name}</td>
-                          <td className="px-3 py-2">{log.cost ? `${parseFloat(log.cost).toLocaleString()} SAR` : "-"}</td>
+                          <td className="px-3 py-2">
+                            {log.cost ? (
+                              <CurrencyWithRiyal
+                                amount={parseFloat(log.cost)}
+                                formattedAmount={parseFloat(log.cost).toLocaleString()}
+                                symbolSize="sm"
+                              />
+                            ) : (
+                              "-"
+                            )}
+                          </td>
                           <td className="px-3 py-2">
                             {log.invoice_file_id ? (
                               invoiceUrl ? (
@@ -543,7 +564,13 @@ export function VehicleViewModal({
                         <tr key={log.id} className="border-t border-zinc-100 dark:border-zinc-800">
                           <td className="px-3 py-2 whitespace-nowrap">{formatDate(log.date)}</td>
                           <td className="px-3 py-2">{Number(log.gas_quantity_liters).toLocaleString()} L</td>
-                          <td className="px-3 py-2">{Number(log.gas_cost).toLocaleString()} SAR</td>
+                          <td className="px-3 py-2">
+                            <CurrencyWithRiyal
+                              amount={Number(log.gas_cost)}
+                              formattedAmount={Number(log.gas_cost).toLocaleString()}
+                              symbolSize="sm"
+                            />
+                          </td>
                           <td className="px-3 py-2">{paymentLabel}</td>
                           <td className="px-3 py-2 max-w-[12rem] truncate" title={log.notes ?? undefined}>{log.notes || "—"}</td>
                           <td className="px-3 py-2">

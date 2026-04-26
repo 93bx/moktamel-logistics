@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
 import { FileUpload } from "./FileUpload";
 import { LicensePlate } from "./LicensePlate";
+import { RiyalSymbol } from "./RiyalSymbol";
 
 interface VehicleFormModalProps {
   isOpen: boolean;
@@ -388,7 +389,9 @@ export function VehicleFormModal({ isOpen, onClose, locale, vehicleId }: Vehicle
         />
       </div>
       <div>
-        <label className="text-sm font-medium text-primary">{t("fleet.purchasePrice")} (SAR)</label>
+        <label className="text-sm font-medium text-primary inline-flex items-center gap-1">
+          {t("fleet.purchasePrice")} <RiyalSymbol size={12} />
+        </label>
         <input
           type="number"
           value={form.purchase_price}

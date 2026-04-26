@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { Modal } from "./Modal";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 type EmployeeAssetsResponse = {
   id: string;
@@ -198,7 +199,7 @@ export function EmployeeAssetsViewModal({
                 <span className="text-primary/70">
                   {t("totalValue")}:{" "}
                   <span className="font-semibold text-primary">
-                    {totalValue.toLocaleString()} SAR
+                    <CurrencyWithRiyal amount={totalValue} formattedAmount={totalValue.toLocaleString()} symbolSize="sm" />
                   </span>
                 </span>
               </div>
@@ -282,10 +283,11 @@ export function EmployeeAssetsViewModal({
                                 )}
                               </div>
                               <div className="mt-1 text-sm font-medium text-primary">
-                                {Number(
-                                  assignment.asset?.price ?? 0
-                                ).toLocaleString()}{" "}
-                                SAR
+                                <CurrencyWithRiyal
+                                  amount={Number(assignment.asset?.price ?? 0)}
+                                  formattedAmount={Number(assignment.asset?.price ?? 0).toLocaleString()}
+                                  symbolSize="sm"
+                                />
                               </div>
                             </div>
                           </div>

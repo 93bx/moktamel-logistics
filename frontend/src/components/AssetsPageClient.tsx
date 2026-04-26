@@ -9,6 +9,7 @@ import { AssetLossReportModal } from "./AssetLossReportModal";
 import { AssetViewEditModal } from "./AssetViewEditModal";
 import { EmployeeAssetsViewModal } from "./EmployeeAssetsViewModal";
 import { AssetsTable } from "./AssetsTable";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 type AssetListItem = {
   id: string;
@@ -81,7 +82,9 @@ export function AssetsPageClient({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <div className="text-sm text-primary/60">{t("assets.assetsValue")}</div>
-            <div className="mt-1 text-2xl font-semibold text-primary">{stats.assetsValue.toLocaleString()}</div>
+            <div className="mt-1 text-2xl font-semibold text-primary">
+              <CurrencyWithRiyal amount={stats.assetsValue} formattedAmount={stats.assetsValue.toLocaleString()} symbolSize="lg" />
+            </div>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <div className="text-sm text-primary/60">{t("assets.custodians")}</div>
@@ -89,7 +92,9 @@ export function AssetsPageClient({
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <div className="text-sm text-primary/60">{t("assets.deductionsThisMonth")}</div>
-            <div className="mt-1 text-2xl font-semibold text-primary">{stats.deductions.toLocaleString()}</div>
+            <div className="mt-1 text-2xl font-semibold text-primary">
+              <CurrencyWithRiyal amount={stats.deductions} formattedAmount={stats.deductions.toLocaleString()} symbolSize="lg" />
+            </div>
           </div>
           <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
             <div className="text-sm text-primary/60">{t("assets.pendingRecovery")}</div>

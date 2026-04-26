@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
 import { PlatformIcon } from "./PlatformIcon";
 import { Pencil } from "lucide-react";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 type OperatingPlatform = "NONE" | "JAHEZ" | "HUNGERSTATION" | "NINJA" | "KEETA";
 
@@ -305,13 +306,21 @@ export function DailyOperationViewModal({
                               <PlatformIcon platform={record.platform} />
                             </td>
                             <td className="px-4 py-3">{record.orders_count}</td>
-                            <td className="px-4 py-3">{formatAmount(record.total_revenue)}</td>
-                            <td className="px-4 py-3">{formatAmount(record.cash_collected)}</td>
-                            <td className="px-4 py-3">{formatAmount(record.tips)}</td>
+                            <td className="px-4 py-3">
+                              <CurrencyWithRiyal amount={Number(record.total_revenue ?? 0)} formattedAmount={formatAmount(record.total_revenue)} symbolSize="sm" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <CurrencyWithRiyal amount={Number(record.cash_collected ?? 0)} formattedAmount={formatAmount(record.cash_collected)} symbolSize="sm" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <CurrencyWithRiyal amount={Number(record.tips ?? 0)} formattedAmount={formatAmount(record.tips)} symbolSize="sm" />
+                            </td>
                             <td className="px-4 py-3">{Number(record.work_hours ?? 0).toLocaleString()}</td>
                             <td className="px-4 py-3">
                               <div className="flex flex-col gap-0.5">
-                                <span>{formatAmount(record.deduction_amount)}</span>
+                                <span>
+                                  <CurrencyWithRiyal amount={Number(record.deduction_amount ?? 0)} formattedAmount={formatAmount(record.deduction_amount)} symbolSize="sm" />
+                                </span>
                                 {record.deduction_reason && Number(record.deduction_amount) > 0 && (
                                   <span className="text-xs text-primary/60 max-w-[120px] truncate" title={record.deduction_reason}>
                                     {record.deduction_reason}

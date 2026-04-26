@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Modal } from "./Modal";
+import { RiyalSymbol } from "./RiyalSymbol";
 import { FileUpload } from "./FileUpload";
 import { LicensePlate } from "./LicensePlate";
 import { Search } from "lucide-react";
@@ -307,7 +308,9 @@ export function GasFormModal({ isOpen, onClose, locale, vehicleId }: GasFormModa
             </div>
 
             <div>
-              <label className="text-sm font-medium text-primary">{t("fleet.gasCost")} * (SAR)</label>
+              <label className="text-sm font-medium text-primary inline-flex items-center gap-1">
+                {t("fleet.gasCost")} * <RiyalSymbol size={12} />
+              </label>
               <input
                 type="text"
                 inputMode="decimal"

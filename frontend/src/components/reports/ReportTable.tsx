@@ -1,7 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { ReportColumn, ReportDataResponse } from "@/lib/types/reports";
+import { CurrencyWithRiyal } from "@/components/CurrencyWithRiyal";
 
 export function ReportTable({
   data,
@@ -53,14 +55,20 @@ function formatCell(
   value: string | number | boolean | null | undefined,
   key: string,
   translate: (key: string) => string,
-): string {
+): ReactNode {
   if (value === null || value === undefined) return "-";
   
   if (typeof value === "boolean") return value ? translate("common.yes") : translate("common.no");
   
   if (typeof value === "number") {
     if (key.includes("amount") || key.includes("revenue") || key.includes("salary") || key.includes("cost")) {
-      return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return (
+        <CurrencyWithRiyal
+          amount={value}
+          formattedAmount={value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          symbolSize="sm"
+        />
+      );
     }
     return value.toLocaleString();
   }

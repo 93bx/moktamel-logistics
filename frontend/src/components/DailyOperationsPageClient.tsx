@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useEffect, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, useEffect, type KeyboardEvent, type ReactNode } from "react";
 import { getCurrentMonthYYYYMM } from "@/lib/dashboard";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -30,6 +30,7 @@ import { DailyOperationViewModal } from "./DailyOperationViewModal";
 import { Modal } from "./Modal";
 import { PlatformIcon } from "./PlatformIcon";
 import { StatusBadge } from "./StatusBadge";
+import { CurrencyWithRiyal } from "./CurrencyWithRiyal";
 
 type MonthlyChartsData = {
   pie: { totalTarget: number; totalAchieved: number };
@@ -366,8 +367,14 @@ export function DailyOperationsPageClient({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t("dailyOps.activeEmployees")} value={stats.activeEmployees.toLocaleString()} />
         <StatCard label={t("dailyOps.totalOrders")} value={stats.totalOrders.toLocaleString()} />
-        <StatCard label={t("dailyOps.totalSales")} value={stats.totalSales.toLocaleString()} />
-        <StatCard label={t("dailyOps.totalDeductions")} value={stats.totalDeductions.toLocaleString()} />
+        <StatCard
+          label={t("dailyOps.totalSales")}
+          value={<CurrencyWithRiyal amount={stats.totalSales} formattedAmount={stats.totalSales.toLocaleString()} symbolSize="lg" />}
+        />
+        <StatCard
+          label={t("dailyOps.totalDeductions")}
+          value={<CurrencyWithRiyal amount={stats.totalDeductions} formattedAmount={stats.totalDeductions.toLocaleString()} symbolSize="lg" />}
+        />
       </div>
 
       {/* Charts: Pie narrower, Bar wider; colorful, animated; RTL-safe labels */}
@@ -662,11 +669,19 @@ export function DailyOperationsPageClient({
                       </div>
                     </td>
                     <td className="px-3 py-2">{row.orders_count}</td>
-                    <td className="px-3 py-2">{formatAmount(row.total_revenue)}</td>
-                    <td className="px-3 py-2">{formatAmount(row.cash_collected)}</td>
-                    <td className="px-3 py-2">{formatAmount(row.tips)}</td>
+                    <td className="px-3 py-2">
+                      <CurrencyWithRiyal amount={Number(row.total_revenue ?? 0)} formattedAmount={formatAmount(row.total_revenue)} symbolSize="sm" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <CurrencyWithRiyal amount={Number(row.cash_collected ?? 0)} formattedAmount={formatAmount(row.cash_collected)} symbolSize="sm" />
+                    </td>
+                    <td className="px-3 py-2">
+                      <CurrencyWithRiyal amount={Number(row.tips ?? 0)} formattedAmount={formatAmount(row.tips)} symbolSize="sm" />
+                    </td>
                     <td className="px-3 py-2">{Number(row.work_hours ?? 0).toLocaleString()}</td>
-                    <td className="px-3 py-2">{formatAmount(row.deduction_amount)}</td>
+                    <td className="px-3 py-2">
+                      <CurrencyWithRiyal amount={Number(row.deduction_amount ?? 0)} formattedAmount={formatAmount(row.deduction_amount)} symbolSize="sm" />
+                    </td>
                     <td className="px-3 py-2">
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusTone(row.status_code)}`}>
                         {row.status_code === "NONE"
@@ -769,7 +784,7 @@ export function DailyOperationsPageClient({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-800">
       <div className="text-sm text-primary/60">{label}</div>
@@ -940,7 +955,7 @@ function DailyOperationEditModal({
             <label className="text-sm text-primary">{t("dailyOps.difference")}</label>
             <div className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900">
               <div className={`text-lg font-semibold ${isNegativeDifference ? "text-red-600" : "text-emerald-600"}`}>
-                {formatAmount(difference)}
+                <CurrencyWithRiyal amount={difference} formattedAmount={formatAmount(difference)} symbolSize="sm" />
               </div>
               <div className="text-xs text-primary/60">{t("dailyOps.differenceHint")}</div>
               {isNegativeDifference ? (
@@ -1228,7 +1243,7 @@ function DailyOperationSingleModal({
                 <label className="text-sm text-primary">{t("dailyOps.difference")}</label>
                 <div className="mt-1 rounded-md border border-zinc-200 bg-white px-3 py-3 dark:border-zinc-700 dark:bg-zinc-900">
                   <div className={`text-lg font-semibold ${isNegativeDifference ? "text-red-600" : "text-emerald-600"}`}>
-                    {formatAmount(difference)}
+                    <CurrencyWithRiyal amount={difference} formattedAmount={formatAmount(difference)} symbolSize="sm" />
                   </div>
                   <div className="text-xs text-primary/60">{t("dailyOps.differenceHint")}</div>
                   {isNegativeDifference ? (
@@ -1798,23 +1813,33 @@ function DailyOperationBulkModal({
             </div>
             <div>
               <div className="text-xs text-primary/60">{t("dailyOps.summaryRevenue")}</div>
-              <div className="font-semibold">{formatAmount(summary.revenue)}</div>
+              <div className="font-semibold">
+                <CurrencyWithRiyal amount={summary.revenue} formattedAmount={formatAmount(summary.revenue)} symbolSize="sm" />
+              </div>
             </div>
             <div>
               <div className="text-xs text-primary/60">{t("dailyOps.summaryCashCollected")}</div>
-              <div className="font-semibold">{formatAmount(summary.cashCollected)}</div>
+              <div className="font-semibold">
+                <CurrencyWithRiyal amount={summary.cashCollected} formattedAmount={formatAmount(summary.cashCollected)} symbolSize="sm" />
+              </div>
             </div>
             <div>
               <div className="text-xs text-primary/60">{t("dailyOps.summaryCashReceived")}</div>
-              <div className="font-semibold">{formatAmount(summary.cashReceived)}</div>
+              <div className="font-semibold">
+                <CurrencyWithRiyal amount={summary.cashReceived} formattedAmount={formatAmount(summary.cashReceived)} symbolSize="sm" />
+              </div>
             </div>
             <div>
               <div className="text-xs text-primary/60">{t("dailyOps.summaryDeductions")}</div>
-              <div className="font-semibold">{formatAmount(summary.deductions)}</div>
+              <div className="font-semibold">
+                <CurrencyWithRiyal amount={summary.deductions} formattedAmount={formatAmount(summary.deductions)} symbolSize="sm" />
+              </div>
             </div>
             <div>
               <div className="text-xs text-primary/60">{t("dailyOps.summaryTips")}</div>
-              <div className="font-semibold">{formatAmount(summary.tips)}</div>
+              <div className="font-semibold">
+                <CurrencyWithRiyal amount={summary.tips} formattedAmount={formatAmount(summary.tips)} symbolSize="sm" />
+              </div>
             </div>
             <div>
               <div className="text-xs text-primary/60">{t("dailyOps.workHours")}</div>
