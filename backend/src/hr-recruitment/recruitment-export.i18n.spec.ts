@@ -16,6 +16,8 @@ describe('recruitment-export.i18n', () => {
 
   it('formatExportStatusValue translates known statuses in Arabic mode', () => {
     expect(formatExportStatusValue('DRAFT', 'ar')).toBe('مسودة');
-    expect(formatExportStatusValue('UNDER_PROCEDURE', 'ar')).toBe('تحت الإجراء');
+    expect(formatExportStatusValue('UNDER_PROCEDURE', 'ar')).toBe(
+      'تحت الإجراء',
+    );
   });
 });

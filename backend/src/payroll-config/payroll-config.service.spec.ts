@@ -3,11 +3,7 @@ import { PayrollConfigService } from './payroll-config.service';
 
 describe('PayrollConfigService', () => {
   it('treats Decimal-like revenue_unit_amount as valid number in configuration status', () => {
-    const service = new PayrollConfigService(
-      {} as any,
-      {} as any,
-      {} as any,
-    );
+    const service = new PayrollConfigService({} as any, {} as any, {} as any);
 
     const status = (service as any).checkConfigurationStatus({
       minimum_salary: 1000,

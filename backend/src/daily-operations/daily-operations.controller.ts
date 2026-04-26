@@ -141,7 +141,10 @@ export class DailyOperationsController {
 
   @Get('records/by-employee')
   @Permissions('DAILY_OPS_READ')
-  async listByEmployee(@Req() req: Request & { user?: any }, @Query() query: any) {
+  async listByEmployee(
+    @Req() req: Request & { user?: any },
+    @Query() query: any,
+  ) {
     const q = ListByEmployeeQuerySchema.parse(query);
     return this.svc.listByEmployee(req.user.company_id, q);
   }
@@ -244,7 +247,8 @@ export class DailyOperationsController {
     @Req() req: Request & { user?: any },
     @Query('month') month?: string,
   ) {
-    const parsed = month?.trim() && /^\d{4}-\d{2}$/.test(month) ? month : undefined;
+    const parsed =
+      month?.trim() && /^\d{4}-\d{2}$/.test(month) ? month : undefined;
     return this.svc.monthlyCharts(req.user.company_id, parsed);
   }
 }

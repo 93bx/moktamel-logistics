@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
 import crypto from 'node:crypto';
+import { AuditService } from '../audit/audit.service';
 
 export type AuthTokens = {
   access_token: string;
@@ -20,6 +21,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   private getAccessSecret(): string {
@@ -75,7 +77,26 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
 
     const ok = await argon2.verify(user.password_hash, input.password);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
+    if (!ok) {
+      await this.audit.log({
+        company_id: company.id,
+        actor_user_id: user.id,
+        actor_role: null,
+        action: 'AUTH_LOGIN_FAILED',
+        entity_type: 'USER',
+        entity_id: user.id,
+      });
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    await this.audit.log({
+      company_id: company.id,
+      actor_user_id: user.id,
+      actor_role: null,
+      action: 'AUTH_LOGIN_SUCCESS',
+      entity_type: 'USER',
+      entity_id: user.id,
+    });
 
     return await this.issueTokens({ user_id: user.id, company_id: company.id });
   }

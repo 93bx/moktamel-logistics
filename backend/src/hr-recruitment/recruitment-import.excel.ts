@@ -79,9 +79,7 @@ export function buildTemplateWorkbook(
   return wb;
 }
 
-export async function parseImportWorksheet(
-  buffer: Buffer,
-): Promise<{
+export async function parseImportWorksheet(buffer: Buffer): Promise<{
   headerMap: Map<RecruitmentImportColumnKey, number>;
   dataRows: Array<{ sheetRowNumber: number; values: Record<string, string> }>;
 }> {
@@ -97,10 +95,8 @@ export async function parseImportWorksheet(
   const headerMap = new Map<RecruitmentImportColumnKey, number>();
   headerRow.eachCell((cell, colNumber) => {
     const key = cellToString(cell.value) as RecruitmentImportColumnKey;
-    if (
-      RECRUITMENT_IMPORT_COLUMN_KEYS.includes(key as RecruitmentImportColumnKey)
-    ) {
-      headerMap.set(key as RecruitmentImportColumnKey, colNumber);
+    if (RECRUITMENT_IMPORT_COLUMN_KEYS.includes(key)) {
+      headerMap.set(key, colNumber);
     }
   });
 

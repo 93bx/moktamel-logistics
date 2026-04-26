@@ -38,6 +38,7 @@ export class PlatformService {
         const company = await tx.company.create({
           data: {
             name: input.company_name,
+            email: input.owner_email,
             slug: input.company_slug,
             timezone: 'Asia/Riyadh',
             default_locale: 'en',

@@ -499,9 +499,13 @@ export class DailyOperationsService {
 
     const statusSummary = (statuses: string[]) => {
       if (statuses.some((s) => s === 'DRAFT')) return 'DRAFT';
-      if (statuses.some((s) => s === 'FLAGGED_DEDUCTION')) return 'FLAGGED_DEDUCTION';
+      if (statuses.some((s) => s === 'FLAGGED_DEDUCTION'))
+        return 'FLAGGED_DEDUCTION';
       if (statuses.every((s) => s === 'REVIEWED')) return 'REVIEWED';
-      if (statuses.some((s) => s === 'REVIEWED') || statuses.some((s) => s === 'APPROVED'))
+      if (
+        statuses.some((s) => s === 'REVIEWED') ||
+        statuses.some((s) => s === 'APPROVED')
+      )
         return 'REVIEWED';
       return statuses[0] ?? 'APPROVED';
     };
@@ -534,7 +538,9 @@ export class DailyOperationsService {
           work_hours: agg.work_hours,
           deduction_amount: agg.deduction_amount,
           platform:
-            agg.platforms.size > 1 ? ('MULTIPLE' as const) : Array.from(agg.platforms)[0],
+            agg.platforms.size > 1
+              ? ('MULTIPLE' as const)
+              : Array.from(agg.platforms)[0],
           status_code: statusSummary(agg.statuses),
           records_count: agg.records_count,
         };
@@ -612,17 +618,31 @@ export class DailyOperationsService {
 
     const userIds = [
       ...new Set(
-        logs.map((l) => l.actor_user_id).filter((id): id is string => id != null),
+        logs
+          .map((l) => l.actor_user_id)
+          .filter((id): id is string => id != null),
       ),
     ];
     const users =
       userIds.length > 0
         ? await this.prisma.user.findMany({
             where: { id: { in: userIds } },
-            select: { id: true, name: true, email: true },
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email: true,
+            },
           })
         : [];
-    const userMap = new Map(users.map((u) => [u.id, u.name || u.email || u.id]));
+    const userMap = new Map(
+      users.map((u) => [
+        u.id,
+        [u.first_name, u.last_name].filter(Boolean).join(' ').trim() ||
+          u.email ||
+          u.id,
+      ]),
+    );
 
     const items = logs.map((log) => ({
       id: log.id,
@@ -632,7 +652,9 @@ export class DailyOperationsService {
       new_values: log.new_values,
       created_at: log.created_at,
       actor_user_id: log.actor_user_id,
-      actor_name: log.actor_user_id ? userMap.get(log.actor_user_id) ?? null : null,
+      actor_name: log.actor_user_id
+        ? (userMap.get(log.actor_user_id) ?? null)
+        : null,
       actor_role: log.actor_role,
     }));
 
@@ -691,12 +713,16 @@ export class DailyOperationsService {
   }
 
   /** Month bounds from YYYY-MM string (UTC). */
-  private getMonthBoundsFromParam(month: string): { dateFrom: Date; dateTo: Date } {
+  private getMonthBoundsFromParam(month: string): {
+    dateFrom: Date;
+    dateTo: Date;
+  } {
     const match = /^(\d{4})-(\d{2})$/.exec(month);
     if (!match) throw new BadRequestException('month must be YYYY-MM');
     const year = Number(match[1]);
     const monthNum = Number(match[2]);
-    if (monthNum < 1 || monthNum > 12) throw new BadRequestException('month must be 01-12');
+    if (monthNum < 1 || monthNum > 12)
+      throw new BadRequestException('month must be 01-12');
     const dateFrom = new Date(Date.UTC(year, monthNum - 1, 1, 0, 0, 0, 0));
     const dateTo = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
     return { dateFrom, dateTo };

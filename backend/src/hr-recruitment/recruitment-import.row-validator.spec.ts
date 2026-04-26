@@ -40,15 +40,15 @@ describe('validateNormalizedImportRow', () => {
     const errs = validateNormalizedImportRow(
       baseRow({ passport_image_file_id: '' }),
     );
-    expect(errs.some((e) => e.code === HR_RECRUITMENT_IMPORT_ERROR.REQUIRED_FIELD)).toBe(
-      true,
-    );
+    expect(
+      errs.some((e) => e.code === HR_RECRUITMENT_IMPORT_ERROR.REQUIRED_FIELD),
+    ).toBe(true);
   });
 
   it('fails UNDER_PROCEDURE when English name is too short', () => {
     const errs = validateNormalizedImportRow(baseRow({ full_name_en: 'A' }));
-    expect(errs.some((e) => e.code === HR_RECRUITMENT_IMPORT_ERROR.REQUIRED_FIELD)).toBe(
-      true,
-    );
+    expect(
+      errs.some((e) => e.code === HR_RECRUITMENT_IMPORT_ERROR.REQUIRED_FIELD),
+    ).toBe(true);
   });
 });

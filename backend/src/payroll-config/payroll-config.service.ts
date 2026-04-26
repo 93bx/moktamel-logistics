@@ -54,16 +54,30 @@ export class PayrollConfigService {
   private buildConfigSnapshot(config: any): any {
     return {
       schemaVersion: 2,
-      minimum_salary: config.minimum_salary ? Number(config.minimum_salary) : null,
+      minimum_salary: config.minimum_salary
+        ? Number(config.minimum_salary)
+        : null,
       tip_recipient: config.tip_recipient || 'REPRESENTATIVE',
       count_bonus_enabled: config.count_bonus_enabled || false,
-      count_bonus_amount: config.count_bonus_amount ? Number(config.count_bonus_amount) : null,
+      count_bonus_amount: config.count_bonus_amount
+        ? Number(config.count_bonus_amount)
+        : null,
       revenue_bonus_enabled: config.revenue_bonus_enabled || false,
-      revenue_bonus_amount: config.revenue_bonus_amount ? Number(config.revenue_bonus_amount) : null,
-      deduction_per_order: config.deduction_per_order ? Number(config.deduction_per_order) : null,
-      orders_deduction_tiers: config.orders_deduction_tiers as DeductionTier[] | null,
-      revenue_deduction_tiers: config.revenue_deduction_tiers as DeductionTier[] | null,
-      revenue_unit_amount: config.revenue_unit_amount ? Number(config.revenue_unit_amount) : null,
+      revenue_bonus_amount: config.revenue_bonus_amount
+        ? Number(config.revenue_bonus_amount)
+        : null,
+      deduction_per_order: config.deduction_per_order
+        ? Number(config.deduction_per_order)
+        : null,
+      orders_deduction_tiers: config.orders_deduction_tiers as
+        | DeductionTier[]
+        | null,
+      revenue_deduction_tiers: config.revenue_deduction_tiers as
+        | DeductionTier[]
+        | null,
+      revenue_unit_amount: config.revenue_unit_amount
+        ? Number(config.revenue_unit_amount)
+        : null,
       snapshotAt: new Date().toISOString(),
     };
   }
@@ -82,7 +96,9 @@ export class PayrollConfigService {
 
     const fixed = config.deduction_per_order ? 'COMPLETE' : 'INCOMPLETE';
 
-    const ordersTiers = validateOrdersTiersStructure(config.orders_deduction_tiers)
+    const ordersTiers = validateOrdersTiersStructure(
+      config.orders_deduction_tiers,
+    )
       ? 'COMPLETE'
       : 'INCOMPLETE';
 
@@ -104,7 +120,10 @@ export class PayrollConfigService {
   async getConfig(company_id: string, year: number, month: number) {
     const { start: monthStart } = getKSAMonthBounds(year, month);
     const currentKSA = getCurrentKSAMonth();
-    const currentMonthStart = getKSAMonthBounds(currentKSA.year, currentKSA.month).start;
+    const currentMonthStart = getKSAMonthBounds(
+      currentKSA.year,
+      currentKSA.month,
+    ).start;
 
     const isPastMonth = monthStart < currentMonthStart;
     const isCurrentMonth = monthStart.getTime() === currentMonthStart.getTime();
@@ -167,16 +186,30 @@ export class PayrollConfigService {
 
     // Build response
     const response: any = {
-      minimum_salary: configData.minimum_salary ? Number(configData.minimum_salary) : null,
+      minimum_salary: configData.minimum_salary
+        ? Number(configData.minimum_salary)
+        : null,
       tip_recipient: configData.tip_recipient || 'REPRESENTATIVE',
       count_bonus_enabled: configData.count_bonus_enabled || false,
-      count_bonus_amount: configData.count_bonus_amount ? Number(configData.count_bonus_amount) : null,
+      count_bonus_amount: configData.count_bonus_amount
+        ? Number(configData.count_bonus_amount)
+        : null,
       revenue_bonus_enabled: configData.revenue_bonus_enabled || false,
-      revenue_bonus_amount: configData.revenue_bonus_amount ? Number(configData.revenue_bonus_amount) : null,
-      deduction_per_order: configData.deduction_per_order ? Number(configData.deduction_per_order) : null,
-      orders_deduction_tiers: configData.orders_deduction_tiers as DeductionTier[] | null,
-      revenue_deduction_tiers: configData.revenue_deduction_tiers as DeductionTier[] | null,
-      revenue_unit_amount: configData.revenue_unit_amount ? Number(configData.revenue_unit_amount) : null,
+      revenue_bonus_amount: configData.revenue_bonus_amount
+        ? Number(configData.revenue_bonus_amount)
+        : null,
+      deduction_per_order: configData.deduction_per_order
+        ? Number(configData.deduction_per_order)
+        : null,
+      orders_deduction_tiers: configData.orders_deduction_tiers as
+        | DeductionTier[]
+        | null,
+      revenue_deduction_tiers: configData.revenue_deduction_tiers as
+        | DeductionTier[]
+        | null,
+      revenue_unit_amount: configData.revenue_unit_amount
+        ? Number(configData.revenue_unit_amount)
+        : null,
       metadata: {
         source,
         isReadOnly,
@@ -187,13 +220,20 @@ export class PayrollConfigService {
 
     // Add configuration status
     if (liveConfig) {
-      response.metadata.configurationStatus = this.checkConfigurationStatus(liveConfig);
+      response.metadata.configurationStatus =
+        this.checkConfigurationStatus(liveConfig);
     }
 
     // Warning: applies next month if current month is locked and live differs from snapshot
-    if (isCurrentMonth && currentMonthRun?.status === 'LOCKED' && currentMonthRun.config_snapshot) {
+    if (
+      isCurrentMonth &&
+      currentMonthRun?.status === 'LOCKED' &&
+      currentMonthRun.config_snapshot
+    ) {
       const snapshot = currentMonthRun.config_snapshot as any;
-      const hasChanges = JSON.stringify(this.buildConfigSnapshot(liveConfig)) !== JSON.stringify(snapshot);
+      const hasChanges =
+        JSON.stringify(this.buildConfigSnapshot(liveConfig)) !==
+        JSON.stringify(snapshot);
       response.metadata.warningAppliesNextMonth = hasChanges;
     }
 
@@ -242,7 +282,10 @@ export class PayrollConfigService {
     data: UpdatePayrollConfigDto,
   ) {
     // Validate orders deduction tiers if provided
-    if (data.orders_deduction_tiers !== undefined && data.orders_deduction_tiers !== null) {
+    if (
+      data.orders_deduction_tiers !== undefined &&
+      data.orders_deduction_tiers !== null
+    ) {
       if (!validateOrdersTiersStructure(data.orders_deduction_tiers)) {
         throw new BadRequestException(
           'PAYROLL_CONFIG_ORDERS_TIERS_INVALID: Orders tiers must be 1–9 contiguous bands from deficit 1, no gaps or overlaps, with non-negative deductions.',
@@ -251,8 +294,16 @@ export class PayrollConfigService {
     }
 
     // Validate revenue deduction tiers if provided
-    if (data.revenue_deduction_tiers !== undefined && data.revenue_deduction_tiers !== null) {
-      if (!validateRevenueTiersStructure(data.revenue_deduction_tiers, data.revenue_unit_amount)) {
+    if (
+      data.revenue_deduction_tiers !== undefined &&
+      data.revenue_deduction_tiers !== null
+    ) {
+      if (
+        !validateRevenueTiersStructure(
+          data.revenue_deduction_tiers,
+          data.revenue_unit_amount,
+        )
+      ) {
         throw new BadRequestException(
           'PAYROLL_CONFIG_REVENUE_TIERS_INVALID: Revenue tiers require a positive unit amount and 1-8 contiguous bands from deficit 1, no gaps or overlaps, with non-negative per-unit deductions.',
         );
@@ -260,20 +311,46 @@ export class PayrollConfigService {
     }
 
     const updateData: Prisma.PayrollConfigUpdateInput = {
-      minimum_salary: data.minimum_salary !== undefined ? (data.minimum_salary ?? undefined) : undefined,
-      tip_recipient: data.tip_recipient !== undefined ? (data.tip_recipient ?? undefined) : undefined,
-      count_bonus_enabled: data.count_bonus_enabled !== undefined ? (data.count_bonus_enabled ?? undefined) : undefined,
-      count_bonus_amount: data.count_bonus_amount !== undefined ? (data.count_bonus_amount ?? undefined) : undefined,
-      revenue_bonus_enabled: data.revenue_bonus_enabled !== undefined ? (data.revenue_bonus_enabled ?? undefined) : undefined,
-      revenue_bonus_amount: data.revenue_bonus_amount !== undefined ? (data.revenue_bonus_amount ?? undefined) : undefined,
-      deduction_per_order: data.deduction_per_order !== undefined ? (data.deduction_per_order ?? undefined) : undefined,
-      orders_deduction_tiers: data.orders_deduction_tiers !== undefined
-        ? (data.orders_deduction_tiers as Prisma.InputJsonValue)
-        : undefined,
-      revenue_deduction_tiers: data.revenue_deduction_tiers !== undefined
-        ? (data.revenue_deduction_tiers as Prisma.InputJsonValue)
-        : undefined,
-      revenue_unit_amount: data.revenue_unit_amount !== undefined ? (data.revenue_unit_amount ?? undefined) : undefined,
+      minimum_salary:
+        data.minimum_salary !== undefined
+          ? (data.minimum_salary ?? undefined)
+          : undefined,
+      tip_recipient:
+        data.tip_recipient !== undefined
+          ? (data.tip_recipient ?? undefined)
+          : undefined,
+      count_bonus_enabled:
+        data.count_bonus_enabled !== undefined
+          ? (data.count_bonus_enabled ?? undefined)
+          : undefined,
+      count_bonus_amount:
+        data.count_bonus_amount !== undefined
+          ? (data.count_bonus_amount ?? undefined)
+          : undefined,
+      revenue_bonus_enabled:
+        data.revenue_bonus_enabled !== undefined
+          ? (data.revenue_bonus_enabled ?? undefined)
+          : undefined,
+      revenue_bonus_amount:
+        data.revenue_bonus_amount !== undefined
+          ? (data.revenue_bonus_amount ?? undefined)
+          : undefined,
+      deduction_per_order:
+        data.deduction_per_order !== undefined
+          ? (data.deduction_per_order ?? undefined)
+          : undefined,
+      orders_deduction_tiers:
+        data.orders_deduction_tiers !== undefined
+          ? (data.orders_deduction_tiers as Prisma.InputJsonValue)
+          : undefined,
+      revenue_deduction_tiers:
+        data.revenue_deduction_tiers !== undefined
+          ? (data.revenue_deduction_tiers as Prisma.InputJsonValue)
+          : undefined,
+      revenue_unit_amount:
+        data.revenue_unit_amount !== undefined
+          ? (data.revenue_unit_amount ?? undefined)
+          : undefined,
       updated_at: new Date(),
     };
 
@@ -301,16 +378,30 @@ export class PayrollConfigService {
     });
 
     return {
-      minimum_salary: config.minimum_salary ? Number(config.minimum_salary) : null,
+      minimum_salary: config.minimum_salary
+        ? Number(config.minimum_salary)
+        : null,
       tip_recipient: config.tip_recipient,
       count_bonus_enabled: config.count_bonus_enabled,
-      count_bonus_amount: config.count_bonus_amount ? Number(config.count_bonus_amount) : null,
+      count_bonus_amount: config.count_bonus_amount
+        ? Number(config.count_bonus_amount)
+        : null,
       revenue_bonus_enabled: config.revenue_bonus_enabled,
-      revenue_bonus_amount: config.revenue_bonus_amount ? Number(config.revenue_bonus_amount) : null,
-      deduction_per_order: config.deduction_per_order ? Number(config.deduction_per_order) : null,
-      orders_deduction_tiers: config.orders_deduction_tiers as DeductionTier[] | null,
-      revenue_deduction_tiers: config.revenue_deduction_tiers as DeductionTier[] | null,
-      revenue_unit_amount: config.revenue_unit_amount ? Number(config.revenue_unit_amount) : null,
+      revenue_bonus_amount: config.revenue_bonus_amount
+        ? Number(config.revenue_bonus_amount)
+        : null,
+      deduction_per_order: config.deduction_per_order
+        ? Number(config.deduction_per_order)
+        : null,
+      orders_deduction_tiers: config.orders_deduction_tiers as
+        | DeductionTier[]
+        | null,
+      revenue_deduction_tiers: config.revenue_deduction_tiers as
+        | DeductionTier[]
+        | null,
+      revenue_unit_amount: config.revenue_unit_amount
+        ? Number(config.revenue_unit_amount)
+        : null,
     };
   }
 
@@ -404,7 +495,7 @@ export class PayrollConfigService {
       const run = await tx.payrollRun.upsert({
         where: { company_id_month: { company_id, month: start } },
         update: {
-          config_snapshot: snapshot as any,
+          config_snapshot: snapshot,
           status: 'LOCKED',
           locked_at: new Date(),
           locked_by_user_id: user_id,
@@ -412,7 +503,7 @@ export class PayrollConfigService {
         create: {
           company_id,
           month: start,
-          config_snapshot: snapshot as any,
+          config_snapshot: snapshot,
           status: 'LOCKED',
           locked_at: new Date(),
           locked_by_user_id: user_id,

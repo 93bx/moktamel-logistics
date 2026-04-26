@@ -183,9 +183,11 @@ export async function computePayrollMetricsForEmployment(
     carryoverWhere.status = 'PENDING';
   }
 
-  const pendingOrAppliedCarryovers = await prisma.payrollCarryoverItem.findMany({
-    where: carryoverWhere,
-  });
+  const pendingOrAppliedCarryovers = await prisma.payrollCarryoverItem.findMany(
+    {
+      where: carryoverWhere,
+    },
+  );
   const carryoverSum = pendingOrAppliedCarryovers.reduce(
     (s: number, c: PayrollCarryoverItem) => s + Number(c.adjustment_sar),
     0,

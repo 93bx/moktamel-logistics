@@ -75,7 +75,10 @@ export const ImportCommitRowSchema = z.object({
   nationality: z.string(),
   passport_no: z.string(),
   passport_expiry_at: z.string().datetime(),
-  status_code: z.enum([RECRUITMENT_STATUS.DRAFT, RECRUITMENT_STATUS.UNDER_PROCEDURE]),
+  status_code: z.enum([
+    RECRUITMENT_STATUS.DRAFT,
+    RECRUITMENT_STATUS.UNDER_PROCEDURE,
+  ]),
   responsible_office: z.string(),
   responsible_office_number: z.string().max(10).nullable().optional(),
   visa_deadline_at: z.string().datetime().nullable().optional(),

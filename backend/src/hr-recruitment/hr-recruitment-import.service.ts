@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -112,7 +108,9 @@ function isUuid(s: string): boolean {
 }
 
 function parseStatusCode(raw: string): {
-  value: typeof RECRUITMENT_STATUS.DRAFT | typeof RECRUITMENT_STATUS.UNDER_PROCEDURE;
+  value:
+    | typeof RECRUITMENT_STATUS.DRAFT
+    | typeof RECRUITMENT_STATUS.UNDER_PROCEDURE;
 } | null {
   const s = raw.trim().toUpperCase().replace(/\s+/g, '_');
   if (s === '' || s === 'UNDER_PROCEDURE') {
@@ -275,7 +273,9 @@ export class HrRecruitmentImportService {
     raw: string,
     field: RecruitmentImportColumnKey,
     required: boolean,
-  ): Promise<{ ok: true; file_id: string | null } | { ok: false; err: CellError }> {
+  ): Promise<
+    { ok: true; file_id: string | null } | { ok: false; err: CellError }
+  > {
     const trimmed = raw.trim();
     if (!trimmed) {
       if (required) {
@@ -371,8 +371,11 @@ export class HrRecruitmentImportService {
     const passportsInFile = new Map<string, number[]>();
 
     for (let i = 0; i < rowInputs.length; i++) {
-      const { row_index: rowIndex, sheet_row_number: sheetRowNumber, cells } =
-        rowInputs[i];
+      const {
+        row_index: rowIndex,
+        sheet_row_number: sheetRowNumber,
+        cells,
+      } = rowInputs[i];
 
       const errors: CellError[] = [];
       const st = parseStatusCode(cells.status ?? '');
@@ -382,8 +385,7 @@ export class HrRecruitmentImportService {
           field: 'status',
         });
       }
-      const status_code =
-        st?.value ?? RECRUITMENT_STATUS.UNDER_PROCEDURE;
+      const status_code = st?.value ?? RECRUITMENT_STATUS.UNDER_PROCEDURE;
 
       const passportRaw = (cells.passport_no ?? '').trim();
       if (passportRaw) {
@@ -616,7 +618,7 @@ export class HrRecruitmentImportService {
     const rowInputs = parsed.dataRows.map((dr, i) => ({
       row_index: i,
       sheet_row_number: dr.sheetRowNumber,
-      cells: fillImportCells(dr.values as Record<string, string>),
+      cells: fillImportCells(dr.values),
     }));
 
     return this.computePreviewRows(company_id, actor_user_id, rowInputs, {

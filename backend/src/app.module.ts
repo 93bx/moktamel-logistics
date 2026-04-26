@@ -25,6 +25,7 @@ import { SalariesPayrollModule } from './salaries-payroll/salaries-payroll.modul
 import { DocumentsModule } from './documents/documents.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ReportsModule } from './reports/reports.module';
     DocumentsModule,
     DashboardModule,
     ReportsModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [AppService],

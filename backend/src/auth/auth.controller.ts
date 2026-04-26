@@ -54,10 +54,14 @@ export class AuthController {
 
     // Update user with optional name and phone if provided
     if (input.owner_name || input.owner_phone) {
+      const ownerName = (input.owner_name ?? '').trim();
+      const ownerParts = ownerName ? ownerName.split(/\s+/) : [];
+      const first_name = ownerParts.shift() ?? null;
+      const last_name = ownerParts.join(' ') || null;
       await this.prisma.user.update({
         where: { id: result.owner_user_id },
         data: {
-          ...(input.owner_name && { name: input.owner_name }),
+          ...(input.owner_name && { first_name, last_name }),
           ...(input.owner_phone && { phone: input.owner_phone }),
         },
       });

@@ -29,9 +29,7 @@ describe('payroll-tier-constants validation', () => {
 
     it('rejects when not starting at 1', () => {
       expect(
-        validateDeficitTiersStructure([
-          { from: 2, to: 100, deduction: 0 },
-        ]),
+        validateDeficitTiersStructure([{ from: 2, to: 100, deduction: 0 }]),
       ).toBe(false);
     });
 

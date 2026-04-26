@@ -38,7 +38,7 @@ export class SalariesPayrollCalculationService {
    * Progressive stacking deduction calculator.
    * Walks through tiers sequentially, applying each tier's rate to the portion
    * of deficit that falls within that tier's range.
-   * 
+   *
    * @param deficit - Total missing amount (orders or revenue)
    * @param tiers - Sorted array of deduction tiers
    * @param isRevenue - Whether this is revenue (true) or orders (false)
@@ -79,7 +79,11 @@ export class SalariesPayrollCalculationService {
       totalDeduction += excessDeduction;
 
       breakdown.push({
-        tier: { from: lastTier.to + 1, to: 'infinity', rate: lastTier.deduction },
+        tier: {
+          from: lastTier.to + 1,
+          to: 'infinity',
+          rate: lastTier.deduction,
+        },
         applicableAmount: remainingDeficit,
         tierDeduction: excessDeduction,
         note: 'Excess beyond defined tiers',

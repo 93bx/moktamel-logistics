@@ -235,10 +235,14 @@ export class SalariesPayrollService {
       const loansInst = Number((r as any).scheduled_loan_installments ?? 0);
       totalDeductionsAmount += perf + ops + loansInst;
       totalRevenueAmount += Number((r as any).total_revenue ?? 0);
-      totalUncollectedCashAmount += Number((r as any).total_unreceived_cash ?? 0);
+      totalUncollectedCashAmount += Number(
+        (r as any).total_unreceived_cash ?? 0,
+      );
       totalLoansAmount += Number((r as any).total_outstanding_loans ?? 0);
       if ((r as any).status === 'NOT_PAID') {
-        totalSalariesDueAmount += Number((r as any).salary_after_deductions ?? 0);
+        totalSalariesDueAmount += Number(
+          (r as any).salary_after_deductions ?? 0,
+        );
       }
     }
 
@@ -325,9 +329,8 @@ export class SalariesPayrollService {
     if (!employee) throw new NotFoundException('Payroll record not found');
     if (!employee.employee) return employee;
 
-    const { start: monthStart, end: monthEnd } = this.getBoundsFromPayrollRunMonth(
-      employee.payroll_run.month,
-    );
+    const { start: monthStart, end: monthEnd } =
+      this.getBoundsFromPayrollRunMonth(employee.payroll_run.month);
     const configSnapshot = await this.resolveConfigSnapshot(
       company_id,
       employee.payroll_run,
@@ -412,9 +415,8 @@ export class SalariesPayrollService {
       );
     }
 
-    const { start: monthStart, end: monthEnd } = this.getBoundsFromPayrollRunMonth(
-      employee.payroll_run.month,
-    );
+    const { start: monthStart, end: monthEnd } =
+      this.getBoundsFromPayrollRunMonth(employee.payroll_run.month);
     const configSnapshot = await this.resolveConfigSnapshot(
       company_id,
       employee.payroll_run,

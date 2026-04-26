@@ -65,10 +65,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_ACTIVE_TARGET_TYPE');
     });
 
@@ -81,10 +81,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_ACTIVE_ORDERS_TARGET');
     });
 
@@ -98,10 +98,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_ACTIVE_REVENUE_TARGET');
     });
   });
@@ -114,10 +114,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_ACTIVE_DEDUCTION_TYPE');
     });
   });
@@ -133,10 +133,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_REVENUE_REQUIRES_REVENUE_TIERS');
     });
 
@@ -149,10 +149,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_ORDERS_CANNOT_USE_REVENUE_TIERS');
     });
   });
@@ -167,7 +167,7 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).resolves.not.toThrow();
     });
 
@@ -180,7 +180,7 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).resolves.not.toThrow();
     });
 
@@ -194,7 +194,7 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).resolves.not.toThrow();
     });
   });
@@ -207,10 +207,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_SALARY_BELOW_MINIMUM');
     });
 
@@ -221,7 +221,7 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).resolves.not.toThrow();
     });
 
@@ -232,7 +232,7 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).resolves.not.toThrow();
     });
 
@@ -245,10 +245,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_SALARY_BELOW_MINIMUM');
     });
   });
@@ -261,7 +261,7 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -272,10 +272,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow('HR_EMPLOYMENT_ACTIVE_ORDERS_TARGET');
     });
 
@@ -286,7 +286,7 @@ describe('HrEmploymentService - validateActiveStatus', () => {
       };
 
       await expect(
-        service['validateActiveStatus'](data as any, 'c1')
+        service['validateActiveStatus'](data as any, 'c1'),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -322,7 +322,7 @@ describe('HrEmploymentService - validateActiveStatus', () => {
         };
 
         await expect(
-          service['validateActiveStatus'](data as any, 'c1')
+          service['validateActiveStatus'](data as any, 'c1'),
         ).resolves.not.toThrow();
       });
     });
@@ -364,10 +364,10 @@ describe('HrEmploymentService - validateActiveStatus', () => {
         };
 
         await expect(
-          service['validateActiveStatus'](data as any, 'c1')
+          service['validateActiveStatus'](data as any, 'c1'),
         ).rejects.toThrow(BadRequestException);
         await expect(
-          service['validateActiveStatus'](data as any, 'c1')
+          service['validateActiveStatus'](data as any, 'c1'),
         ).rejects.toThrow(combo.expectedError);
       });
     });

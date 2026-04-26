@@ -43,8 +43,7 @@ export class ReportsController {
     @Query('format') format?: string,
     @Query('locale') locale = 'en',
   ) {
-    const normalizedFormat: 'xlsx' | 'pdf' =
-      format === 'pdf' ? 'pdf' : 'xlsx';
+    const normalizedFormat: 'xlsx' | 'pdf' = format === 'pdf' ? 'pdf' : 'xlsx';
     const { buffer, filename, contentType } =
       await this.reportsService.exportReport(
         req.user.company_id,

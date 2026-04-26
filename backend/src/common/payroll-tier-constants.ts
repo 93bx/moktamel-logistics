@@ -143,11 +143,7 @@ export function validateRevenueTiersStructure(
   tiers: DeductionTier[] | null | undefined,
   unitAmount: number | null | undefined,
 ): boolean {
-  if (
-    unitAmount == null ||
-    !Number.isFinite(unitAmount) ||
-    unitAmount <= 0
-  ) {
+  if (unitAmount == null || !Number.isFinite(unitAmount) || unitAmount <= 0) {
     return false;
   }
   if (!validateRevenueBandsStructure(tiers)) {

@@ -5,7 +5,8 @@ const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
 /** Company reminder: approve payroll settings before month end (deduped). */
-export const PAYROLL_MONTH_APPROVAL_DEADLINE_SOON = 'PAYROLL_MONTH_APPROVAL_DEADLINE_SOON';
+export const PAYROLL_MONTH_APPROVAL_DEADLINE_SOON =
+  'PAYROLL_MONTH_APPROVAL_DEADLINE_SOON';
 
 export type NotificationItem = {
   id: string;
@@ -254,10 +255,7 @@ export class NotificationsService {
         payroll_year?: number;
         payroll_month?: number;
       };
-      if (
-        p.payroll_year === params.year &&
-        p.payroll_month === params.month
-      ) {
+      if (p.payroll_year === params.year && p.payroll_month === params.month) {
         await this.updatePayload(existing.id, params.company_id, payload);
         return;
       }

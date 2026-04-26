@@ -2,7 +2,11 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { REPORTS_REGISTRY } from './reports.registry';
-import { ReportCatalogItem, ReportDataResponse, ReportExportFormat } from './reports.types';
+import {
+  ReportCatalogItem,
+  ReportDataResponse,
+  ReportExportFormat,
+} from './reports.types';
 import { ReportsExcelService } from './reports-excel.service';
 import { ReportsPdfService } from './reports-pdf.service';
 import { AuditService } from '../audit/audit.service';
@@ -39,7 +43,7 @@ export class ReportsService {
       key,
       summary: { rows: rows.length },
       columns,
-      rows: filteredRows as Array<Record<string, string | number | boolean | null>>,
+      rows: filteredRows,
       totalRows: rows.length,
       appliedFilters: filters,
     };
@@ -103,7 +107,11 @@ export class ReportsService {
             take,
             include: {
               employment_record: {
-                select: { employee_code: true, full_name_ar: true, full_name_en: true },
+                select: {
+                  employee_code: true,
+                  full_name_ar: true,
+                  full_name_en: true,
+                },
               },
             },
           }),
@@ -148,7 +156,13 @@ export class ReportsService {
           take,
           include: {
             payroll_run: { select: { month: true, status: true } },
-            employee: { select: { employee_code: true, full_name_ar: true, full_name_en: true } },
+            employee: {
+              select: {
+                employee_code: true,
+                full_name_ar: true,
+                full_name_en: true,
+              },
+            },
           },
         }) as any;
       case 'employees':
@@ -168,7 +182,11 @@ export class ReportsService {
           take,
           include: {
             current_driver: {
-              select: { employee_code: true, full_name_ar: true, full_name_en: true },
+              select: {
+                employee_code: true,
+                full_name_ar: true,
+                full_name_en: true,
+              },
             },
           },
         }) as any;
@@ -192,7 +210,11 @@ export class ReportsService {
           include: {
             asset: true,
             employment_record: {
-              select: { employee_code: true, full_name_ar: true, full_name_en: true },
+              select: {
+                employee_code: true,
+                full_name_ar: true,
+                full_name_en: true,
+              },
             },
           },
         }) as any;
@@ -204,7 +226,10 @@ export class ReportsService {
   }
 
   private resolveRange(filters: Record<string, unknown>) {
-    if (typeof filters.date_from === 'string' || typeof filters.date_to === 'string') {
+    if (
+      typeof filters.date_from === 'string' ||
+      typeof filters.date_to === 'string'
+    ) {
       const dateFrom =
         typeof filters.date_from === 'string'
           ? new Date(filters.date_from)
@@ -215,7 +240,10 @@ export class ReportsService {
           : new Date();
       return { from: dateFrom, to: dateTo };
     }
-    if (typeof filters.month === 'string' && /^\d{4}-\d{2}$/.test(filters.month)) {
+    if (
+      typeof filters.month === 'string' &&
+      /^\d{4}-\d{2}$/.test(filters.month)
+    ) {
       const [y, m] = filters.month.split('-').map(Number);
       return {
         from: new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0)),
@@ -223,7 +251,9 @@ export class ReportsService {
       };
     }
     const dateFrom =
-      typeof filters.date_from === 'string' ? new Date(filters.date_from) : null;
+      typeof filters.date_from === 'string'
+        ? new Date(filters.date_from)
+        : null;
     const dateTo =
       typeof filters.date_to === 'string' ? new Date(filters.date_to) : null;
     return {
@@ -248,7 +278,11 @@ export class ReportsService {
       Prisma.DailyOperationGetPayload<{
         include: {
           employment_record: {
-            select: { employee_code: true; full_name_ar: true; full_name_en: true };
+            select: {
+              employee_code: true;
+              full_name_ar: true;
+              full_name_en: true;
+            };
           };
         };
       }>
@@ -275,7 +309,12 @@ export class ReportsService {
     }));
   }
 
-  private async getEmployeePerformance(companyId: string, from: Date, to: Date, take: number) {
+  private async getEmployeePerformance(
+    companyId: string,
+    from: Date,
+    to: Date,
+    take: number,
+  ) {
     const grouped = await this.prisma.dailyOperation.groupBy({
       by: ['employment_record_id'],
       where: { company_id: companyId, date: { gte: from, lte: to } },
@@ -286,7 +325,12 @@ export class ReportsService {
     const ids = grouped.map((g) => g.employment_record_id);
     const employees = await this.prisma.employmentRecord.findMany({
       where: { id: { in: ids } },
-      select: { id: true, employee_code: true, full_name_ar: true, full_name_en: true },
+      select: {
+        id: true,
+        employee_code: true,
+        full_name_ar: true,
+        full_name_en: true,
+      },
     });
     const byId = new Map(employees.map((e) => [e.id, e]));
     return grouped.map((g, i) => {
@@ -305,7 +349,11 @@ export class ReportsService {
   private async getPlatformDistribution(companyId: string, take: number) {
     const grouped = await this.prisma.employmentRecord.groupBy({
       by: ['assigned_platform'],
-      where: { company_id: companyId, deleted_at: null, status_code: 'EMPLOYMENT_STATUS_ACTIVE' },
+      where: {
+        company_id: companyId,
+        deleted_at: null,
+        status_code: 'EMPLOYMENT_STATUS_ACTIVE',
+      },
       _count: { assigned_platform: true },
       orderBy: { _count: { assigned_platform: 'desc' } },
     });
@@ -315,29 +363,65 @@ export class ReportsService {
     }));
   }
 
-  private async getWorkingDaysReport(companyId: string, from: Date, to: Date, take: number) {
+  private async getWorkingDaysReport(
+    companyId: string,
+    from: Date,
+    to: Date,
+    take: number,
+  ) {
     const employees = await this.prisma.employmentRecord.findMany({
-      where: { company_id: companyId, deleted_at: null, status_code: 'EMPLOYMENT_STATUS_ACTIVE' },
-      select: { id: true, employee_code: true, full_name_ar: true, full_name_en: true, work_days: true, day_work_hours: true },
+      where: {
+        company_id: companyId,
+        deleted_at: null,
+        status_code: 'EMPLOYMENT_STATUS_ACTIVE',
+      },
+      select: {
+        id: true,
+        employee_code: true,
+        full_name_ar: true,
+        full_name_en: true,
+        work_days: true,
+        day_work_hours: true,
+      },
       take,
     });
     const ops = await this.prisma.dailyOperation.findMany({
-      where: { company_id: companyId, date: { gte: from, lte: to }, employment_record_id: { in: employees.map((e) => e.id) } },
+      where: {
+        company_id: companyId,
+        date: { gte: from, lte: to },
+        employment_record_id: { in: employees.map((e) => e.id) },
+      },
       select: { employment_record_id: true, date: true, work_hours: true },
     });
-    const byEmp = new Map<string, { actualDays: Set<string>; actualHours: number }>();
+    const byEmp = new Map<
+      string,
+      { actualDays: Set<string>; actualHours: number }
+    >();
     for (const op of ops) {
-      const entry = byEmp.get(op.employment_record_id) ?? { actualDays: new Set<string>(), actualHours: 0 };
+      const entry = byEmp.get(op.employment_record_id) ?? {
+        actualDays: new Set<string>(),
+        actualHours: 0,
+      };
       entry.actualDays.add(op.date.toISOString().slice(0, 10));
       entry.actualHours += Number(op.work_hours ?? 0);
       byEmp.set(op.employment_record_id, entry);
     }
-    const totalDays = Math.max(1, Math.floor((to.getTime() - from.getTime()) / 86400000) + 1);
+    const totalDays = Math.max(
+      1,
+      Math.floor((to.getTime() - from.getTime()) / 86400000) + 1,
+    );
     return employees.map((e) => {
-      const workDays = Array.isArray(e.work_days) ? (e.work_days as string[]) : [];
-      const expectedDays = Math.round((totalDays * Math.max(workDays.length, 1)) / 7);
+      const workDays = Array.isArray(e.work_days)
+        ? (e.work_days as string[])
+        : [];
+      const expectedDays = Math.round(
+        (totalDays * Math.max(workDays.length, 1)) / 7,
+      );
       const expectedHours = expectedDays * Number(e.day_work_hours ?? 8);
-      const actual = byEmp.get(e.id) ?? { actualDays: new Set<string>(), actualHours: 0 };
+      const actual = byEmp.get(e.id) ?? {
+        actualDays: new Set<string>(),
+        actualHours: 0,
+      };
       return {
         employee_code: e.employee_code ?? '',
         employee_name: e.full_name_en ?? e.full_name_ar ?? '',
@@ -349,7 +433,12 @@ export class ReportsService {
     });
   }
 
-  private async getTipsAndDeductions(companyId: string, from: Date, to: Date, take: number) {
+  private async getTipsAndDeductions(
+    companyId: string,
+    from: Date,
+    to: Date,
+    take: number,
+  ) {
     const grouped = await this.prisma.dailyOperation.groupBy({
       by: ['employment_record_id'],
       where: { company_id: companyId, date: { gte: from, lte: to } },
@@ -359,7 +448,12 @@ export class ReportsService {
     });
     const emps = await this.prisma.employmentRecord.findMany({
       where: { id: { in: grouped.map((g) => g.employment_record_id) } },
-      select: { id: true, employee_code: true, full_name_ar: true, full_name_en: true },
+      select: {
+        id: true,
+        employee_code: true,
+        full_name_ar: true,
+        full_name_en: true,
+      },
     });
     const byId = new Map(emps.map((e) => [e.id, e]));
     return grouped.map((g) => {
@@ -373,24 +467,45 @@ export class ReportsService {
     });
   }
 
-  private async getRevenueReport(companyId: string, from: Date, to: Date, take: number) {
+  private async getRevenueReport(
+    companyId: string,
+    from: Date,
+    to: Date,
+    take: number,
+  ) {
     const rows = await this.prisma.dailyOperation.findMany({
       where: { company_id: companyId, date: { gte: from, lte: to } },
       orderBy: { date: 'desc' },
-      include: { employment_record: { select: { employee_code: true, full_name_ar: true, full_name_en: true } } },
+      include: {
+        employment_record: {
+          select: {
+            employee_code: true,
+            full_name_ar: true,
+            full_name_en: true,
+          },
+        },
+      },
       take,
     });
     return rows.map((r) => ({
       date: r.date.toISOString().slice(0, 10),
       platform: r.platform,
       employee_code: r.employment_record.employee_code ?? '',
-      employee_name: r.employment_record.full_name_en ?? r.employment_record.full_name_ar ?? '',
+      employee_name:
+        r.employment_record.full_name_en ??
+        r.employment_record.full_name_ar ??
+        '',
       orders_count: r.orders_count,
       total_revenue: Number(r.total_revenue),
     }));
   }
 
-  private async getCostsReport(companyId: string, from: Date, to: Date, take: number) {
+  private async getCostsReport(
+    companyId: string,
+    from: Date,
+    to: Date,
+    take: number,
+  ) {
     const rows = await this.prisma.cost.findMany({
       where: { company_id: companyId, is_deleted: false },
       orderBy: { created_at: 'desc' },
@@ -406,8 +521,14 @@ export class ReportsService {
       const net = Number(r.net_amount);
       let estimated = 0;
       if (r.recurrence_code === 'MONTHLY') estimated = net * monthCount;
-      else if (r.recurrence_code === 'YEARLY') estimated = (net / 12) * monthCount;
-      else if (r.one_time_date && r.one_time_date >= from && r.one_time_date <= to) estimated = net;
+      else if (r.recurrence_code === 'YEARLY')
+        estimated = (net / 12) * monthCount;
+      else if (
+        r.one_time_date &&
+        r.one_time_date >= from &&
+        r.one_time_date <= to
+      )
+        estimated = net;
       return {
         name: r.name,
         type_code: r.type_code,
@@ -418,7 +539,12 @@ export class ReportsService {
     });
   }
 
-  private async getCashReport(companyId: string, from: Date, to: Date, take: number) {
+  private async getCashReport(
+    companyId: string,
+    from: Date,
+    to: Date,
+    take: number,
+  ) {
     const rows = await this.prisma.dailyOperation.findMany({
       where: { company_id: companyId, date: { gte: from, lte: to } },
       orderBy: { date: 'desc' },
@@ -432,14 +558,33 @@ export class ReportsService {
     }));
   }
 
-  private async getAttendanceReport(companyId: string, from: Date, to: Date, take: number) {
+  private async getAttendanceReport(
+    companyId: string,
+    from: Date,
+    to: Date,
+    take: number,
+  ) {
     const employees = await this.prisma.employmentRecord.findMany({
-      where: { company_id: companyId, deleted_at: null, status_code: 'EMPLOYMENT_STATUS_ACTIVE' },
-      select: { id: true, employee_code: true, full_name_ar: true, full_name_en: true, work_days: true },
+      where: {
+        company_id: companyId,
+        deleted_at: null,
+        status_code: 'EMPLOYMENT_STATUS_ACTIVE',
+      },
+      select: {
+        id: true,
+        employee_code: true,
+        full_name_ar: true,
+        full_name_en: true,
+        work_days: true,
+      },
       take,
     });
     const ops = await this.prisma.dailyOperation.findMany({
-      where: { company_id: companyId, date: { gte: from, lte: to }, employment_record_id: { in: employees.map((e) => e.id) } },
+      where: {
+        company_id: companyId,
+        date: { gte: from, lte: to },
+        employment_record_id: { in: employees.map((e) => e.id) },
+      },
       select: { employment_record_id: true, date: true },
     });
     const actualByEmp = new Map<string, Set<string>>();
@@ -448,10 +593,17 @@ export class ReportsService {
       s.add(op.date.toISOString().slice(0, 10));
       actualByEmp.set(op.employment_record_id, s);
     }
-    const totalDays = Math.max(1, Math.floor((to.getTime() - from.getTime()) / 86400000) + 1);
+    const totalDays = Math.max(
+      1,
+      Math.floor((to.getTime() - from.getTime()) / 86400000) + 1,
+    );
     return employees.map((e) => {
-      const workDays = Array.isArray(e.work_days) ? (e.work_days as string[]) : [];
-      const expected = Math.round((totalDays * Math.max(workDays.length, 1)) / 7);
+      const workDays = Array.isArray(e.work_days)
+        ? (e.work_days as string[])
+        : [];
+      const expected = Math.round(
+        (totalDays * Math.max(workDays.length, 1)) / 7,
+      );
       const actual = actualByEmp.get(e.id)?.size ?? 0;
       return {
         employee_code: e.employee_code ?? '',
@@ -468,14 +620,22 @@ export class ReportsService {
       where: { company_id: companyId, deleted_at: null },
       orderBy: { created_at: 'desc' },
       take,
-      select: { employee_code: true, full_name_ar: true, full_name_en: true, contract_no: true, contract_end_at: true },
+      select: {
+        employee_code: true,
+        full_name_ar: true,
+        full_name_en: true,
+        contract_no: true,
+        contract_end_at: true,
+      },
     });
     const now = new Date();
     return rows.map((r) => ({
       employee_code: r.employee_code ?? '',
       employee_name: r.full_name_en ?? r.full_name_ar ?? '',
       contract_no: r.contract_no ?? '',
-      contract_end_at: r.contract_end_at ? r.contract_end_at.toISOString() : null,
+      contract_end_at: r.contract_end_at
+        ? r.contract_end_at.toISOString()
+        : null,
       bucket: this.expiryBucket(r.contract_end_at, now),
     }));
   }
@@ -495,16 +655,41 @@ export class ReportsService {
       }),
       this.prisma.vehicleDocument.findMany({
         where: { company_id: companyId },
-        select: { vehicle_id: true, type_code: true, expiry_date: true, number: true },
+        select: {
+          vehicle_id: true,
+          type_code: true,
+          expiry_date: true,
+          number: true,
+        },
         take,
       }),
     ]);
     const now = new Date();
     const employeeDocs = employees.flatMap((e) => [
-      { owner: e.employee_code ?? '', document_type: 'CONTRACT', expiry_at: e.contract_end_at, bucket: this.expiryBucket(e.contract_end_at, now) },
-      { owner: e.employee_code ?? '', document_type: 'IQAMA', expiry_at: e.iqama_expiry_at, bucket: this.expiryBucket(e.iqama_expiry_at, now) },
-      { owner: e.employee_code ?? '', document_type: 'PASSPORT', expiry_at: e.passport_expiry_at, bucket: this.expiryBucket(e.passport_expiry_at, now) },
-      { owner: e.employee_code ?? '', document_type: 'LICENSE', expiry_at: e.license_expiry_at, bucket: this.expiryBucket(e.license_expiry_at, now) },
+      {
+        owner: e.employee_code ?? '',
+        document_type: 'CONTRACT',
+        expiry_at: e.contract_end_at,
+        bucket: this.expiryBucket(e.contract_end_at, now),
+      },
+      {
+        owner: e.employee_code ?? '',
+        document_type: 'IQAMA',
+        expiry_at: e.iqama_expiry_at,
+        bucket: this.expiryBucket(e.iqama_expiry_at, now),
+      },
+      {
+        owner: e.employee_code ?? '',
+        document_type: 'PASSPORT',
+        expiry_at: e.passport_expiry_at,
+        bucket: this.expiryBucket(e.passport_expiry_at, now),
+      },
+      {
+        owner: e.employee_code ?? '',
+        document_type: 'LICENSE',
+        expiry_at: e.license_expiry_at,
+        bucket: this.expiryBucket(e.license_expiry_at, now),
+      },
     ]);
     const vehicleDocs = vehicles.map((v) => ({
       owner: v.vehicle_id,

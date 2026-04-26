@@ -324,7 +324,8 @@ describe('SalariesPayrollCalculationService', () => {
 
       const result = service.calculate(input);
       expect(result.totalDeductions).toBe(5125);
-      const br = result.calculationDetails.performanceDeductionBreakdown[0].breakdown;
+      const br =
+        result.calculationDetails.performanceDeductionBreakdown[0].breakdown;
       const last = br[br.length - 1];
       expect(last.tier.to).toBe('infinity');
       expect(last.tier.from).toBe(1);

@@ -9,12 +9,15 @@
  * Returns UTC Date objects representing:
  * - start: 00:00:00.000 on the 1st day of the month in Asia/Riyadh
  * - end: 23:59:59.999 on the last day of the month in Asia/Riyadh
- * 
+ *
  * @param year - The year (e.g., 2024)
  * @param month - The month (1-12)
  * @returns Object with start and end Date objects in UTC
  */
-export function getKSAMonthBounds(year: number, month: number): {
+export function getKSAMonthBounds(
+  year: number,
+  month: number,
+): {
   start: Date;
   end: Date;
 } {
@@ -28,7 +31,8 @@ export function getKSAMonthBounds(year: number, month: number): {
   // Start of month in KSA: YYYY-MM-01 00:00:00 Asia/Riyadh
   // Convert to UTC by subtracting the offset
   const startUTC = new Date(
-    Date.UTC(year, month - 1, 1, 0, 0, 0, 0) - KSA_OFFSET_HOURS * 60 * 60 * 1000
+    Date.UTC(year, month - 1, 1, 0, 0, 0, 0) -
+      KSA_OFFSET_HOURS * 60 * 60 * 1000,
   );
 
   // End of month in KSA: last day 23:59:59.999 Asia/Riyadh
@@ -36,7 +40,7 @@ export function getKSAMonthBounds(year: number, month: number): {
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const endUTC = new Date(
     Date.UTC(year, month - 1, lastDay, 23, 59, 59, 999) -
-      KSA_OFFSET_HOURS * 60 * 60 * 1000
+      KSA_OFFSET_HOURS * 60 * 60 * 1000,
   );
 
   return { start: startUTC, end: endUTC };
@@ -45,7 +49,7 @@ export function getKSAMonthBounds(year: number, month: number): {
 /**
  * Get the normalized first-of-month Date for a given year/month in KSA timezone.
  * This is used as the canonical month identifier in PayrollRun.month.
- * 
+ *
  * @param year - The year
  * @param month - The month (1-12)
  * @returns Date object representing 00:00:00 UTC on the 1st of the month in KSA
@@ -58,7 +62,7 @@ export function getKSAMonthIdentifier(year: number, month: number): Date {
 
 /**
  * Get the current month and year in KSA timezone.
- * 
+ *
  * @returns Object with year and month (1-12) in KSA timezone
  */
 export function getCurrentKSAMonth(): { year: number; month: number } {

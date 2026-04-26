@@ -264,7 +264,12 @@ export class HrEmploymentService {
       actorIds.length > 0
         ? await this.prisma.user.findMany({
             where: { id: { in: actorIds } },
-            select: { id: true, name: true, email: true },
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email: true,
+            },
           })
         : [];
     const userById = new Map(users.map((u) => [u.id, u]));
@@ -277,7 +282,10 @@ export class HrEmploymentService {
         created_at: log.created_at,
         actor_user_id: log.actor_user_id,
         actor_role: log.actor_role,
-        actor_display: u?.name?.trim() || u?.email || null,
+        actor_display:
+          [u?.first_name, u?.last_name].filter(Boolean).join(' ').trim() ||
+          u?.email ||
+          null,
       };
     });
 
@@ -572,7 +580,14 @@ export class HrEmploymentService {
         work_days:
           Array.isArray(data.work_days) && data.work_days.length > 0
             ? data.work_days
-            : ['SATURDAY', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY'],
+            : [
+                'SATURDAY',
+                'SUNDAY',
+                'MONDAY',
+                'TUESDAY',
+                'WEDNESDAY',
+                'THURSDAY',
+              ],
       },
     });
 

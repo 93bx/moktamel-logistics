@@ -331,6 +331,62 @@
       }
     }
   },
+  "profile": {
+    "title": "الملف الشخصي",
+    "subtitle": "إدارة بيانات حسابك وإعدادات الأمان.",
+    "userInfo": {
+      "title": "بيانات المستخدم",
+      "profilePicture": "الصورة الشخصية",
+      "uploadProfilePicture": "رفع الصورة الشخصية",
+      "firstName": "الاسم الأول",
+      "lastName": "اسم العائلة",
+      "email": "البريد الإلكتروني",
+      "phone": "رقم الهاتف",
+      "role": "الدور"
+    },
+    "companyInfo": {
+      "title": "بيانات الشركة",
+      "logo": "شعار الشركة",
+      "name": "اسم الشركة",
+      "email": "بريد الشركة الإلكتروني",
+      "address": "عنوان الشركة"
+    },
+    "password": {
+      "title": "تغيير كلمة المرور",
+      "currentPassword": "كلمة المرور الحالية",
+      "newPassword": "كلمة المرور الجديدة",
+      "confirmPassword": "تأكيد كلمة المرور الجديدة",
+      "submit": "تغيير كلمة المرور"
+    },
+    "history": {
+      "title": "السجل",
+      "subtitle": "آخر نشاطات الأمان والحساب (آخر 10 أحداث).",
+      "empty": "لا يوجد نشاط حديث.",
+      "actorUnknown": "مستخدم غير معروف",
+      "actions": {
+        "AUTH_LOGIN_SUCCESS": "تم تسجيل الدخول بنجاح",
+        "AUTH_LOGIN_FAILED": "فشل تسجيل الدخول",
+        "PROFILE_PASSWORD_CHANGED": "تم تغيير كلمة المرور",
+        "PROFILE_USER_INFO_UPDATED": "تم تحديث بيانات الملف الشخصي"
+      }
+    },
+    "messages": {
+      "profileSaved": "تم حفظ بيانات الملف الشخصي بنجاح.",
+      "passwordChanged": "تم تغيير كلمة المرور بنجاح.",
+      "avatarUploaded": "تم رفع الصورة الشخصية. اضغط حفظ لتطبيقها."
+    },
+    "errors": {
+      "saveProfileFailed": "تعذر حفظ بيانات الملف الشخصي.",
+      "passwordChangeFailed": "تعذر تغيير كلمة المرور.",
+      "avatarUploadFailed": "تعذر رفع الصورة الشخصية.",
+      "avatarInvalidType": "يُسمح فقط بملفات الصور للصورة الشخصية.",
+      "avatarTooLarge": "يجب أن يكون حجم الصورة الشخصية 5 ميجابايت أو أقل.",
+      "firstNameTooShort": "يجب أن يكون الاسم الأول حرفين على الأقل.",
+      "lastNameTooShort": "يجب أن يكون اسم العائلة حرفين على الأقل.",
+      "phoneInvalid": "رقم الهاتف يجب أن يكون 9 أرقام بالضبط.",
+      "fixValidationErrors": "يرجى تصحيح أخطاء التحقق قبل الحفظ."
+    }
+  },
   "common": {
     "language": "اللغة",
     "english": "الإنجليزية",

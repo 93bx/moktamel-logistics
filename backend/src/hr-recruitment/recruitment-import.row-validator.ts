@@ -7,7 +7,9 @@ import {
 
 export type NormalizedImportRow = {
   row_index: number;
-  status_code: typeof RECRUITMENT_STATUS.DRAFT | typeof RECRUITMENT_STATUS.UNDER_PROCEDURE;
+  status_code:
+    | typeof RECRUITMENT_STATUS.DRAFT
+    | typeof RECRUITMENT_STATUS.UNDER_PROCEDURE;
   full_name_ar: string;
   full_name_en: string;
   nationality: string;

@@ -124,8 +124,9 @@ export class FilesService {
     original_name: string;
     mime_type: string;
   }): Promise<string> {
-    const max =
-      Number(this.config.get<string>('FILES_MAX_BYTES') ?? 20 * 1024 * 1024);
+    const max = Number(
+      this.config.get<string>('FILES_MAX_BYTES') ?? 20 * 1024 * 1024,
+    );
     if (input.buffer.length <= 0 || input.buffer.length > max) {
       throw new BadRequestException('Invalid file size');
     }
@@ -144,11 +145,7 @@ export class FilesService {
       select: { id: true },
     });
 
-    const object_key = this.key(
-      input.company_id,
-      file.id,
-      input.original_name,
-    );
+    const object_key = this.key(input.company_id, file.id, input.original_name);
     await this.prisma.fileObject.update({
       where: { id: file.id },
       data: { object_key },

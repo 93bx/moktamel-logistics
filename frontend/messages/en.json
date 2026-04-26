@@ -330,6 +330,62 @@
       }
     }
   },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Manage your account details and security settings.",
+    "userInfo": {
+      "title": "User Info",
+      "profilePicture": "Profile Picture",
+      "uploadProfilePicture": "Upload Profile Picture",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email Address",
+      "phone": "Phone Number",
+      "role": "Role"
+    },
+    "companyInfo": {
+      "title": "Company Info",
+      "logo": "Company Logo Picture",
+      "name": "Company Name",
+      "email": "Company Email",
+      "address": "Company Address"
+    },
+    "password": {
+      "title": "Password Change",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm New Password",
+      "submit": "Change Password"
+    },
+    "history": {
+      "title": "History",
+      "subtitle": "Latest security and account activity (last 10 events).",
+      "empty": "No recent activity found.",
+      "actorUnknown": "Unknown actor",
+      "actions": {
+        "AUTH_LOGIN_SUCCESS": "Login successful",
+        "AUTH_LOGIN_FAILED": "Login failed",
+        "PROFILE_PASSWORD_CHANGED": "Password changed",
+        "PROFILE_USER_INFO_UPDATED": "Profile info updated"
+      }
+    },
+    "messages": {
+      "profileSaved": "Profile information saved successfully.",
+      "passwordChanged": "Password changed successfully.",
+      "avatarUploaded": "Profile picture uploaded. Click save to apply."
+    },
+    "errors": {
+      "saveProfileFailed": "Could not save profile information.",
+      "passwordChangeFailed": "Could not change password.",
+      "avatarUploadFailed": "Could not upload profile picture.",
+      "avatarInvalidType": "Only image files are allowed for profile picture.",
+      "avatarTooLarge": "Profile picture must be 5 MB or smaller.",
+      "firstNameTooShort": "First name must be at least 2 characters.",
+      "lastNameTooShort": "Last name must be at least 2 characters.",
+      "phoneInvalid": "Phone number must be exactly 9 digits.",
+      "fixValidationErrors": "Please fix validation errors before saving."
+    }
+  },
   "common": {
     "language": "Language",
     "english": "English",

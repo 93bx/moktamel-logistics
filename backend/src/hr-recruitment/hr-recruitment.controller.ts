@@ -207,11 +207,7 @@ export class HrRecruitmentController {
     @Req() req: Request & { user?: any },
     @Body() body: unknown,
   ) {
-    return this.importSvc.commitImport(
-      req.user.company_id,
-      req.user.sub,
-      body,
-    );
+    return this.importSvc.commitImport(req.user.company_id, req.user.sub, body);
   }
 
   @Post('candidates/import/validate-rows')
