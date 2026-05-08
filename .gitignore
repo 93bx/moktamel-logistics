@@ -151,3 +151,4 @@ secrets/
 docs/generated/
 docs
 backend/package-lock.json
+frontend/package-lock.json
