@@ -42,13 +42,13 @@ export function CurrencyWithRiyal({
   const valueClasses = amountClassName ? `tabular-nums ${amountClassName}` : "tabular-nums";
 
   return (
-    <span className={wrapperClasses}>
+    <span className={wrapperClasses} dir="ltr">
       <RiyalSymbol
         size={symbolSizeMap[symbolSize]}
         className={symbolClassName}
         decorative={decorativeSymbol}
       />
-      <span className={valueClasses}>{amountText}</span>
+      <span className={valueClasses} style={{ unicodeBidi: "isolate" }}>{amountText}</span>
     </span>
   );
 }

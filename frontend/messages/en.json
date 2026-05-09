@@ -172,7 +172,6 @@
     "minimumSalaryError": "Salary must be at least the company minimum",
     "addToEmployment": "Add to Employment",
     "newEmployee": "New Employee",
-    "newEmployeesMultiple": "New Employees (Multiple)",
     "officialDocuments": "Official Documents",
     "operatingData": "Operating Data",
     "salaryTargetInfo": "Salary & target info",
